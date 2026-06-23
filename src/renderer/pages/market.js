@@ -661,36 +661,31 @@ async function detectLocalRuntimes() {
 
 // ==================== 模型大市场 ====================
 
-// 主流下载平台
+// 下载平台（全部来自魔搭社区）
 const marketPlatforms = [
-  { id: 'ollama', name: 'Ollama Library', icon: '🦙', color: '#00d9ff', desc: '一键 pull，最便捷', url: 'https://ollama.com/library' },
-  { id: 'huggingface', name: 'HuggingFace', icon: '🤗', color: '#ff9f0a', desc: '全球最大开源模型社区', url: 'https://huggingface.co/models?sort=trending' },
-  { id: 'modelscope', name: 'ModelScope', icon: '🔴', color: '#ff3b30', desc: '国内高速下载，魔搭社区', url: 'https://modelscope.cn/models' },
-  { id: 'hf-mirror', name: 'HF 镜像站', icon: '🪞', color: '#5856d6', desc: '国内 HuggingFace 镜像', url: 'https://hf-mirror.com/models' },
+  { id: 'modelscope', name: 'ModelScope 魔搭社区', icon: '🔴', color: '#ff3b30', desc: '国内主流开源模型平台，高速下载', url: 'https://modelscope.cn/models' },
+  { id: 'ollama', name: 'Ollama Library', icon: '🦙', color: '#00d9ff', desc: '一键 ollama pull，最便捷', url: 'https://ollama.com/library' },
 ];
 
-// 预置热门本地模型库（人工维护，用户可参考）
+// 预置热门本地模型库（全部来源魔搭社区，按硬件自动筛选）
 const localModelDB = [
-  { name: 'Qwen2.5-7B-Instruct', family: 'Qwen', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','代码','推理'], downloads: 850000, source: 'modelscope', license: 'Apache-2.0', desc: '阿里通义千问，中英双语，代码能力强' },
-  { name: 'Qwen2.5-14B-Instruct', family: 'Qwen', params: '14B', ram: 12, gpu: 8, category: 'chat', tags: ['中文','代码','推理'], downloads: 420000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问中杯，综合能力均衡' },
-  { name: 'Qwen2.5-72B-Instruct', family: 'Qwen', params: '72B', ram: 48, gpu: 24, category: 'chat', tags: ['中文','旗舰'], downloads: 310000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问旗舰，接近 GPT-4 水平' },
-  { name: 'DeepSeek-V3', family: 'DeepSeek', params: '671B MoE', ram: 48, gpu: 24, category: 'chat', tags: ['中文','代码','MoE'], downloads: 520000, source: 'modelscope', license: 'MIT', desc: '深度求索 V3，MoE 架构，极高性价比' },
-  { name: 'DeepSeek-R1-Distill-Qwen-7B', family: 'DeepSeek', params: '7B', ram: 6, gpu: 0, category: 'reasoning', tags: ['推理','蒸馏','数学'], downloads: 680000, source: 'huggingface', license: 'MIT', desc: 'R1 蒸馏版，推理能力远超同参数模型' },
-  { name: 'DeepSeek-Coder-V2-Lite', family: 'DeepSeek', params: '16B', ram: 12, gpu: 8, category: 'code', tags: ['代码','编程'], downloads: 290000, source: 'huggingface', license: 'MIT', desc: '代码专用，支持 300+ 编程语言' },
-  { name: 'Llama-3.1-8B-Instruct', family: 'Llama', params: '8B', ram: 6, gpu: 0, category: 'chat', tags: ['英文','通用'], downloads: 1200000, source: 'huggingface', license: 'Llama-3.1', desc: 'Meta 开源，英文能力顶尖' },
-  { name: 'Llama-3.1-70B-Instruct', family: 'Llama', params: '70B', ram: 48, gpu: 24, category: 'chat', tags: ['英文','旗舰'], downloads: 650000, source: 'huggingface', license: 'Llama-3.1', desc: 'Meta 旗舰开源模型' },
-  { name: 'Mistral-7B-Instruct-v0.3', family: 'Mistral', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['英文','快速'], downloads: 980000, source: 'huggingface', license: 'Apache-2.0', desc: 'Mistral 出品，小巧高效' },
-  { name: 'Mixtral-8x7B-Instruct', family: 'Mistral', params: '8x7B MoE', ram: 32, gpu: 16, category: 'chat', tags: ['MoE','多语言'], downloads: 560000, source: 'huggingface', license: 'Apache-2.0', desc: 'MoE 架构，性能接近 Llama-70B' },
-  { name: 'Yi-1.5-9B-Chat', family: 'Yi', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','英文','通用'], downloads: 180000, source: 'modelscope', license: 'Apache-2.0', desc: '零一万物出品，中英双语' },
-  { name: 'GLM-4-9B-Chat', family: 'GLM', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','工具调用'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱 AI，擅长工具调用和 Agent' },
-  { name: 'InternLM2.5-7B-Chat', family: 'InternLM', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','数学','推理'], downloads: 210000, source: 'modelscope', license: 'Apache-2.0', desc: '上海 AI Lab，数学推理强' },
-  { name: 'Phi-3.5-mini-instruct', family: 'Phi', params: '3.8B', ram: 4, gpu: 0, category: 'chat', tags: ['轻量','端侧','快速'], downloads: 750000, source: 'huggingface', license: 'MIT', desc: '微软出品，极小模型但能力惊人' },
-  { name: 'Gemma-2-9B-IT', family: 'Gemma', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['英文','快速'], downloads: 440000, source: 'huggingface', license: 'Gemma', desc: 'Google 出品，轻量高效' },
-  { name: 'CodeLlama-7B-Instruct', family: 'Llama', params: '7B', ram: 6, gpu: 0, category: 'code', tags: ['代码','编程'], downloads: 520000, source: 'huggingface', license: 'Llama-2', desc: 'Meta 代码专用模型' },
-  { name: 'StarCoder2-7B', family: 'StarCoder', params: '7B', ram: 6, gpu: 0, category: 'code', tags: ['代码','开源'], downloads: 280000, source: 'huggingface', license: 'BigCode', desc: 'BigCode 社区代码模型' },
-  { name: 'ChatGLM3-6B', family: 'GLM', params: '6B', ram: 5, gpu: 0, category: 'chat', tags: ['中文','轻量','经典'], downloads: 1500000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱经典中文模型，社区生态丰富' },
-  { name: 'Baichuan2-7B-Chat', family: 'Baichuan', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','通用'], downloads: 340000, source: 'modelscope', license: 'Apache-2.0', desc: '百川智能，中文理解优秀' },
-  { name: 'MiniCPM-2B', family: 'MiniCPM', params: '2.4B', ram: 3, gpu: 0, category: 'chat', tags: ['端侧','极轻量','中文'], downloads: 410000, source: 'modelscope', license: 'Apache-2.0', desc: '面壁小钢炮，手机可跑' },
+  { name: 'Qwen2.5-0.5B-Instruct', family: 'Qwen', params: '0.5B', ram: 1, gpu: 0, category: 'chat', tags: ['中文','极轻量','端侧'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问超轻量版，手机/嵌入式可跑', msPath: 'qwen/Qwen2.5-0.5B-Instruct' },
+  { name: 'Qwen2.5-1.5B-Instruct', family: 'Qwen', params: '1.5B', ram: 2, gpu: 0, category: 'chat', tags: ['中文','轻量'], downloads: 480000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问轻量版，低配设备友好', msPath: 'qwen/Qwen2.5-1.5B-Instruct' },
+  { name: 'Qwen2.5-3B-Instruct', family: 'Qwen', params: '3B', ram: 3, gpu: 0, category: 'chat', tags: ['中文','轻量','均衡'], downloads: 350000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问小杯，轻量与能力的平衡点', msPath: 'qwen/Qwen2.5-3B-Instruct' },
+  { name: 'MiniCPM-2B', family: 'MiniCPM', params: '2.4B', ram: 3, gpu: 0, category: 'chat', tags: ['端侧','极轻量','中文'], downloads: 410000, source: 'modelscope', license: 'Apache-2.0', desc: '面壁小钢炮，手机可跑，中文能力出色', msPath: 'openbmb/MiniCPM-2B-sft-bf16' },
+  { name: 'Phi-3.5-mini-instruct', family: 'Phi', params: '3.8B', ram: 4, gpu: 0, category: 'chat', tags: ['轻量','快速','英文'], downloads: 280000, source: 'modelscope', license: 'MIT', desc: '微软出品，极小但推理能力强', msPath: 'LLM-Research/Phi-3.5-mini-instruct' },
+  { name: 'ChatGLM3-6B', family: 'GLM', params: '6B', ram: 5, gpu: 0, category: 'chat', tags: ['中文','经典','生态丰富'], downloads: 620000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱经典中文模型，社区生态最丰富', msPath: 'ZhipuAI/chatglm3-6b' },
+  { name: 'Qwen2.5-7B-Instruct', family: 'Qwen', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','代码','推理'], downloads: 850000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问 7B，中英双语，代码能力强', msPath: 'qwen/Qwen2.5-7B-Instruct' },
+  { name: 'DeepSeek-R1-Distill-Qwen-7B', family: 'DeepSeek', params: '7B', ram: 6, gpu: 0, category: 'reasoning', tags: ['推理','蒸馏','数学'], downloads: 560000, source: 'modelscope', license: 'MIT', desc: 'R1 蒸馏版，7B 参数推理能力惊人', msPath: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B' },
+  { name: 'InternLM2.5-7B-Chat', family: 'InternLM', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','数学','推理'], downloads: 210000, source: 'modelscope', license: 'Apache-2.0', desc: '上海 AI Lab，数学推理能力强', msPath: 'Shanghai_AI_Lab/internlm2_5-7b-chat' },
+  { name: 'Baichuan2-7B-Chat', family: 'Baichuan', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','通用'], downloads: 340000, source: 'modelscope', license: 'Apache-2.0', desc: '百川智能，中文理解优秀', msPath: 'baichuan-inc/Baichuan2-7B-Chat' },
+  { name: 'Yi-1.5-9B-Chat', family: 'Yi', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','英文','均衡'], downloads: 180000, source: 'modelscope', license: 'Apache-2.0', desc: '零一万物出品，中英双语均衡', msPath: '01ai/Yi-1.5-9B-Chat' },
+  { name: 'GLM-4-9B-Chat', family: 'GLM', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','工具调用','Agent'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱 AI GLM-4，擅长工具调用', msPath: 'ZhipuAI/glm-4-9b-chat' },
+  { name: 'Qwen2.5-14B-Instruct', family: 'Qwen', params: '14B', ram: 12, gpu: 8, category: 'chat', tags: ['中文','代码','推理'], downloads: 420000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问中杯，综合能力均衡', msPath: 'qwen/Qwen2.5-14B-Instruct' },
+  { name: 'DeepSeek-R1-Distill-Qwen-14B', family: 'DeepSeek', params: '14B', ram: 12, gpu: 8, category: 'reasoning', tags: ['推理','数学','代码'], downloads: 380000, source: 'modelscope', license: 'MIT', desc: 'R1 蒸馏 14B，推理能力接近满血版', msPath: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B' },
+  { name: 'Qwen2.5-32B-Instruct', family: 'Qwen', params: '32B', ram: 24, gpu: 16, category: 'chat', tags: ['中文','旗舰','代码'], downloads: 260000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问大杯，接近 72B 水平', msPath: 'qwen/Qwen2.5-32B-Instruct' },
+  { name: 'Qwen2.5-72B-Instruct', family: 'Qwen', params: '72B', ram: 48, gpu: 24, category: 'chat', tags: ['中文','旗舰','顶级'], downloads: 310000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问旗舰，接近 GPT-4 水平', msPath: 'qwen/Qwen2.5-72B-Instruct' },
+  { name: 'DeepSeek-V3', family: 'DeepSeek', params: '671B MoE', ram: 48, gpu: 24, category: 'chat', tags: ['中文','代码','MoE','旗舰'], downloads: 520000, source: 'modelscope', license: 'MIT', desc: '深度求索 V3，MoE 架构，顶级性价比', msPath: 'deepseek-ai/DeepSeek-V3' },
 ];
 
 const categoryMap = {
@@ -743,7 +738,7 @@ async function loadModelMarket() {
       <div>
         <span style="font-weight:600;">当前设备：</span>
         ${currentHwInfo ? `可用内存 <b>${freeRam.toFixed(1)} GB</b>，${hasGpu ? '已检测到 GPU' : '仅 CPU 推理'}` : '正在检测硬件...'}
-        <span style="color:var(--text-muted); margin-left:8px;">已为你筛选可运行的模型（灰色标签表示内存不足）</span>
+        <span style="color:var(--text-muted); margin-left:8px;">已为你筛选可运行的模型，来源：魔搭社区</span>
       </div>
     </div>
 
@@ -790,8 +785,8 @@ function renderModelList() {
   const grid = document.getElementById('marketModelGrid');
   const freeRam = currentHwInfo?.freeRamGB || 8;
 
-  // 筛选
-  let list = [...localModelDB];
+  // 只显示当前设备能跑的模型
+  let list = localModelDB.filter(m => m.ram <= freeRam);
   if (currentCategory !== 'all') {
     list = list.filter(m => m.category === currentCategory);
   }
@@ -804,22 +799,23 @@ function renderModelList() {
     return a.name.localeCompare(b.name);
   });
 
-  grid.innerHTML = list.map(m => {
-    const canRun = m.ram <= freeRam;
-    const statusColor = canRun ? 'var(--success)' : 'var(--text-muted)';
-    const statusText = canRun ? '✅ 可运行' : '⚠ 内存不足';
-    const dlText = m.downloads >= 1000000 ? (m.downloads / 1000000).toFixed(1) + 'M' : m.downloads >= 1000 ? (m.downloads / 1000).toFixed(0) + 'K' : m.downloads;
+  if (list.length === 0) {
+    grid.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">当前设备暂无可运行的模型，建议增加内存后重试</div>';
+    return;
+  }
 
+  grid.innerHTML = list.map(m => {
+    const dlText = m.downloads >= 1000000 ? (m.downloads / 1000000).toFixed(1) + 'M' : m.downloads >= 1000 ? (m.downloads / 1000).toFixed(0) + 'K' : m.downloads;
     return `
-    <div class="market-model-card" data-model='${JSON.stringify(m).replace(/'/g, "&#39;")}' style="background:var(--bg-card); border:1.5px solid ${canRun ? 'var(--border-light)' : 'rgba(0,0,0,0.04)'}; border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all 0.2s; ${canRun ? '' : 'opacity:0.55;'}">
-      <div style="width:44px; height:44px; background:${canRun ? 'var(--primary-light)' : 'var(--bg-hover)'}; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">${m.category === 'code' ? '💻' : m.category === 'reasoning' ? '🧮' : '💬'}</div>
+    <div class="market-model-card" data-model='${JSON.stringify(m).replace(/'/g, "&#39;")}' style="background:var(--bg-card); border:1.5px solid var(--border-light); border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all 0.2s;">
+      <div style="width:44px; height:44px; background:var(--primary-light); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">${m.category === 'code' ? '💻' : m.category === 'reasoning' ? '🧮' : '💬'}</div>
       <div style="flex:1; min-width:0;">
         <div style="font-size:14px; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(m.name)}</div>
         <div style="font-size:12px; color:var(--text-muted); display:flex; flex-wrap:wrap; gap:8px;">
           <span>🔢 ${m.params}</span>
-          <span>📦 ${m.ram} GB RAM</span>
+          <span>📦 ${m.ram} GB</span>
           <span>⬇ ${dlText}</span>
-          <span style="color:${statusColor}; font-weight:600;">${statusText}</span>
+          <span style="color:var(--success); font-weight:600;">✅ 可运行</span>
         </div>
       </div>
       <div style="display:flex; gap:6px; flex-shrink:0;">
@@ -839,15 +835,11 @@ function renderModelList() {
 function openModelDetail(model) {
   const modal = document.getElementById('modelDetailModal');
   const body = document.getElementById('modelDetailBody');
-  const freeRam = currentHwInfo?.freeRamGB || 8;
-  const canRun = model.ram <= freeRam;
 
-  // 根据来源拼接下载链接
-  const sourceLinks = {
-    huggingface: `https://huggingface.co/models?search=${encodeURIComponent(model.family)}`,
-    modelscope: `https://modelscope.cn/models?name=${encodeURIComponent(model.family)}`,
-    ollama: `https://ollama.com/library/${model.family.toLowerCase()}`,
-  };
+  // 魔搭社区模型页面链接
+  const msUrl = model.msPath
+    ? `https://modelscope.cn/models/${model.msPath}`
+    : `https://modelscope.cn/models?name=${encodeURIComponent(model.family)}`;
 
   document.getElementById('modelDetailTitle').textContent = model.name;
   body.innerHTML = `
@@ -868,9 +860,9 @@ function openModelDetail(model) {
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">GPU 需求</div>
         <div style="font-size:16px; font-weight:700;">${model.gpu === 0 ? '仅 CPU 即可' : model.gpu + ' GB VRAM'}</div>
       </div>
-      <div style="background:${canRun ? 'rgba(52,199,89,0.08)' : 'rgba(255,59,48,0.08)'}; border-radius:10px; padding:12px 14px;">
+      <div style="background:rgba(52,199,89,0.08); border-radius:10px; padding:12px 14px;">
         <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">你的设备</div>
-        <div style="font-size:16px; font-weight:700; color:${canRun ? 'var(--success)' : 'var(--danger)'};">${canRun ? '✅ 可以运行' : '⚠ 内存不足'}</div>
+        <div style="font-size:16px; font-weight:700; color:var(--success);">✅ 可以运行</div>
       </div>
     </div>
 
@@ -884,12 +876,9 @@ function openModelDetail(model) {
 
     <div style="font-size:13px; font-weight:600; margin-bottom:10px;">下载渠道</div>
     <div style="display:flex; flex-wrap:wrap; gap:10px;">
-      ${Object.entries(sourceLinks).map(([key, url]) => {
-        const p = marketPlatforms.find(x => x.id === key);
-        return p ? `<a href="${url}" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:10px; text-decoration:none; color:var(--text-primary); font-size:13px; font-weight:500; transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--primary)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.borderColor='var(--border-light)';this.style.transform=''">
-          <span style="font-size:18px;">${p.icon}</span> ${p.name}
-        </a>` : '';
-      }).join('')}
+      <a href="${msUrl}" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:10px; text-decoration:none; color:var(--text-primary); font-size:13px; font-weight:500; transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--primary)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.borderColor='var(--border-light)';this.style.transform=''">
+        <span style="font-size:18px;">🔴</span> 魔搭社区
+      </a>
       <a href="https://ollama.com/library/${model.name.split('-')[0].toLowerCase()}" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:10px; text-decoration:none; color:var(--text-primary); font-size:13px; font-weight:500; transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--primary)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.borderColor='var(--border-light)';this.style.transform=''">
         <span style="font-size:18px;">🦙</span> Ollama
       </a>

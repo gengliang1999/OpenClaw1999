@@ -21,7 +21,7 @@ function ensureContainer() {
     toastContainer.style.position = 'fixed';
     toastContainer.style.top = '24px';
     toastContainer.style.right = '24px';
-    toastContainer.style.zIndex = '9999';
+    toastContainer.style.zIndex = '999999';
     toastContainer.style.display = 'flex';
     toastContainer.style.flexDirection = 'column';
     toastContainer.style.gap = '12px';
