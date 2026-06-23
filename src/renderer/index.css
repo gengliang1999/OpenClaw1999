@@ -470,7 +470,9 @@ body {
   width: 220px;
   min-width: 0;
   border-right: 1px solid var(--border-color);
-  background: var(--bg-card);
+  background: var(--bg-card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   display: flex;
   flex-direction: column;
   transition: width 0.25s ease, min-width 0.25s ease;
@@ -487,6 +489,9 @@ body {
 .page-sidebar.collapsed .page-sidebar-list,
 .page-sidebar.collapsed .chat-list {
   display: none;
+}
+.page-sidebar.collapsed .page-sidebar-reopen {
+  display: flex;
 }
 .page-sidebar.collapsed .page-sidebar-reopen {
   display: flex;
@@ -1022,7 +1027,7 @@ body {
   position: fixed;
   top: 60px;
   right: 20px;
-  z-index: 10000;
+  z-index: 999999;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1484,59 +1489,15 @@ input, textarea, [contenteditable] {
   transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1);
   overflow: hidden;
   border-right: 1px solid var(--border-light);
-  background: var(--bg-sidebar);
+  background: var(--bg-card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .page-sidebar.collapsed {
-  width: 64px !important;
-}
-
-/* 收缩状态下隐藏“会话”文字和搜索框 placeholder，居中图标 */
-.page-sidebar.collapsed #toggleSelectModeBtn {
-  display: none;
-}
-.page-sidebar.collapsed .toggle-text {
-  display: none;
-}
-.page-sidebar.collapsed #mainSidebarToggleBtn {
-  margin: 0 auto;
-  padding: 4px;
-}
-.page-sidebar.collapsed .sidebar-search-input {
-  padding-left: 0;
-  text-align: center;
-  color: transparent !important; /* Hide input text */
-}
-.page-sidebar.collapsed .sidebar-search-input::placeholder {
-  color: transparent;
-}
-.page-sidebar.collapsed .search-icon {
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-}
-
-/* 隐藏部分不需要显示的组件 */
-.page-sidebar.collapsed #newChatBtn {
-  font-size: 0;
-  padding: 9px 0;
-}
-.page-sidebar.collapsed #newChatBtn::before {
-  content: '+';
-  font-size: 16px;
-}
-.page-sidebar.collapsed .conv-item .apple-checkbox,
-.page-sidebar.collapsed .conv-item .conv-delete-x,
-.page-sidebar.collapsed .conv-item > div:nth-child(2) {
-  display: none;
-}
-.page-sidebar.collapsed .conv-item {
-  justify-content: center;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-}
-.page-sidebar.collapsed .conv-item::before {
-  content: '💬';
-  font-size: 16px;
+  width: 48px !important;
+  min-width: 48px !important;
+  background: var(--bg-card) !important;
 }
 
 /* ====================================================================
@@ -2036,7 +1997,7 @@ input, textarea, [contenteditable] {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.45);
-  z-index: 10000;
+  z-index: 99999;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(6px);
@@ -2296,4 +2257,24 @@ input[type="range"]::-webkit-slider-thumb {
   border-color: var(--primary);
   box-shadow: 0 2px 8px rgba(0,122,255,0.25);
 }
-
+
+/* ================== 侧边栏会话列表 ================== */
+#sidebarConvList::-webkit-scrollbar {
+  width: 4px;
+}
+#sidebarConvList::-webkit-scrollbar-track {
+  background: transparent;
+}
+#sidebarConvList::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+#sidebarConvList:hover::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+}
+.sidebar-conv-item:hover {
+  background: var(--bg-hover) !important;
+}
+.sidebar-conv-item:hover .sidebar-conv-delete {
+  opacity: 1 !important;
+}

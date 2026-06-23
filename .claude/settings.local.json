@@ -13,7 +13,29 @@
       "Bash(taskkill /f /im electron.exe)",
       "Bash(ping -n 6 127.0.0.1)",
       "Bash(npm i *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(sort -t: -k3 -n -r)",
+      "Bash(git checkout *)",
+      "Bash(grep -v \"^[+-]$\")",
+      "Bash(unix2dos src/renderer/index.css)",
+      "Bash(python3 -c ' *)",
+      "Bash(git reset *)",
+      "Bash(grep -v \"^[+-]/\\\\|^[+-] \\\\*\\\\|^[+-] \\\\.\")",
+      "Bash(curl -s -X POST http://localhost:3721/api/models/proxy-test -H 'Content-Type: application/json' -d '{\"baseUrl\":\"https://gpt.qt.cool/v1\",\"apiKey\":\"sk-user-PwbqyTayiPY8rkIDIhVAMiLtvYWTyb7B\"}')",
+      "Bash(curl -s http://localhost:3721/api/settings)",
+      "Bash(curl -s https://gpt.qt.cool/v1/models -H 'Authorization: Bearer sk-user-PwbqyTayiPY8rkIDIhVAMiLtvYWTyb7B')",
+      "Bash(npm start *)",
+      "Bash(curl -s -X POST http://localhost:3721/api/models/proxy-fetch -H 'Content-Type: application/json' -d '{\"baseUrl\":\"https://gpt.qt.cool/v1\",\"apiKey\":\"sk-user-PwbqyTayiPY8rkIDIhVAMiLtvYWTyb7B\"}')",
+      "Bash(node -e \"process.stdin.on\\('data',d=>{const j=JSON.parse\\(d\\);console.log\\('✅ 获取模型成功，共',j.data.length,'个：'\\);j.data.forEach\\(m=>console.log\\('  -',m.id\\)\\)}\\)\")",
+      "Bash(pkill -f \"electron .\")",
+      "Bash(curl *)",
+      "Bash(node *)",
+      "Bash(pkill -f \"electron\")",
+      "Bash(pkill -9 -f electron)",
+      "Bash(taskkill //F //IM electron.exe)",
+      "Bash(npx electron *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(grep -v \"page-sidebar\\\\|page-main\\\\|page-content\\\\|page-\\\\|\\\\/\\\\*\")"
     ]
   }
 }

@@ -280,10 +280,7 @@ function openCloudConfig(vendor) {
 
     <div class="config-form-group">
       <label>API 地址</label>
-      <div style="display: flex; gap: 8px;">
-        <input type="text" class="input" id="cfgBaseUrl" value="${escapeHtml(conf.baseUrl || vendor.url || '')}" placeholder="https://api.example.com/v1" style="flex:1;" />
-        <button class="btn btn-default" id="cfgFetchModels" style="border-radius: 10px; flex-shrink: 0; font-size: 12px;">🔄 获取模型</button>
-      </div>
+      <input type="text" class="input" id="cfgBaseUrl" value="${escapeHtml(conf.baseUrl || vendor.url || '')}" placeholder="https://api.example.com/v1" />
     </div>
 
     <div class="config-form-group">
@@ -292,18 +289,23 @@ function openCloudConfig(vendor) {
     </div>
 
     <div class="config-form-group">
-      <label>模型列表 <span style="font-weight:400;color:var(--text-muted);">（点击「获取模型」自动拉取，或手动输入添加）</span></label>
-      <div class="cloud-model-list" id="cfgModelList">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <label style="margin: 0; display: inline;">模型列表</label>
+        <button class="btn btn-default" id="cfgFetchModels" style="border-radius: 10px; font-size: 12px; padding: 4px 14px;">🔄 获取模型</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <select class="input select" id="cfgModelSelect" style="flex: 1;">
+          <option value="">-- 获取模型或手动输入 --</option>
+        </select>
+        <button class="btn btn-primary" id="cfgAddSelectedModel" style="border-radius: 10px; flex-shrink: 0; padding: 6px 14px;">添加</button>
+      </div>
+      <div class="cloud-model-list" id="cfgModelList" style="margin-top: 8px;">
         ${models.map(m => `
           <div class="cloud-model-tag">
             <span class="model-tag-name">${escapeHtml(m)}</span>
             <button class="model-tag-remove">&times;</button>
           </div>
         `).join('')}
-      </div>
-      <div class="add-model-row">
-        <input type="text" class="input" id="cfgNewModel" placeholder="手动输入模型 ID" />
-        <button class="btn btn-default" id="cfgAddModelBtn" style="border-radius: 10px; flex-shrink: 0;">+ 添加</button>
       </div>
       <div id="cfgFetchStatus" style="font-size: 12px; margin-top: 6px; min-height: 18px;"></div>
     </div>
@@ -316,6 +318,13 @@ function openCloudConfig(vendor) {
       </select>
     </div>
 
+    <div class="config-form-group">
+      <div style="display: flex; gap: 8px;">
+        <input type="text" class="input" id="cfgNewModel" placeholder="手动输入模型 ID" style="flex: 1;" />
+        <button class="btn btn-default" id="cfgAddModelBtn" style="border-radius: 10px; flex-shrink: 0;">+ 添加</button>
+      </div>
+    </div>
+
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
       <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 12px;">🗑 删除配置</button>
     </div>
@@ -326,12 +335,22 @@ function openCloudConfig(vendor) {
     btn.addEventListener('click', () => { btn.closest('.cloud-model-tag').remove(); refreshModelSelect(); });
   });
 
+  // 从下拉表选择并添加
+  body.querySelector('#cfgAddSelectedModel').addEventListener('click', () => {
+    const sel = body.querySelector('#cfgModelSelect');
+    const val = sel.value;
+    if (!val) { window.__toast?.error('请先选择一个模型'); return; }
+    addModelToList(val);
+    sel.value = '';
+  });
+
   // 手动添加
   body.querySelector('#cfgAddModelBtn').addEventListener('click', () => {
     const input = body.querySelector('#cfgNewModel');
     const name = input.value.trim();
     if (!name) return;
     addModelToList(name);
+    addModelToDropdown(name);
     input.value = '';
   });
   body.querySelector('#cfgNewModel').addEventListener('keydown', (e) => {
@@ -402,6 +421,8 @@ async function saveCloudConfig(vendor) {
       modelName: defaultModel,
     });
     settings[settingsKey] = config;
+    // 持久化到存储（确保自定义模型不丢失）
+    try { await window.openClaw.settings.set(settingsKey, config); } catch(e) { console.warn('settings.set 失败:', e); }
     window.__toast?.success(`${customName} 配置已保存！`);
     document.getElementById('cloudConfigModal').classList.remove('visible');
     renderCloudVendors();
@@ -433,6 +454,17 @@ function addModelToList(name) {
   tag.querySelector('.model-tag-remove').addEventListener('click', (e) => { e.stopPropagation(); tag.remove(); refreshModelSelect(); });
   list.appendChild(tag);
   refreshModelSelect();
+}
+
+function addModelToDropdown(name) {
+  const sel = document.getElementById('cfgModelSelect');
+  if (!sel) return;
+  const opts = sel.querySelectorAll('option');
+  for (const o of opts) { if (o.value === name) return; }
+  const opt = document.createElement('option');
+  opt.value = name;
+  opt.textContent = name;
+  sel.appendChild(opt);
 }
 
 function refreshModelSelect() {
@@ -483,7 +515,17 @@ async function fetchModelsFromApi() {
       return;
     }
 
-    // 填入模型列表
+    // 填入下拉表 + 已选标签
+    const sel = document.getElementById('cfgModelSelect');
+    if (sel) {
+      sel.innerHTML = '<option value="">-- 请选择模型 --</option>';
+      modelIds.forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = id;
+        sel.appendChild(opt);
+      });
+    }
     const list = document.getElementById('cfgModelList');
     list.innerHTML = '';
     modelIds.forEach(id => addModelToList(id));
@@ -664,24 +706,6 @@ function updateRuntimeCard(rtId, running, modelCount) {
     });
   }
 }
-  { name: 'Qwen2.5-0.5B-Instruct', family: 'Qwen', params: '0.5B', ram: 1, gpu: 0, category: 'chat', tags: ['中文','极轻量','端侧'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问超轻量版，手机/嵌入式可跑', msPath: 'qwen/Qwen2.5-0.5B-Instruct' },
-  { name: 'Qwen2.5-1.5B-Instruct', family: 'Qwen', params: '1.5B', ram: 2, gpu: 0, category: 'chat', tags: ['中文','轻量'], downloads: 480000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问轻量版，低配设备友好', msPath: 'qwen/Qwen2.5-1.5B-Instruct' },
-  { name: 'Qwen2.5-3B-Instruct', family: 'Qwen', params: '3B', ram: 3, gpu: 0, category: 'chat', tags: ['中文','轻量','均衡'], downloads: 350000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问小杯，轻量与能力的平衡点', msPath: 'qwen/Qwen2.5-3B-Instruct' },
-  { name: 'MiniCPM-2B', family: 'MiniCPM', params: '2.4B', ram: 3, gpu: 0, category: 'chat', tags: ['端侧','极轻量','中文'], downloads: 410000, source: 'modelscope', license: 'Apache-2.0', desc: '面壁小钢炮，手机可跑，中文能力出色', msPath: 'openbmb/MiniCPM-2B-sft-bf16' },
-  { name: 'Phi-3.5-mini-instruct', family: 'Phi', params: '3.8B', ram: 4, gpu: 0, category: 'chat', tags: ['轻量','快速','英文'], downloads: 280000, source: 'modelscope', license: 'MIT', desc: '微软出品，极小但推理能力强', msPath: 'LLM-Research/Phi-3.5-mini-instruct' },
-  { name: 'ChatGLM3-6B', family: 'GLM', params: '6B', ram: 5, gpu: 0, category: 'chat', tags: ['中文','经典','生态丰富'], downloads: 620000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱经典中文模型，社区生态最丰富', msPath: 'ZhipuAI/chatglm3-6b' },
-  { name: 'Qwen2.5-7B-Instruct', family: 'Qwen', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','代码','推理'], downloads: 850000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问 7B，中英双语，代码能力强', msPath: 'qwen/Qwen2.5-7B-Instruct' },
-  { name: 'DeepSeek-R1-Distill-Qwen-7B', family: 'DeepSeek', params: '7B', ram: 6, gpu: 0, category: 'reasoning', tags: ['推理','蒸馏','数学'], downloads: 560000, source: 'modelscope', license: 'MIT', desc: 'R1 蒸馏版，7B 参数推理能力惊人', msPath: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B' },
-  { name: 'InternLM2.5-7B-Chat', family: 'InternLM', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','数学','推理'], downloads: 210000, source: 'modelscope', license: 'Apache-2.0', desc: '上海 AI Lab，数学推理能力强', msPath: 'Shanghai_AI_Lab/internlm2_5-7b-chat' },
-  { name: 'Baichuan2-7B-Chat', family: 'Baichuan', params: '7B', ram: 6, gpu: 0, category: 'chat', tags: ['中文','通用'], downloads: 340000, source: 'modelscope', license: 'Apache-2.0', desc: '百川智能，中文理解优秀', msPath: 'baichuan-inc/Baichuan2-7B-Chat' },
-  { name: 'Yi-1.5-9B-Chat', family: 'Yi', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','英文','均衡'], downloads: 180000, source: 'modelscope', license: 'Apache-2.0', desc: '零一万物出品，中英双语均衡', msPath: '01ai/Yi-1.5-9B-Chat' },
-  { name: 'GLM-4-9B-Chat', family: 'GLM', params: '9B', ram: 8, gpu: 0, category: 'chat', tags: ['中文','工具调用','Agent'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '智谱 AI GLM-4，擅长工具调用', msPath: 'ZhipuAI/glm-4-9b-chat' },
-  { name: 'Qwen2.5-14B-Instruct', family: 'Qwen', params: '14B', ram: 12, gpu: 8, category: 'chat', tags: ['中文','代码','推理'], downloads: 420000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问中杯，综合能力均衡', msPath: 'qwen/Qwen2.5-14B-Instruct' },
-  { name: 'DeepSeek-R1-Distill-Qwen-14B', family: 'DeepSeek', params: '14B', ram: 12, gpu: 8, category: 'reasoning', tags: ['推理','数学','代码'], downloads: 380000, source: 'modelscope', license: 'MIT', desc: 'R1 蒸馏 14B，推理能力接近满血版', msPath: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-14B' },
-  { name: 'Qwen2.5-32B-Instruct', family: 'Qwen', params: '32B', ram: 24, gpu: 16, category: 'chat', tags: ['中文','旗舰','代码'], downloads: 260000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问大杯，接近 72B 水平', msPath: 'qwen/Qwen2.5-32B-Instruct' },
-  { name: 'Qwen2.5-72B-Instruct', family: 'Qwen', params: '72B', ram: 48, gpu: 24, category: 'chat', tags: ['中文','旗舰','顶级'], downloads: 310000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问旗舰，接近 GPT-4 水平', msPath: 'qwen/Qwen2.5-72B-Instruct' },
-  { name: 'DeepSeek-V3', family: 'DeepSeek', params: '671B MoE', ram: 48, gpu: 24, category: 'chat', tags: ['中文','代码','MoE','旗舰'], downloads: 520000, source: 'modelscope', license: 'MIT', desc: '深度求索 V3，MoE 架构，顶级性价比', msPath: 'deepseek-ai/DeepSeek-V3' },
-];
 
 function renderMarketPlatforms() {
   const grid = document.getElementById('marketPlatformGrid');
