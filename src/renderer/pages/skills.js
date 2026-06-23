@@ -41,8 +41,14 @@ async function loadData() {
   try {
     installedSkills = await window.openClaw.skill.getSkills() || [];
     marketSkills = await window.openClaw.skill.getMarketplace() || [
-      { id: 'skill-coder', name: '全自动写代码', description: '一键生成项目代码并自动写入文件系统', author: 'OpenClaw', icon: '👨‍💻' },
-      { id: 'skill-researcher', name: '深度研究员', description: '自动在网络上搜索资料并生成长篇综述报告', author: 'OpenClaw', icon: '🕵️‍♂️' }
+      { id: 'skill-coder', name: '全栈编程助手', description: '精通多语言编程，自动生成代码和定位 Bug。', author: 'OpenClaw', icon: '💻' },
+      { id: 'skill-search', name: '深度搜索者', description: '接入搜索引擎，自动抓取多网页信息进行总结。', author: 'OpenClaw', icon: '🔍' },
+      { id: 'skill-security', name: '网络安全顾问', description: '精通渗透测试与安全加固，分析代码漏洞并提供修复方案。', author: 'OpenClaw', icon: '🛡️' },
+      { id: 'skill-prompt', name: '提示词工程师', description: '专业优化 AI 提示词，帮助你获得更精准、更高质量的 AI 输出。', author: 'OpenClaw', icon: '🪄' },
+      { id: 'skill-aiart', name: 'AI 绘画提示词师', description: '精通 Midjourney/Stable Diffusion/DALL-E 提示词，生成精美画面描述。', author: 'OpenClaw', icon: '🎨' },
+      { id: 'skill-resume', name: '简历优化顾问', description: '专业 HR 视角优化简历，让你的简历在 3 秒内抓住面试官眼球。', author: 'Community', icon: '📄' },
+      { id: 'skill-crawler', name: '数据采集专家', description: '精通网页爬虫与数据清洗，快速构建高效稳定的数据采集管道。', author: 'Community', icon: '🕷️' },
+      { id: 'skill-math', name: '数学解题大师', description: '精通从初等数学到高等数学的解题，步骤详细、思路清晰。', author: 'Community', icon: '🧮' }
     ];
   } catch (e) {
     console.error('Failed to load skills:', e);
