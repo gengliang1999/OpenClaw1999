@@ -11,7 +11,9 @@
       "Bash(npm run *)",
       "Bash(timeout 8)",
       "Bash(taskkill /f /im electron.exe)",
-      "Bash(ping -n 6 127.0.0.1)"
+      "Bash(ping -n 6 127.0.0.1)",
+      "Bash(npm i *)",
+      "Bash(npx tsc *)"
     ]
   }
 }
