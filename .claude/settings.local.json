@@ -10,7 +10,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(npm run *)",
       "Bash(timeout 8)",
-      "Bash(taskkill /f /im electron.exe)"
+      "Bash(taskkill /f /im electron.exe)",
+      "Bash(ping -n 6 127.0.0.1)"
     ]
   }
 }
