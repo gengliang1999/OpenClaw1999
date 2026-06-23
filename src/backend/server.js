@@ -460,6 +460,109 @@ async function createServer(port = 3721, rendererPath) {
     }
   });
 
+  /** 检测本地运行时状态（Ollama / LM Studio） */
+  app.get('/api/models/local-detect', async (req, res) => {
+    const result = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
+
+    // 检测 Ollama
+    try {
+      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) });
+      if (ollamaRes.ok) {
+        result.ollama.running = true;
+        const data = await ollamaRes.json();
+        result.ollama.models = (data.models || []).map(m => ({
+          id: m.name,
+          name: m.name,
+          size: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) + ' GB' : '未知',
+          sizeBytes: m.size || 0,
+          modified: m.modified_at || '',
+          details: m.details || {},
+        }));
+      }
+    } catch (e) { /* Ollama 未运行 */ }
+
+    // 检测 LM Studio
+    try {
+      const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(3000) });
+      if (lmRes.ok) {
+        result.lmstudio.running = true;
+        const data = await lmRes.json();
+        result.lmstudio.models = (data.data || []).map(m => ({
+          id: m.id,
+          name: m.id.split('/').pop() || m.id,
+          size: '已加载',
+        }));
+      }
+    } catch (e) { /* LM Studio 未运行 */ }
+
+    res.json(result);
+  });
+
+  /** 获取 Ollama 已安装模型列表（详细） */
+  app.get('/api/models/ollama/list', async (req, res) => {
+    try {
+      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(5000) });
+      if (!ollamaRes.ok) throw new Error('Ollama 连接失败');
+      const data = await ollamaRes.json();
+      const models = (data.models || []).map(m => ({
+        id: m.name,
+        name: m.name,
+        size: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) + ' GB' : '未知',
+        sizeBytes: m.size || 0,
+        modified: m.modified_at || '',
+        family: m.details?.family || '',
+        format: m.details?.format || '',
+        parameterSize: m.details?.parameter_size || '',
+      }));
+      res.json({ success: true, models });
+    } catch (error) {
+      res.status(503).json({ success: false, message: 'Ollama 未运行: ' + error.message });
+    }
+  });
+
+  /** 获取 LM Studio 已加载模型列表 */
+  app.get('/api/models/lmstudio/list', async (req, res) => {
+    try {
+      const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(5000) });
+      if (!lmRes.ok) throw new Error('LM Studio 连接失败');
+      const data = await lmRes.json();
+      const models = (data.data || []).map(m => ({
+        id: m.id,
+        name: m.id.split('/').pop() || m.id,
+        fullName: m.id,
+        owned_by: m.owned_by || '',
+      }));
+      res.json({ success: true, models });
+    } catch (error) {
+      res.status(503).json({ success: false, message: 'LM Studio 未运行: ' + error.message });
+    }
+  });
+
+  /** 添加本地模型到已配置列表并可选设为默认 */
+  app.post('/api/models/local/add', async (req, res) => {
+    try {
+      const { provider, modelId, modelName, setDefault } = req.body;
+      if (!modelId) return res.status(400).json({ message: 'modelId 不能为空' });
+
+      const id = provider === 'ollama' ? modelId : `lmstudio_${modelId}`;
+      const exists = modelManager.models.find(m => m.id === id);
+      if (!exists) {
+        const modelConfig = provider === 'ollama'
+          ? { id, name: `[Ollama] ${modelName || modelId}`, type: 'local', provider: 'Ollama', sizeGB: 0 }
+          : { id, name: `[LM Studio] ${modelName || modelId}`, type: 'cloud', provider: 'LM Studio', apiKey: 'lm-studio', baseUrl: 'http://127.0.0.1:1234/v1', modelName: modelId, maxTokens: 4096, temperature: 0.7 };
+        modelManager.addModel(modelConfig);
+      }
+
+      if (setDefault) {
+        modelManager.setActiveModel(id);
+      }
+
+      res.json({ success: true, model: modelManager.models.find(m => m.id === id) });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   /** 预加载模型到显存 */
   app.post('/api/models/preload', async (req, res) => {
     try {

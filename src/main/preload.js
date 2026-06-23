@@ -127,8 +127,21 @@ contextBridge.exposeInMainWorld('openClaw', {
     preloadModel: (modelId) => apiRequest('/models/preload', { method: 'POST', body: { modelId } }),
 
     /** 拉取模型 (流式) */
-    pullModel: (modelId) => 
+    pullModel: (modelId) =>
       apiRequest('/models/pull', { method: 'POST', body: { modelId }, stream: true }),
+
+    /** 检测本地运行时状态 (Ollama & LM Studio) */
+    detectLocal: () => apiRequest('/models/local-detect'),
+
+    /** 获取 Ollama 已安装模型列表 */
+    getOllamaModels: () => apiRequest('/models/ollama/list'),
+
+    /** 获取 LM Studio 已加载模型列表 */
+    getLMStudioModels: () => apiRequest('/models/lmstudio/list'),
+
+    /** 添加本地模型并可选设为默认 */
+    addLocalModel: (provider, modelId, modelName, setDefault) =>
+      apiRequest('/models/local/add', { method: 'POST', body: { provider, modelId, modelName, setDefault } }),
   },
 
   // ===== 记忆相关 =====
