@@ -41,12 +41,12 @@ export async function render(container) {
         <p style="margin: 0; color: var(--text-muted); font-size: 13px;">一站式管理云端 API、本地运行时与开源模型。</p>
       </div>
 
-      <!-- Section 1: 云端模型服务 -->
+      <!-- Section 1: 云端模型 -->
       <div class="market-section-block">
         <div class="market-section-header">
           <h3>
             <span class="section-bar" style="background: linear-gradient(180deg, #6c63ff, #af52de);"></span>
-            云端模型服务
+            云端模型
           </h3>
           <button id="addCustomModelBtn" class="btn btn-primary" style="padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 600;">+ 自定义模型</button>
         </div>
@@ -61,113 +61,18 @@ export async function render(container) {
             本地模型
           </h3>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" id="localRuntimeGrid">
-          <!-- Ollama -->
-          <div id="ollamaCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #00d9ff, #6c63ff); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(108,99,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🦙</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Ollama</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">命令行本地模型框架</div>
-              </div>
-              <div id="ollamaStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">一键拉取 Llama、Qwen、DeepSeek 等开源模型，本地推理零延迟。</div>
-            <div id="ollamaActions" style="display: flex; gap: 8px;"></div>
-          </div>
-          <!-- LM Studio -->
-          <div id="lmstudioCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff2d55); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,45,85,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">💻</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">LM Studio</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">可视化模型管理</div>
-              </div>
-              <div id="lmstudioStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。</div>
-            <div id="lmstudioActions" style="display: flex; gap: 8px;"></div>
-          </div>
-          <!-- GPT4All -->
-          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #34c759, #00d9ff); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(52,199,89,0.15), rgba(0,217,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🤖</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">GPT4All</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">Nomic AI 出品，隐私优先</div>
-              </div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">开箱即用的本地 AI 助手，无需 GPU，支持 CPU 推理。</div>
-            <a href="https://gpt4all.io/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 gpt4all.io</a>
-          </div>
-          <!-- Jan -->
-          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #af52de, #ff2d55); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(175,82,222,0.15), rgba(255,45,85,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🪶</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Jan</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">Menlo 出品，类 ChatGPT 体验</div>
-              </div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">完全离线运行，支持多模型切换，自带聊天界面。</div>
-            <a href="https://jan.ai/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 jan.ai</a>
-          </div>
-          <!-- LocalAI -->
-          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff3b30); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,59,48,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🔧</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">LocalAI</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">OpenAI API 兼容本地网关</div>
-              </div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">Drop-in 替代 OpenAI API，支持 LLM / 图片生成 / 音频。</div>
-            <a href="https://localai.io/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 localai.io</a>
-          </div>
-          <!-- vLLM -->
-          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #5856d6, #007aff); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(88,86,214,0.15), rgba(0,122,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">⚡</div>
-              <div style="flex: 1;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">vLLM</h3>
-                <div style="font-size: 11px; color: var(--text-muted);">高吞吐量 GPU 推理引擎</div>
-              </div>
-            </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">PagedAttention 优化，适合多卡服务器部署，吞吐量极高。</div>
-            <a href="https://docs.vllm.ai/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 docs.vllm.ai</a>
-          </div>
-        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" id="localRuntimeGrid"></div>
       </div>
 
-      <!-- Section 3: 模型大市场 -->
+      <!-- Section 3: 模型下载平台 -->
       <div class="market-section-block">
         <div class="market-section-header">
           <h3>
             <span class="section-bar" style="background: linear-gradient(180deg, #34c759, #00d9ff);"></span>
-            模型大市场（本地部署）
+            模型下载平台
           </h3>
         </div>
-        <!-- 平台入口 -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;" id="marketPlatformGrid"></div>
-        <!-- 筛选栏 + 模型列表 -->
-        <div id="modelMarketContainer"></div>
-      </div>
-    </div>
-
-    <!-- 模型详情 Modal -->
-    <div id="modelDetailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
-      <div style="background:var(--bg-app); width:640px; max-width:92%; max-height:85vh; border-radius:20px; box-shadow:0 32px 64px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column;">
-        <div style="padding:20px 24px; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-          <h3 style="margin:0; font-size:18px;" id="modelDetailTitle">模型详情</h3>
-          <button id="closeModelDetail" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--text-muted);">&times;</button>
-        </div>
-        <div id="modelDetailBody" style="padding:24px; overflow-y:auto; flex:1;"></div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;" id="marketPlatformGrid"></div>
       </div>
     </div>
 
@@ -217,14 +122,14 @@ export async function render(container) {
   `;
 
   // 清理 body 上残留的旧模态框（页面每次导航都会重新 render）
-  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal', 'logoFileInput'].forEach(id => {
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'logoFileInput'].forEach(id => {
     const old = document.getElementById(id);
     if (old && old.parentNode === document.body) old.remove();
   });
 
   // 将新创建的模态框从页面容器移到 body
   // 原因：.page 有 CSS animation 含 transform，会导致 position:fixed 子元素定位失效
-  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal'].forEach(id => {
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal'].forEach(id => {
     const el = document.getElementById(id);
     if (el) document.body.appendChild(el);
   });
@@ -239,9 +144,8 @@ export async function render(container) {
 
   bindModalEvents();
   renderCloudVendors();
-  await detectLocalRuntimes();
+  renderLocalRuntimes();
   renderMarketPlatforms();
-  await loadModelMarket();
 }
 
 function bindModalEvents() {
@@ -269,15 +173,14 @@ function bindModalEvents() {
   // Logo 上传
   document.getElementById('configVendorLogo').addEventListener('click', () => document.getElementById('logoFileInput').click());
   document.getElementById('logoFileInput').addEventListener('change', handleLogoUpload);
-  // 模型详情 Modal
-  document.getElementById('closeModelDetail').addEventListener('click', () => document.getElementById('modelDetailModal').style.display = 'none');
-  document.getElementById('modelDetailModal').addEventListener('click', (e) => { if (e.target.id === 'modelDetailModal') e.target.style.display = 'none'; });
 }
 
 // ==================== 云端厂商渲染 ====================
 function renderCloudVendors() {
   const grid = document.getElementById('cloudVendorGrid');
-  grid.innerHTML = cloudVendors.map(v => {
+
+  // 内置厂商
+  let html = cloudVendors.map(v => {
     const conf = settings[v.id] || {};
     const isConfigured = conf.apiKey && conf.apiKey.trim() !== '';
     const customLogo = conf.customLogo || '';
@@ -298,10 +201,49 @@ function renderCloudVendors() {
     </div>
   `}).join('');
 
+  // 自定义模型（settings 中以 custom_ 开头的）
+  const customKeys = Object.keys(settings).filter(k => k.startsWith('custom_'));
+  html += customKeys.map(key => {
+    const conf = settings[key];
+    const displayName = conf.customName || '自定义模型';
+    const modelCount = conf.models?.length || 0;
+    return `
+    <div class="cloud-vendor-card" data-id="${key}">
+      <div class="configured-dot"></div>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <div class="vendor-logo" style="background: #88888815;">
+          <span>➕</span>
+        </div>
+        <div class="vendor-info">
+          <h4>${escapeHtml(displayName)}</h4>
+          <div class="vendor-status">✅ ${modelCount} 个模型</div>
+        </div>
+      </div>
+      <p class="vendor-desc">${escapeHtml(conf.baseUrl || '自定义 API')}</p>
+    </div>
+  `}).join('');
+
+  grid.innerHTML = html;
+
   grid.querySelectorAll('.cloud-vendor-card').forEach(card => {
     card.addEventListener('click', () => {
-      const v = cloudVendors.find(x => x.id === card.dataset.id);
-      if (v) openCloudConfig(v);
+      const id = card.dataset.id;
+      // 查找内置厂商或自定义模型
+      const v = cloudVendors.find(x => x.id === id);
+      if (v) {
+        openCloudConfig(v);
+      } else if (id.startsWith('custom_') && settings[id]) {
+        // 自定义模型：构造 vendor 对象
+        const conf = settings[id];
+        openCloudConfig({
+          id: id,
+          name: conf.customName || '自定义模型',
+          icon: '➕',
+          color: '#888',
+          desc: conf.baseUrl || '',
+          url: conf.baseUrl || '',
+        });
+      }
     });
   });
 }
@@ -439,20 +381,27 @@ async function saveCloudConfig(vendor) {
   if (models.length === 0) { window.__toast?.error('请先获取或手动添加至少一个模型'); return; }
   if (!defaultModel) { window.__toast?.error('请选择一个默认模型'); return; }
 
-  const config = { customName, apiKey, baseUrl, models, defaultModel, customLogo: currentLogoDataUrl || settings[vendor.id]?.customLogo || '' };
+  // 确定 settings key：自定义模型用 stable key（不再每次生成新的）
+  let settingsKey = vendor.id;
+  if (vendor.id === '_custom') {
+    // 检查是否已有同名自定义模型
+    const existing = Object.keys(settings).find(k => k.startsWith('custom_') && settings[k].customName === customName);
+    settingsKey = existing || `custom_${Date.now()}`;
+  }
+
+  const config = { customName, apiKey, baseUrl, models, defaultModel, customLogo: currentLogoDataUrl || settings[settingsKey]?.customLogo || '' };
 
   try {
-    const modelId = vendor.id === '_custom' ? `custom_${Date.now()}` : vendor.id;
     await window.openClaw.model.addModel({
-      id: modelId,
+      id: settingsKey,
       name: customName,
       type: 'cloud',
-      provider: vendor.name,
+      provider: 'Custom',
       apiKey,
       baseUrl,
       modelName: defaultModel,
     });
-    settings[vendor.id] = config;
+    settings[settingsKey] = config;
     window.__toast?.success(`${customName} 配置已保存！`);
     document.getElementById('cloudConfigModal').classList.remove('visible');
     renderCloudVendors();
@@ -470,8 +419,18 @@ function addModelToList(name) {
   for (const el of existing) { if (el.textContent.trim() === name) return; }
   const tag = document.createElement('div');
   tag.className = 'cloud-model-tag';
+  tag.style.cursor = 'pointer';
   tag.innerHTML = `<span class="model-tag-name">${escapeHtml(name)}</span><button class="model-tag-remove">&times;</button>`;
-  tag.querySelector('.model-tag-remove').addEventListener('click', () => { tag.remove(); refreshModelSelect(); });
+  // 点击选为默认模型
+  tag.addEventListener('click', (e) => {
+    if (e.target.classList.contains('model-tag-remove')) return;
+    const sel = document.getElementById('cfgDefaultModel');
+    if (sel) { sel.value = name; }
+    // 高亮当前选中
+    list.querySelectorAll('.cloud-model-tag').forEach(t => t.style.borderColor = 'var(--border-light)');
+    tag.style.borderColor = 'var(--primary)';
+  });
+  tag.querySelector('.model-tag-remove').addEventListener('click', (e) => { e.stopPropagation(); tag.remove(); refreshModelSelect(); });
   list.appendChild(tag);
   refreshModelSelect();
 }
@@ -603,72 +562,108 @@ function compressAndSetLogo(dataUrl) {
   img.src = dataUrl;
 }
 
-// ==================== 本地运行时检测 ====================
-async function detectLocalRuntimes() {
-  const ollamaStatus = document.getElementById('ollamaStatus');
-  const lmstudioStatus = document.getElementById('lmstudioStatus');
+// ==================== 模型下载平台 ====================
+const marketPlatforms = [
+  { id: 'modelscope', name: 'ModelScope 魔搭社区', icon: '🔴', color: '#ff3b30', desc: '国内主流开源模型平台，高速下载', url: 'https://modelscope.cn/models' },
+  { id: 'ollama', name: 'Ollama Library', icon: '🦙', color: '#00d9ff', desc: '一键 ollama pull，最便捷', url: 'https://ollama.com/library' },
+  { id: 'huggingface', name: 'HuggingFace', icon: '🤗', color: '#ff9f0a', desc: '全球最大开源模型社区', url: 'https://huggingface.co/models?sort=trending' },
+  { id: 'hf-mirror', name: 'HF 镜像站', icon: '🪞', color: '#5856d6', desc: '国内 HuggingFace 镜像，高速下载', url: 'https://hf-mirror.com/models' },
+  { id: 'wisemodel', name: '始智AI', icon: '🟢', color: '#34c759', desc: '国产中立开源模型平台', url: 'https://www.wisemodel.cn/models' },
+  { id: 'openi', name: 'OpenI 启智', icon: '🔵', color: '#007aff', desc: '鹏城实验室开源 AI 社区', url: 'https://openi.pcl.ac.cn/models' },
+];
 
+// ==================== 本地运行时配置 ====================
+const localRuntimes = [
+  { id: 'ollama', name: 'Ollama', icon: '🦙', color1: '#00d9ff', color2: '#6c63ff', desc: '命令行本地模型框架', detail: '一键拉取 Llama、Qwen、DeepSeek 等开源模型，本地推理零延迟。', downloadUrl: 'https://ollama.com/download', detect: true },
+  { id: 'lmstudio', name: 'LM Studio', icon: '💻', color1: '#ff9500', color2: '#ff2d55', desc: '可视化模型管理', detail: '支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。', downloadUrl: 'https://lmstudio.ai/', detect: true },
+  { id: 'gpt4all', name: 'GPT4All', icon: '🤖', color1: '#34c759', color2: '#00d9ff', desc: 'Nomic AI 出品，隐私优先', detail: '开箱即用的本地 AI 助手，无需 GPU，支持 CPU 推理。', downloadUrl: 'https://gpt4all.io/', detect: false },
+  { id: 'jan', name: 'Jan', icon: '🪶', color1: '#af52de', color2: '#ff2d55', desc: 'Menlo 出品，类 ChatGPT 体验', detail: '完全离线运行，支持多模型切换，自带聊天界面。', downloadUrl: 'https://jan.ai/', detect: false },
+  { id: 'localai', name: 'LocalAI', icon: '🔧', color1: '#ff9500', color2: '#ff3b30', desc: 'OpenAI API 兼容本地网关', detail: 'Drop-in 替代 OpenAI API，支持 LLM / 图片生成 / 音频。', downloadUrl: 'https://localai.io/', detect: false },
+  { id: 'vllm', name: 'vLLM', icon: '⚡', color1: '#5856d6', color2: '#007aff', desc: '高吞吐量 GPU 推理引擎', detail: 'PagedAttention 优化，适合多卡服务器部署，吞吐量极高。', downloadUrl: 'https://docs.vllm.ai/', detect: false },
+];
+
+// 渲染本地运行时卡片（动态生成，统一布局）
+function renderLocalRuntimes() {
+  const grid = document.getElementById('localRuntimeGrid');
+  if (!grid) return;
+
+  grid.innerHTML = localRuntimes.map(rt => `
+    <div class="local-rt-card" data-rt="${rt.id}" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
+      <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, ${rt.color1}, ${rt.color2}); opacity: 0.5;"></div>
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+        <div style="width: 42px; height: 42px; background: linear-gradient(135deg, ${rt.color1}20, ${rt.color2}20); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;">${rt.icon}</div>
+        <div style="flex: 1; min-width: 0;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 700;">${rt.name}</h3>
+          <div style="font-size: 11px; color: var(--text-muted);">${rt.desc}</div>
+        </div>
+        <div id="${rt.id}Status" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px; flex-shrink: 0;">检测中...</div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">${rt.detail}</div>
+      <div id="${rt.id}Actions" style="display: flex; gap: 8px;"></div>
+    </div>
+  `).join('');
+
+  // 检测状态
+  detectAllRuntimes();
+}
+
+// 检测所有运行时状态
+async function detectAllRuntimes() {
+  // Ollama 和 LM Studio 通过后端检测
   try {
     localStatus = await window.openClaw.model.detectLocal();
   } catch(e) {
     localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
   }
 
-  if (localStatus.ollama.running) {
-    ollamaStatus.style.background = 'rgba(52,199,89,0.12)';
-    ollamaStatus.style.color = 'var(--success)';
-    ollamaStatus.style.border = '1px solid rgba(52,199,89,0.3)';
-    ollamaStatus.textContent = `● 已连接 · ${localStatus.ollama.models.length} 个模型`;
-    document.getElementById('ollamaActions').innerHTML = `
-      <button class="btn btn-primary ollama-manage-btn" style="flex:1;border-radius:10px;font-weight:600;font-size:12px;">管理模型</button>
-      <button class="btn btn-default ollama-reload-btn" style="border-radius:10px;font-size:12px;">🔄 刷新</button>
-    `;
-    document.querySelector('.ollama-manage-btn').addEventListener('click', () => openLocalModelsModal('ollama'));
-    document.querySelector('.ollama-reload-btn').addEventListener('click', detectLocalRuntimes);
-  } else {
-    ollamaStatus.style.background = 'rgba(255,59,48,0.1)';
-    ollamaStatus.style.color = 'var(--danger)';
-    ollamaStatus.style.border = '1px solid rgba(255,59,48,0.2)';
-    ollamaStatus.textContent = '○ 未运行';
-    document.getElementById('ollamaActions').innerHTML = `
-      <button class="btn btn-primary ollama-install-btn" style="flex:1;border-radius:10px;font-weight:600;font-size:12px;">📥 安装 Ollama</button>
-    `;
-    document.querySelector('.ollama-install-btn').addEventListener('click', () => openInstallGuide('ollama'));
-  }
+  // Ollama
+  updateRuntimeCard('ollama', localStatus.ollama.running, localStatus.ollama.models.length);
 
-  if (localStatus.lmstudio.running) {
-    lmstudioStatus.style.background = 'rgba(52,199,89,0.12)';
-    lmstudioStatus.style.color = 'var(--success)';
-    lmstudioStatus.style.border = '1px solid rgba(52,199,89,0.3)';
-    lmstudioStatus.textContent = `● 已连接 · ${localStatus.lmstudio.models.length} 个模型`;
-    document.getElementById('lmstudioActions').innerHTML = `
-      <button class="btn btn-primary lm-manage-btn" style="flex:1;border-radius:10px;font-weight:600;font-size:12px;">管理模型</button>
-      <button class="btn btn-default lm-reload-btn" style="border-radius:10px;font-size:12px;">🔄 刷新</button>
-    `;
-    document.querySelector('.lm-manage-btn').addEventListener('click', () => openLocalModelsModal('lmstudio'));
-    document.querySelector('.lm-reload-btn').addEventListener('click', detectLocalRuntimes);
-  } else {
-    lmstudioStatus.style.background = 'rgba(255,59,48,0.1)';
-    lmstudioStatus.style.color = 'var(--danger)';
-    lmstudioStatus.style.border = '1px solid rgba(255,59,48,0.2)';
-    lmstudioStatus.textContent = '○ 未运行';
-    document.getElementById('lmstudioActions').innerHTML = `
-      <button class="btn btn-primary lm-install-btn" style="flex:1;border-radius:10px;font-weight:600;font-size:12px;">📥 安装 LM Studio</button>
-    `;
-    document.querySelector('.lm-install-btn').addEventListener('click', () => openInstallGuide('lmstudio'));
-  }
+  // LM Studio
+  updateRuntimeCard('lmstudio', localStatus.lmstudio.running, localStatus.lmstudio.models.length);
+
+  // 其他运行时：未检测到，显示下载按钮
+  ['gpt4all', 'jan', 'localai', 'vllm'].forEach(id => {
+    updateRuntimeCard(id, false, 0);
+  });
 }
 
-// ==================== 模型大市场 ====================
+function updateRuntimeCard(rtId, running, modelCount) {
+  const rt = localRuntimes.find(r => r.id === rtId);
+  if (!rt) return;
+  const statusEl = document.getElementById(`${rtId}Status`);
+  const actionsEl = document.getElementById(`${rtId}Actions`);
+  if (!statusEl || !actionsEl) return;
 
-// 下载平台（全部来自魔搭社区）
-const marketPlatforms = [
-  { id: 'modelscope', name: 'ModelScope 魔搭社区', icon: '🔴', color: '#ff3b30', desc: '国内主流开源模型平台，高速下载', url: 'https://modelscope.cn/models' },
-  { id: 'ollama', name: 'Ollama Library', icon: '🦙', color: '#00d9ff', desc: '一键 ollama pull，最便捷', url: 'https://ollama.com/library' },
-];
+  if (running) {
+    statusEl.style.background = 'rgba(52,199,89,0.12)';
+    statusEl.style.color = 'var(--success)';
+    statusEl.style.border = '1px solid rgba(52,199,89,0.3)';
+    statusEl.textContent = `● 已连接 · ${modelCount} 个模型`;
 
-// 预置热门本地模型库（全部来源魔搭社区，按硬件自动筛选）
-const localModelDB = [
+    actionsEl.innerHTML = `
+      <button class="btn btn-primary btn-sm local-manage-btn" data-rt="${rtId}" style="border-radius:8px; font-size:12px;">管理模型</button>
+      <button class="btn btn-default btn-sm local-reload-btn" data-rt="${rtId}" style="border-radius:8px; font-size:12px;">🔄 刷新</button>
+    `;
+    actionsEl.querySelector('.local-manage-btn').addEventListener('click', () => openLocalModelsModal(rtId));
+    actionsEl.querySelector('.local-reload-btn').addEventListener('click', detectAllRuntimes);
+  } else {
+    statusEl.style.background = 'rgba(255,59,48,0.1)';
+    statusEl.style.color = 'var(--danger)';
+    statusEl.style.border = '1px solid rgba(255,59,48,0.2)';
+    statusEl.textContent = '○ 未运行';
+
+    actionsEl.innerHTML = `
+      <button class="btn btn-primary btn-sm local-download-btn" data-url="${rt.downloadUrl}" style="border-radius:8px; font-size:12px;">📥 下载 ${rt.name}</button>
+    `;
+    actionsEl.querySelector('.local-download-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const url = e.currentTarget.dataset.url;
+      if (window.openClaw?.system?.openExternal) window.openClaw.system.openExternal(url);
+      else window.open(url, '_blank');
+    });
+  }
+}
   { name: 'Qwen2.5-0.5B-Instruct', family: 'Qwen', params: '0.5B', ram: 1, gpu: 0, category: 'chat', tags: ['中文','极轻量','端侧'], downloads: 320000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问超轻量版，手机/嵌入式可跑', msPath: 'qwen/Qwen2.5-0.5B-Instruct' },
   { name: 'Qwen2.5-1.5B-Instruct', family: 'Qwen', params: '1.5B', ram: 2, gpu: 0, category: 'chat', tags: ['中文','轻量'], downloads: 480000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问轻量版，低配设备友好', msPath: 'qwen/Qwen2.5-1.5B-Instruct' },
   { name: 'Qwen2.5-3B-Instruct', family: 'Qwen', params: '3B', ram: 3, gpu: 0, category: 'chat', tags: ['中文','轻量','均衡'], downloads: 350000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问小杯，轻量与能力的平衡点', msPath: 'qwen/Qwen2.5-3B-Instruct' },
@@ -687,18 +682,6 @@ const localModelDB = [
   { name: 'Qwen2.5-72B-Instruct', family: 'Qwen', params: '72B', ram: 48, gpu: 24, category: 'chat', tags: ['中文','旗舰','顶级'], downloads: 310000, source: 'modelscope', license: 'Apache-2.0', desc: '通义千问旗舰，接近 GPT-4 水平', msPath: 'qwen/Qwen2.5-72B-Instruct' },
   { name: 'DeepSeek-V3', family: 'DeepSeek', params: '671B MoE', ram: 48, gpu: 24, category: 'chat', tags: ['中文','代码','MoE','旗舰'], downloads: 520000, source: 'modelscope', license: 'MIT', desc: '深度求索 V3，MoE 架构，顶级性价比', msPath: 'deepseek-ai/DeepSeek-V3' },
 ];
-
-const categoryMap = {
-  chat: '💬 对话聊天',
-  code: '💻 代码编程',
-  reasoning: '🧮 推理数学',
-  vision: '👁 多模态',
-  creative: '🎨 创意写作',
-};
-
-let currentHwInfo = null;
-let currentSort = 'downloads';
-let currentCategory = 'all';
 
 function renderMarketPlatforms() {
   const grid = document.getElementById('marketPlatformGrid');
@@ -720,172 +703,6 @@ function renderMarketPlatforms() {
     card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-2px)'; card.style.borderColor = 'var(--primary)'; card.style.boxShadow = 'var(--shadow-md)'; });
     card.addEventListener('mouseleave', () => { card.style.transform = ''; card.style.borderColor = 'var(--border-light)'; card.style.boxShadow = ''; });
   });
-}
-
-async function loadModelMarket() {
-  const container = document.getElementById('modelMarketContainer');
-
-  // 检测硬件
-  try { currentHwInfo = await window.openClaw.model.getMarketplace?.(); currentHwInfo = currentHwInfo?.hardware || null; } catch(e) {}
-  const freeRam = currentHwInfo?.freeRamGB || 8;
-  const hasGpu = currentHwInfo?.hasGpu ?? false;
-
-  // 渲染筛选栏
-  container.innerHTML = `
-    <!-- 硬件推荐提示 -->
-    <div id="hwBanner" style="background:rgba(0,122,255,0.06); border:1px solid rgba(0,122,255,0.15); border-radius:12px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:12px; font-size:13px;">
-      <span style="font-size:20px;">💻</span>
-      <div>
-        <span style="font-weight:600;">当前设备：</span>
-        ${currentHwInfo ? `可用内存 <b>${freeRam.toFixed(1)} GB</b>，${hasGpu ? '已检测到 GPU' : '仅 CPU 推理'}` : '正在检测硬件...'}
-        <span style="color:var(--text-muted); margin-left:8px;">已为你筛选可运行的模型，来源：魔搭社区</span>
-      </div>
-    </div>
-
-    <!-- 筛选排序栏 -->
-    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; align-items:center;" id="marketFilterBar">
-      <span style="font-size:12px; color:var(--text-muted); margin-right:4px;">用途：</span>
-      <button class="market-filter-btn active" data-cat="all">全部</button>
-      <button class="market-filter-btn" data-cat="chat">💬 对话</button>
-      <button class="market-filter-btn" data-cat="code">💻 代码</button>
-      <button class="market-filter-btn" data-cat="reasoning">🧮 推理</button>
-      <div style="flex:1;"></div>
-      <span style="font-size:12px; color:var(--text-muted); margin-right:4px;">排序：</span>
-      <select class="input select" id="marketSortSelect" style="width:130px; border-radius:8px; font-size:12px; height:30px;">
-        <option value="downloads">🔥 下载量</option>
-        <option value="ram">📦 内存占用</option>
-        <option value="params">🔢 参数量</option>
-        <option value="name">🔤 名称</option>
-      </select>
-    </div>
-
-    <!-- 模型列表 -->
-    <div id="marketModelGrid" style="display:flex; flex-direction:column; gap:10px;"></div>
-  `;
-
-  // 筛选按钮事件
-  container.querySelectorAll('.market-filter-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      container.querySelectorAll('.market-filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      currentCategory = btn.dataset.cat;
-      renderModelList();
-    });
-  });
-  // 排序事件
-  container.querySelector('#marketSortSelect').addEventListener('change', (e) => {
-    currentSort = e.target.value;
-    renderModelList();
-  });
-
-  renderModelList();
-}
-
-function renderModelList() {
-  const grid = document.getElementById('marketModelGrid');
-  const freeRam = currentHwInfo?.freeRamGB || 8;
-
-  // 只显示当前设备能跑的模型
-  let list = localModelDB.filter(m => m.ram <= freeRam);
-  if (currentCategory !== 'all') {
-    list = list.filter(m => m.category === currentCategory);
-  }
-
-  // 排序
-  list.sort((a, b) => {
-    if (currentSort === 'downloads') return b.downloads - a.downloads;
-    if (currentSort === 'ram') return a.ram - b.ram;
-    if (currentSort === 'params') return a.ram - b.ram; // 用 ram 代理参数大小
-    return a.name.localeCompare(b.name);
-  });
-
-  if (list.length === 0) {
-    grid.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">当前设备暂无可运行的模型，建议增加内存后重试</div>';
-    return;
-  }
-
-  grid.innerHTML = list.map(m => {
-    const dlText = m.downloads >= 1000000 ? (m.downloads / 1000000).toFixed(1) + 'M' : m.downloads >= 1000 ? (m.downloads / 1000).toFixed(0) + 'K' : m.downloads;
-    return `
-    <div class="market-model-card" data-model='${JSON.stringify(m).replace(/'/g, "&#39;")}' style="background:var(--bg-card); border:1.5px solid var(--border-light); border-radius:14px; padding:16px 20px; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all 0.2s;">
-      <div style="width:44px; height:44px; background:var(--primary-light); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;">${m.category === 'code' ? '💻' : m.category === 'reasoning' ? '🧮' : '💬'}</div>
-      <div style="flex:1; min-width:0;">
-        <div style="font-size:14px; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(m.name)}</div>
-        <div style="font-size:12px; color:var(--text-muted); display:flex; flex-wrap:wrap; gap:8px;">
-          <span>🔢 ${m.params}</span>
-          <span>📦 ${m.ram} GB</span>
-          <span>⬇ ${dlText}</span>
-          <span style="color:var(--success); font-weight:600;">✅ 可运行</span>
-        </div>
-      </div>
-      <div style="display:flex; gap:6px; flex-shrink:0;">
-        ${m.tags.map(t => `<span style="font-size:11px; padding:2px 8px; border-radius:6px; background:var(--bg-hover); color:var(--text-secondary);">${t}</span>`).join('')}
-      </div>
-    </div>
-    `;
-  }).join('');
-
-  grid.querySelectorAll('.market-model-card').forEach(card => {
-    card.addEventListener('click', () => openModelDetail(JSON.parse(card.dataset.model)));
-    card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-1px)'; card.style.boxShadow = 'var(--shadow-md)'; });
-    card.addEventListener('mouseleave', () => { card.style.transform = ''; card.style.boxShadow = ''; });
-  });
-}
-
-function openModelDetail(model) {
-  const modal = document.getElementById('modelDetailModal');
-  const body = document.getElementById('modelDetailBody');
-
-  // 魔搭社区模型页面链接
-  const msUrl = model.msPath
-    ? `https://modelscope.cn/models/${model.msPath}`
-    : `https://modelscope.cn/models?name=${encodeURIComponent(model.family)}`;
-
-  document.getElementById('modelDetailTitle').textContent = model.name;
-  body.innerHTML = `
-    <div style="margin-bottom:20px;">
-      <div style="font-size:13px; color:var(--text-secondary); line-height:1.7;">${model.desc}</div>
-    </div>
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
-      <div style="background:var(--bg-hover); border-radius:10px; padding:12px 14px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">参数量</div>
-        <div style="font-size:16px; font-weight:700;">${model.params}</div>
-      </div>
-      <div style="background:var(--bg-hover); border-radius:10px; padding:12px 14px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">推荐内存</div>
-        <div style="font-size:16px; font-weight:700;">${model.ram} GB</div>
-      </div>
-      <div style="background:var(--bg-hover); border-radius:10px; padding:12px 14px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">GPU 需求</div>
-        <div style="font-size:16px; font-weight:700;">${model.gpu === 0 ? '仅 CPU 即可' : model.gpu + ' GB VRAM'}</div>
-      </div>
-      <div style="background:rgba(52,199,89,0.08); border-radius:10px; padding:12px 14px;">
-        <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">你的设备</div>
-        <div style="font-size:16px; font-weight:700; color:var(--success);">✅ 可以运行</div>
-      </div>
-    </div>
-
-    <div style="margin-bottom:20px;">
-      <div style="font-size:13px; font-weight:600; margin-bottom:8px;">标签</div>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">
-        ${model.tags.map(t => `<span style="font-size:12px; padding:4px 12px; border-radius:8px; background:var(--primary-light); color:var(--primary); font-weight:500;">${t}</span>`).join('')}
-        <span style="font-size:12px; padding:4px 12px; border-radius:8px; background:var(--bg-hover); color:var(--text-secondary);">📜 ${model.license}</span>
-      </div>
-    </div>
-
-    <div style="font-size:13px; font-weight:600; margin-bottom:10px;">下载渠道</div>
-    <div style="display:flex; flex-wrap:wrap; gap:10px;">
-      <a href="${msUrl}" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:10px; text-decoration:none; color:var(--text-primary); font-size:13px; font-weight:500; transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--primary)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.borderColor='var(--border-light)';this.style.transform=''">
-        <span style="font-size:18px;">🔴</span> 魔搭社区
-      </a>
-      <a href="https://ollama.com/library/${model.name.split('-')[0].toLowerCase()}" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:10px 16px; background:var(--bg-card); border:1px solid var(--border-light); border-radius:10px; text-decoration:none; color:var(--text-primary); font-size:13px; font-weight:500; transition:all 0.2s;" onmouseenter="this.style.borderColor='var(--primary)';this.style.transform='translateY(-1px)'" onmouseleave="this.style.borderColor='var(--border-light)';this.style.transform=''">
-        <span style="font-size:18px;">🦙</span> Ollama
-      </a>
-    </div>
-  `;
-
-  modal.style.display = 'flex';
 }
 
 // ==================== 安装引导弹窗 ====================
