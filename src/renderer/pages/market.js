@@ -161,7 +161,7 @@ export async function render(container) {
     </div>
 
     <!-- 模型详情 Modal -->
-    <div id="modelDetailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div id="modelDetailModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
       <div style="background:var(--bg-app); width:640px; max-width:92%; max-height:85vh; border-radius:20px; box-shadow:0 32px 64px rgba(0,0,0,0.3); overflow:hidden; display:flex; flex-direction:column;">
         <div style="padding:20px 24px; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
           <h3 style="margin:0; font-size:18px;" id="modelDetailTitle">模型详情</h3>
@@ -194,7 +194,7 @@ export async function render(container) {
     </div>
 
     <!-- 安装引导 Modal -->
-    <div id="installGuideModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div id="installGuideModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
       <div style="background: var(--bg-app); width: 520px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.25); overflow: hidden;">
         <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
           <h3 style="margin: 0; font-size: 18px;" id="installGuideTitle">安装引导</h3>
@@ -205,7 +205,7 @@ export async function render(container) {
     </div>
 
     <!-- 本地模型列表 Modal -->
-    <div id="localModelsModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div id="localModelsModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
       <div style="background: var(--bg-app); width: 600px; max-width: 90%; max-height: 80vh; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column;">
         <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
           <h3 style="margin: 0; font-size: 18px;" id="localModelsTitle">已部署模型</h3>
@@ -216,6 +216,19 @@ export async function render(container) {
     </div>
   `;
 
+  // 清理 body 上残留的旧模态框（页面每次导航都会重新 render）
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal', 'logoFileInput'].forEach(id => {
+    const old = document.getElementById(id);
+    if (old && old.parentNode === document.body) old.remove();
+  });
+
+  // 将新创建的模态框从页面容器移到 body
+  // 原因：.page 有 CSS animation 含 transform，会导致 position:fixed 子元素定位失效
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) document.body.appendChild(el);
+  });
+
   // 隐藏的 file input for logo upload
   const logoInput = document.createElement('input');
   logoInput.type = 'file';
@@ -223,12 +236,6 @@ export async function render(container) {
   logoInput.id = 'logoFileInput';
   logoInput.style.display = 'none';
   document.body.appendChild(logoInput);
-
-  // 将所有模态框移到 body（避免被 page-container 的层叠上下文困住）
-  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) document.body.appendChild(el);
-  });
 
   bindModalEvents();
   renderCloudVendors();

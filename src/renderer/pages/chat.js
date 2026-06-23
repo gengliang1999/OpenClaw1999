@@ -168,7 +168,7 @@ export async function render(container) {
     </div>
 
     <!-- 模型选择 Modal 弹窗 -->
-    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
        <div style="background: var(--bg-app); width: 600px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
           <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel);">
              <h3 style="margin: 0; font-size: 18px;">🤖 切换模型</h3>
@@ -300,9 +300,11 @@ export async function render(container) {
      if(e.target.id === 'modelSelectionModal') e.target.style.display = 'none';
   });
 
-  // 将模态框移到 body（避免被 page-container 层叠上下文困住）
-  const modal = document.getElementById('modelSelectionModal');
-  if (modal) document.body.appendChild(modal);
+  // 清理旧模态框并移到 body（绕过 .page 的 CSS animation transform 导致 fixed 定位失效）
+  const oldModal = document.getElementById('modelSelectionModal');
+  if (oldModal && oldModal.parentNode === document.body) oldModal.remove();
+  const freshModal = document.getElementById('modelSelectionModal');
+  if (freshModal) document.body.appendChild(freshModal);
 
   // 初始化加载
   await loadModels();
