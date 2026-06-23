@@ -8,38 +8,22 @@ let settings = {};
 let localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
 let activeModelId = '';
 
-// 国内外主流云端模型厂商（完整列表）
+// 国内外主流云端模型厂商（模型列表通过 API 拉取）
 const cloudVendors = [
-  // 海外厂商
-  { id: 'openai', name: 'OpenAI', icon: '🌌', color: '#10a37f', desc: 'GPT-4o、GPT-4-Turbo、o1 系列旗舰模型', url: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-preview', 'o1-mini', 'gpt-3.5-turbo'] },
-  { id: 'anthropic', name: 'Anthropic', icon: '🧠', color: '#d97757', desc: 'Claude 4 Opus/Sonnet 等强力推理模型', url: 'https://api.anthropic.com/v1',
-    models: ['claude-sonnet-4-20250514', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'] },
-  { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4', desc: 'Gemini 2.0/1.5 Pro 多模态系列', url: 'https://generativelanguage.googleapis.com/v1beta',
-    models: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'] },
-  { id: 'groq', name: 'Groq', icon: '⚡', color: '#f55036', desc: '超高速推理，LPU 加速芯片', url: 'https://api.groq.com/openai/v1',
-    models: ['llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'] },
-  { id: 'mistral', name: 'Mistral AI', icon: '🌀', color: '#ff7000', desc: 'Mistral Large/Medium 系列，欧洲领先', url: 'https://api.mistral.ai/v1',
-    models: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'open-mistral-nemo'] },
-  // 国内厂商
-  { id: 'deepseek', name: 'DeepSeek', icon: '🐳', color: '#4d6bfe', desc: '深度求索，高性价比代码与推理模型', url: 'https://api.deepseek.com/v1',
-    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'] },
-  { id: 'qwen', name: '通义千问', icon: '☁️', color: '#615ced', desc: '阿里云 Qwen 全系列，QwQ 推理模型', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-long', 'qwq-plus'] },
-  { id: 'zhipu', name: '智谱 AI', icon: '🔮', color: '#3269ff', desc: 'GLM-4 / GLM-4V 多模态系列', url: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-4-plus', 'glm-4-flash', 'glm-4v-plus', 'glm-4-air', 'glm-4-long'] },
-  { id: 'moonshot', name: '月之暗面 (Kimi)', icon: '🌙', color: '#000', desc: 'Kimi 长文本理解，128K 上下文', url: 'https://api.moonshot.cn/v1',
-    models: ['moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'] },
-  { id: 'baidu', name: '百度文心', icon: '🐻', color: '#2932e1', desc: '文心大模型 4.5 系列，中文能力突出', url: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop',
-    models: ['ernie-4.0-8k', 'ernie-3.5-8k', 'ernie-speed-128k', 'ernie-lite-8k'] },
-  { id: 'bytedance', name: '豆包 (字节)', icon: '🫘', color: '#fe2c55', desc: '字节跳动豆包大模型，Doubao 系列', url: 'https://ark.cn-beijing.volces.com/api/v3',
-    models: ['doubao-pro-32k', 'doubao-pro-128k', 'doubao-lite-32k', 'doubao-lite-128k'] },
-  { id: 'minimax', name: 'MiniMax', icon: '🔵', color: '#1677ff', desc: 'MiniMax abab 系列，擅长角色扮演', url: 'https://api.minimax.chat/v1',
-    models: ['abab6.5s-chat', 'abab6.5-chat', 'abab5.5-chat'] },
-  { id: 'iflytek', name: '讯飞星火', icon: '🔥', color: '#ff6a00', desc: '科大讯飞星火大模型，语音+文本', url: 'https://spark-api-open.xf-yun.com/v1',
-    models: ['generalv3.5', 'generalv3', 'pro-128k'] },
-  { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853', desc: 'Yi 系列模型，高性价比', url: 'https://api.lingyiwanwu.com/v1',
-    models: ['yi-large', 'yi-medium', 'yi-spark', 'yi-large-turbo'] },
+  { id: 'openai', name: 'OpenAI', icon: '🌌', color: '#10a37f', desc: 'GPT-4o、GPT-4-Turbo、o1 系列旗舰模型', url: 'https://api.openai.com/v1' },
+  { id: 'anthropic', name: 'Anthropic', icon: '🧠', color: '#d97757', desc: 'Claude 4 Opus/Sonnet 等强力推理模型', url: 'https://api.anthropic.com/v1' },
+  { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4', desc: 'Gemini 2.0/1.5 Pro 多模态系列', url: 'https://generativelanguage.googleapis.com/v1beta' },
+  { id: 'groq', name: 'Groq', icon: '⚡', color: '#f55036', desc: '超高速推理，LPU 加速芯片', url: 'https://api.groq.com/openai/v1' },
+  { id: 'mistral', name: 'Mistral AI', icon: '🌀', color: '#ff7000', desc: 'Mistral Large/Medium 系列，欧洲领先', url: 'https://api.mistral.ai/v1' },
+  { id: 'deepseek', name: 'DeepSeek', icon: '🐳', color: '#4d6bfe', desc: '深度求索，高性价比代码与推理模型', url: 'https://api.deepseek.com/v1' },
+  { id: 'qwen', name: '通义千问', icon: '☁️', color: '#615ced', desc: '阿里云 Qwen 全系列，QwQ 推理模型', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+  { id: 'zhipu', name: '智谱 AI', icon: '🔮', color: '#3269ff', desc: 'GLM-4 / GLM-4V 多模态系列', url: 'https://open.bigmodel.cn/api/paas/v4' },
+  { id: 'moonshot', name: '月之暗面 (Kimi)', icon: '🌙', color: '#000', desc: 'Kimi 长文本理解，128K 上下文', url: 'https://api.moonshot.cn/v1' },
+  { id: 'baidu', name: '百度文心', icon: '🐻', color: '#2932e1', desc: '文心大模型 4.5 系列，中文能力突出', url: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop' },
+  { id: 'bytedance', name: '豆包 (字节)', icon: '🫘', color: '#fe2c55', desc: '字节跳动豆包大模型，Doubao 系列', url: 'https://ark.cn-beijing.volces.com/api/v3' },
+  { id: 'minimax', name: 'MiniMax', icon: '🔵', color: '#1677ff', desc: 'MiniMax abab 系列，擅长角色扮演', url: 'https://api.minimax.chat/v1' },
+  { id: 'iflytek', name: '讯飞星火', icon: '🔥', color: '#ff6a00', desc: '科大讯飞星火大模型，语音+文本', url: 'https://spark-api-open.xf-yun.com/v1' },
+  { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853', desc: 'Yi 系列模型，高性价比', url: 'https://api.lingyiwanwu.com/v1' },
 ];
 
 export async function render(container) {
@@ -77,32 +61,86 @@ export async function render(container) {
             本地模型运行时
           </h3>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" id="localRuntimeGrid">
-          <div id="ollamaCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" id="localRuntimeGrid">
+          <!-- Ollama -->
+          <div id="ollamaCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #00d9ff, #6c63ff); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
-              <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(108,99,255,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🦙</div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(108,99,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🦙</div>
               <div style="flex: 1;">
-                <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">Ollama</h3>
-                <div style="font-size: 12px; color: var(--text-muted);">轻量级本地大模型运行框架</div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Ollama</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">命令行本地模型框架</div>
               </div>
               <div id="ollamaStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
             </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">一键拉取 Llama、Qwen、DeepSeek 等主流开源模型，本地推理零延迟。</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">一键拉取 Llama、Qwen、DeepSeek 等开源模型，本地推理零延迟。</div>
             <div id="ollamaActions" style="display: flex; gap: 8px;"></div>
           </div>
-          <div id="lmstudioCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
+          <!-- LM Studio -->
+          <div id="lmstudioCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff2d55); opacity: 0.5;"></div>
-            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
-              <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,45,85,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">💻</div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,45,85,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">💻</div>
               <div style="flex: 1;">
-                <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">LM Studio</h3>
-                <div style="font-size: 12px; color: var(--text-muted);">可视化本地模型管理与推理</div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">LM Studio</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">可视化模型管理</div>
               </div>
               <div id="lmstudioStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
             </div>
-            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。</div>
             <div id="lmstudioActions" style="display: flex; gap: 8px;"></div>
+          </div>
+          <!-- GPT4All -->
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #34c759, #00d9ff); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(52,199,89,0.15), rgba(0,217,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🤖</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">GPT4All</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">Nomic AI 出品，隐私优先</div>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">开箱即用的本地 AI 助手，无需 GPU，支持 CPU 推理。</div>
+            <a href="https://gpt4all.io/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 gpt4all.io</a>
+          </div>
+          <!-- Jan -->
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #af52de, #ff2d55); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(175,82,222,0.15), rgba(255,45,85,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🪶</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">Jan</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">Menlo 出品，类 ChatGPT 体验</div>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">完全离线运行，支持多模型切换，自带聊天界面。</div>
+            <a href="https://jan.ai/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 jan.ai</a>
+          </div>
+          <!-- LocalAI -->
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff3b30); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,59,48,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">🔧</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">LocalAI</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">OpenAI API 兼容本地网关</div>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">Drop-in 替代 OpenAI API，支持 LLM / 图片生成 / 音频。</div>
+            <a href="https://localai.io/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 localai.io</a>
+          </div>
+          <!-- vLLM -->
+          <div style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 20px; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #5856d6, #007aff); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="width: 42px; height: 42px; background: linear-gradient(135deg, rgba(88,86,214,0.15), rgba(0,122,255,0.15)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px;">⚡</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 700;">vLLM</h3>
+                <div style="font-size: 11px; color: var(--text-muted);">高吞吐量 GPU 推理引擎</div>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 10px;">PagedAttention 优化，适合多卡服务器部署，吞吐量极高。</div>
+            <a href="https://docs.vllm.ai/" target="_blank" style="font-size: 12px; color: var(--primary); text-decoration: none;">🔗 docs.vllm.ai</a>
           </div>
         </div>
       </div>
@@ -137,7 +175,7 @@ export async function render(container) {
         <div class="cloud-config-body" id="cloudConfigBody"></div>
         <div class="cloud-config-footer">
           <button class="btn btn-default" id="cancelCloudConfig" style="border-radius: 10px;">取消</button>
-          <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px;">删除配置</button>
+          <button class="btn btn-ghost" id="testConnectionBtn" style="border-radius: 10px;">🔗 测试连接</button>
           <button class="btn btn-primary" id="saveCloudConfig" style="border-radius: 10px; font-weight: 600; padding: 0 28px;">保存配置</button>
         </div>
       </div>
@@ -262,7 +300,7 @@ function openCloudConfig(vendor) {
 
   // Body
   const body = document.getElementById('cloudConfigBody');
-  const models = conf.models || vendor.models || [];
+  const models = conf.models || [];
   body.innerHTML = `
     <!-- 基本信息 -->
     <div class="config-form-group">
@@ -271,37 +309,41 @@ function openCloudConfig(vendor) {
     </div>
 
     <div class="config-form-group">
+      <label>API 地址</label>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" class="input" id="cfgBaseUrl" value="${escapeHtml(conf.baseUrl || vendor.url || '')}" placeholder="https://api.example.com/v1" style="flex:1;" />
+        <button class="btn btn-default" id="cfgFetchModels" style="border-radius: 10px; flex-shrink: 0; font-size: 12px;">🔄 获取模型</button>
+      </div>
+    </div>
+
+    <div class="config-form-group">
       <label>API Key</label>
       <input type="password" class="input" id="cfgApiKey" value="${escapeHtml(conf.apiKey || '')}" placeholder="sk-..." />
     </div>
 
+    <!-- 模型列表（通过 API 拉取） -->
     <div class="config-form-group">
-      <label>API 地址</label>
-      <input type="text" class="input" id="cfgBaseUrl" value="${escapeHtml(conf.baseUrl || vendor.url || '')}" placeholder="https://api.example.com/v1" />
-    </div>
-
-    <!-- 模型列表 -->
-    <div class="config-form-group">
-      <label>模型列表 <span style="font-weight:400;color:var(--text-muted);">（点击 × 删除，下方添加新模型）</span></label>
+      <label>模型列表 <span style="font-weight:400;color:var(--text-muted);">（点击上方「获取模型」自动拉取，或手动添加）</span></label>
       <div class="cloud-model-list" id="cfgModelList">
         ${models.map(m => `
           <div class="cloud-model-tag">
             <span class="model-tag-name">${escapeHtml(m)}</span>
-            <button class="model-tag-remove" data-model="${escapeHtml(m)}">&times;</button>
+            <button class="model-tag-remove">&times;</button>
           </div>
         `).join('')}
       </div>
       <div class="add-model-row">
-        <input type="text" class="input" id="cfgNewModel" placeholder="输入模型 ID，如 gpt-4o" />
+        <input type="text" class="input" id="cfgNewModel" placeholder="手动输入模型 ID" />
         <button class="btn btn-default" id="cfgAddModelBtn" style="border-radius: 10px; flex-shrink: 0;">+ 添加</button>
       </div>
+      <div id="cfgFetchStatus" style="font-size: 12px; margin-top: 6px; min-height: 18px;"></div>
     </div>
 
     <!-- 高级参数 -->
     <div class="config-form-group">
       <label>默认模型</label>
       <select class="input select" id="cfgDefaultModel">
-        <option value="">-- 请选择 --</option>
+        <option value="">-- 请先获取模型列表 --</option>
         ${models.map(m => `<option value="${m}" ${conf.defaultModel === m ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
     </div>
@@ -354,6 +396,11 @@ function openCloudConfig(vendor) {
         <input type="number" class="input" id="cfgTimeout" value="${conf.timeout || 60}" min="5" max="600" />
       </div>
     </div>
+
+    <!-- 删除配置（底部） -->
+    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
+      <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 12px;">🗑 删除配置</button>
+    </div>
   `;
 
   // 滑块实时显示
@@ -368,28 +415,21 @@ function openCloudConfig(vendor) {
   body.querySelectorAll('.model-tag-remove').forEach(btn => {
     btn.addEventListener('click', () => {
       btn.closest('.cloud-model-tag').remove();
+      refreshModelSelect();
     });
   });
 
-  // 添加模型
+  // 手动添加模型
   body.querySelector('#cfgAddModelBtn').addEventListener('click', () => {
     const input = body.querySelector('#cfgNewModel');
     const name = input.value.trim();
     if (!name) return;
-    const list = body.querySelector('#cfgModelList');
-    const tag = document.createElement('div');
-    tag.className = 'cloud-model-tag';
-    tag.innerHTML = `<span class="model-tag-name">${escapeHtml(name)}</span><button class="model-tag-remove">&times;</button>`;
-    tag.querySelector('.model-tag-remove').addEventListener('click', () => tag.remove());
-    list.appendChild(tag);
-    // 同时加入 select
-    const sel = body.querySelector('#cfgDefaultModel');
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    sel.appendChild(opt);
+    addModelToList(name);
     input.value = '';
   });
+
+  // 获取模型按钮
+  body.querySelector('#cfgFetchModels').addEventListener('click', () => fetchModelsFromApi(vendor));
 
   // 保存按钮
   const saveBtn = document.getElementById('saveCloudConfig');
@@ -397,24 +437,23 @@ function openCloudConfig(vendor) {
   saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
   newSaveBtn.addEventListener('click', () => saveCloudConfig(vendor));
 
-  // 删除按钮
+  // 测试连接按钮
+  const testBtn = document.getElementById('testConnectionBtn');
+  const newTestBtn = testBtn.cloneNode(true);
+  testBtn.parentNode.replaceChild(newTestBtn, testBtn);
+  newTestBtn.addEventListener('click', () => testConnection(vendor));
+
+  // 删除按钮（在 body 底部）
   const delBtn = document.getElementById('deleteCloudConfig');
-  const newDelBtn = delBtn.cloneNode(true);
-  delBtn.parentNode.replaceChild(newDelBtn, delBtn);
-  if (vendor.id === '_custom') {
-    newDelBtn.style.display = 'none';
-  } else {
-    newDelBtn.style.display = '';
-    newDelBtn.addEventListener('click', async () => {
-      try {
-        await window.openClaw.model.removeModel?.(vendor.id);
-        delete settings[vendor.id];
-        modal.classList.remove('visible');
-        renderCloudVendors();
-        window.__toast?.success('配置已删除');
-      } catch(e) { window.__toast?.error(e.message); }
-    });
-  }
+  delBtn.addEventListener('click', async () => {
+    try {
+      await window.openClaw.model.removeModel?.(vendor.id);
+      delete settings[vendor.id];
+      modal.classList.remove('visible');
+      renderCloudVendors();
+      window.__toast?.success('配置已删除');
+    } catch(e) { window.__toast?.error(e.message); }
+  });
 
   modal.classList.add('visible');
 }
@@ -458,6 +497,126 @@ async function saveCloudConfig(vendor) {
     renderCloudVendors();
   } catch(e) {
     window.__toast?.error('保存失败: ' + e.message);
+  }
+}
+
+// ==================== 模型列表辅助 ====================
+function addModelToList(name) {
+  const list = document.getElementById('cfgModelList');
+  if (!list) return;
+  // 去重
+  const existing = list.querySelectorAll('.model-tag-name');
+  for (const el of existing) { if (el.textContent.trim() === name) return; }
+  const tag = document.createElement('div');
+  tag.className = 'cloud-model-tag';
+  tag.innerHTML = `<span class="model-tag-name">${escapeHtml(name)}</span><button class="model-tag-remove">&times;</button>`;
+  tag.querySelector('.model-tag-remove').addEventListener('click', () => { tag.remove(); refreshModelSelect(); });
+  list.appendChild(tag);
+  refreshModelSelect();
+}
+
+function refreshModelSelect() {
+  const list = document.getElementById('cfgModelList');
+  const sel = document.getElementById('cfgDefaultModel');
+  if (!list || !sel) return;
+  const current = sel.value;
+  const names = Array.from(list.querySelectorAll('.model-tag-name')).map(el => el.textContent.trim());
+  sel.innerHTML = '<option value="">-- 请选择 --</option>' + names.map(n => `<option value="${escapeHtml(n)}" ${n === current ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+}
+
+// ==================== 从 API 拉取模型列表 ====================
+async function fetchModelsFromApi(vendor) {
+  const statusEl = document.getElementById('cfgFetchStatus');
+  const btn = document.getElementById('cfgFetchModels');
+  const baseUrl = document.getElementById('cfgBaseUrl').value.trim();
+  const apiKey = document.getElementById('cfgApiKey').value.trim();
+
+  if (!baseUrl) { window.__toast?.error('请先填写 API 地址'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ 拉取中...';
+  statusEl.innerHTML = '<span style="color:var(--text-muted);">正在请求模型列表...</span>';
+
+  try {
+    // 尝试 OpenAI 兼容的 /models 端点
+    const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
+    const headers = { 'Accept': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(15000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const data = await resp.json();
+    let modelIds = [];
+
+    // OpenAI 格式: { data: [{ id: "..." }, ...] }
+    if (Array.isArray(data.data)) {
+      modelIds = data.data.map(m => m.id).filter(Boolean);
+    }
+    // 直接数组: ["model1", ...]
+    else if (Array.isArray(data)) {
+      modelIds = data.map(m => typeof m === 'string' ? m : m.id || m.name).filter(Boolean);
+    }
+    // Ollama 格式: { models: [{ name: "..." }, ...] }
+    else if (Array.isArray(data.models)) {
+      modelIds = data.models.map(m => m.name || m.id).filter(Boolean);
+    }
+
+    if (modelIds.length === 0) {
+      statusEl.innerHTML = '<span style="color:var(--warning);">⚠ 未获取到模型，请检查地址和 Key</span>';
+      return;
+    }
+
+    // 清空旧列表，填入新模型
+    const list = document.getElementById('cfgModelList');
+    list.innerHTML = '';
+    modelIds.forEach(id => addModelToList(id));
+
+    statusEl.innerHTML = `<span style="color:var(--success);">✅ 成功获取 ${modelIds.length} 个模型</span>`;
+    window.__toast?.success(`已获取 ${modelIds.length} 个模型`);
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:var(--danger);">❌ 获取失败: ${e.message}</span>`;
+    window.__toast?.error('获取模型失败: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔄 获取模型';
+  }
+}
+
+// ==================== 连通测试 ====================
+async function testConnection(vendor) {
+  const btn = document.getElementById('testConnectionBtn');
+  const baseUrl = document.getElementById('cfgBaseUrl').value.trim();
+  const apiKey = document.getElementById('cfgApiKey').value.trim();
+  const sel = document.getElementById('cfgDefaultModel');
+  const modelId = sel?.value || '';
+
+  if (!baseUrl) { window.__toast?.error('请先填写 API 地址'); return; }
+
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = '⏳ 测试中...';
+
+  try {
+    // 使用 /models 端点做轻量级连通测试
+    const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
+    const headers = { 'Accept': 'application/json' };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(10000) });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      const count = Array.isArray(data.data) ? data.data.length : Array.isArray(data.models) ? data.models.length : '?';
+      window.__toast?.success(`✅ 连接成功！API 可用，共 ${count} 个模型`);
+    } else {
+      window.__toast?.warning(`⚠ 服务器响应 HTTP ${resp.status}，请检查配置`);
+    }
+  } catch(e) {
+    window.__toast?.error(`❌ 连接失败: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
   }
 }
 
@@ -553,142 +712,16 @@ async function detectLocalRuntimes() {
   }
 }
 
-// ==================== 模型大市场加载 ====================
+// ==================== 模型大市场（暂空，待后续配置） ====================
 async function loadModelMarket() {
   const container = document.getElementById('modelMarketContainer');
-  try {
-    const data = await window.openClaw.model.getMarketplace();
-    const models = data.models || [];
-    if (models.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">暂无可用模型</div>';
-      return;
-    }
-    container.innerHTML = `
-      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
-        ${models.map(p => `
-          <div style="background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 12px; padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s;" class="market-provider-card" data-provider='${JSON.stringify(p).replace(/'/g, "&#39;")}'>
-            <div style="font-size: 28px; margin-bottom: 8px;">${p.logo || '🤖'}</div>
-            <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">${escapeHtml(p.provider)}</div>
-            <div style="font-size: 11px; color: var(--text-muted);">${p.series?.length || 0} 个系列</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-    container.querySelectorAll('.market-provider-card').forEach(card => {
-      card.addEventListener('click', () => {
-        try { openMarketDetail(JSON.parse(card.dataset.provider)); } catch(e) { console.error(e); }
-      });
-      card.addEventListener('mouseenter', () => { card.style.transform = 'translateY(-2px)'; card.style.boxShadow = 'var(--shadow-md)'; });
-      card.addEventListener('mouseleave', () => { card.style.transform = ''; card.style.boxShadow = ''; });
-    });
-  } catch(e) {
-    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--danger);">加载失败: ${e.message}</div>`;
-  }
-}
-
-function openMarketDetail(provider) {
-  const container = document.getElementById('modelMarketContainer');
   container.innerHTML = `
-    <div style="margin-bottom: 16px;">
-      <span style="color: var(--primary); cursor: pointer; font-size: 13px;" id="marketBackBtn">← 返回</span>
-      <h3 style="margin: 8px 0 0; font-size: 18px; font-weight: 600;">${provider.logo || '🤖'} ${escapeHtml(provider.provider)}</h3>
+    <div style="text-align:center; padding: 48px 20px; color: var(--text-muted);">
+      <div style="font-size: 48px; margin-bottom: 16px;">🏗️</div>
+      <div style="font-size: 15px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary);">模型市场建设中</div>
+      <div style="font-size: 13px;">后续将接入更多开源模型厂商，敬请期待。</div>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;" id="marketSeriesGrid"></div>
   `;
-  document.getElementById('marketBackBtn').addEventListener('click', loadModelMarket);
-  const grid = document.getElementById('marketSeriesGrid');
-  (provider.series || []).forEach(series => {
-    const card = document.createElement('div');
-    card.style.cssText = 'background:var(--bg-card);border:1px solid var(--border-light);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s;';
-    card.innerHTML = `
-      <div style="font-size:15px;font-weight:600;margin-bottom:4px;">${escapeHtml(series.name)}</div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(series.description || '')}</div>
-      <div style="font-size:11px;color:var(--primary);background:var(--primary-light);display:inline-block;padding:2px 8px;border-radius:4px;">${series.versions?.length || 0} 个版本</div>
-    `;
-    card.addEventListener('mouseenter', () => { card.style.borderColor = 'var(--primary)'; });
-    card.addEventListener('mouseleave', () => { card.style.borderColor = 'var(--border-light)'; });
-    card.addEventListener('click', () => openMarketVersions(provider, series));
-    grid.appendChild(card);
-  });
-}
-
-function openMarketVersions(provider, series) {
-  const container = document.getElementById('modelMarketContainer');
-  container.innerHTML = `
-    <div style="margin-bottom: 16px;">
-      <span style="color: var(--primary); cursor: pointer; font-size: 13px;" id="marketBackBtn2">← ${escapeHtml(provider.provider)}</span>
-      <h3 style="margin: 8px 0 4px; font-size: 18px; font-weight: 600;">${escapeHtml(series.name)}</h3>
-      <p style="color:var(--text-muted);font-size:13px;margin:0;">${escapeHtml(series.description || '')}</p>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 10px;" id="marketVersionList"></div>
-  `;
-  document.getElementById('marketBackBtn2').addEventListener('click', () => openMarketDetail(provider));
-  const list = document.getElementById('marketVersionList');
-  (series.versions || []).forEach(version => {
-    const item = document.createElement('div');
-    item.style.cssText = 'background:var(--bg-card);border:1px solid var(--border-light);border-radius:12px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;transition:all 0.2s;';
-    const comp = version.compatibility || {};
-    const color = comp.level === 'success' ? '#34c759' : comp.level === 'warning' ? '#ff9500' : '#ff3b30';
-    item.innerHTML = `
-      <div>
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">${escapeHtml(version.name)}</div>
-        <div style="font-size:12px;color:var(--text-muted);display:flex;gap:12px;">
-          <span>📦 ${version.sizeGB} GB</span>
-          <span style="color:${color};">${comp.message || ''}</span>
-        </div>
-      </div>
-      <button class="btn btn-primary market-download-btn" data-version='${JSON.stringify(version).replace(/'/g, "&#39;")}' style="border-radius:10px;font-size:12px;">下载安装</button>
-    `;
-    item.addEventListener('mouseenter', () => { item.style.borderColor = 'var(--primary)'; });
-    item.addEventListener('mouseleave', () => { item.style.borderColor = 'var(--border-light)'; });
-    list.appendChild(item);
-  });
-  list.querySelectorAll('.market-download-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      try { startMarketDownload(JSON.parse(btn.dataset.version), btn); } catch(e) { console.error(e); }
-    });
-  });
-}
-
-async function startMarketDownload(version, btn) {
-  btn.disabled = true;
-  btn.textContent = '下载中...';
-  try {
-    const req = await fetch('http://localhost:3721/api/models/pull', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modelName: version.id, ggufUrl: version.ggufUrl })
-    });
-    if (!req.ok) throw new Error('请求后端失败');
-    const reader = req.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.error) throw new Error(data.error);
-          if (data.status === 'success') {
-            btn.textContent = '✓ 已安装';
-            btn.style.background = 'var(--success)';
-            window.__toast?.success(`${version.name} 安装完成`);
-            return;
-          }
-          if (data.status === 'downloading') btn.textContent = `下载中 ${data.detail || ''}`;
-        } catch(e) { console.warn('SSE parse:', e); }
-      }
-    }
-  } catch(e) {
-    btn.textContent = '重试';
-    btn.disabled = false;
-    window.__toast?.error('下载失败: ' + e.message);
-  }
 }
 
 // ==================== 安装引导弹窗 ====================
