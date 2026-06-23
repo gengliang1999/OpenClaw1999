@@ -1,0 +1,60 @@
+{
+  "models": [
+    {
+      "id": "openai-gpt4",
+      "name": "GPT-4",
+      "type": "cloud",
+      "provider": "OpenAI",
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "modelName": "gpt-4",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    },
+    {
+      "id": "openai-gpt35",
+      "name": "GPT-3.5 Turbo",
+      "type": "cloud",
+      "provider": "OpenAI",
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "modelName": "gpt-3.5-turbo",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    },
+    {
+      "id": "claude-3-sonnet",
+      "name": "Claude 3 Sonnet",
+      "type": "cloud",
+      "provider": "Anthropic",
+      "apiKey": "",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "modelName": "claude-3-sonnet-20240229",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    },
+    {
+      "id": "claude-3-opus",
+      "name": "Claude 3 Opus",
+      "type": "cloud",
+      "provider": "Anthropic",
+      "apiKey": "",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "modelName": "claude-3-opus-20240229",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    },
+    {
+      "id": "claude-3-haiku",
+      "name": "Claude 3 Haiku",
+      "type": "cloud",
+      "provider": "Anthropic",
+      "apiKey": "",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "modelName": "claude-3-haiku-20240307",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    }
+  ],
+  "activeModelId": "openai-gpt4"
+}

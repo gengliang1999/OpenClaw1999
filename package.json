@@ -1,0 +1,57 @@
+{
+  "name": "openclawassistant",
+  "version": "1.0.0",
+  "description": "OpenClaw 智能助手 - 你的全能 AI 伙伴",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron . --remote-debugging-port=9222",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ai",
+    "assistant",
+    "electron",
+    "desktop",
+    "openclaw"
+  ],
+  "author": "OpenClaw Team",
+  "license": "MIT",
+  "build": {
+    "appId": "com.openclaw.assistant",
+    "productName": "OpenClaw智能助手",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/renderer/assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OpenClaw智能助手"
+    }
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "iconv-lite": "^0.7.2",
+    "sql.js": "^1.14.1",
+    "uuid": "^11.1.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^24.13.3"
+  }
+}
