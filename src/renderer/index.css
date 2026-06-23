@@ -1538,4 +1538,385 @@ input, textarea, [contenteditable] {
   content: '💬';
   font-size: 16px;
 }
+
+/* ====================================================================
+   🎨 UI 2.0 — 侧边栏视觉升级 & 聊天输入框整合（豆包风格）
+   ==================================================================== */
+
+/* ================== 二级分类标签（专家中心等） ================== */
+.expert-cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.expert-cat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 24px;
+  border: 1.5px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  letter-spacing: 0.2px;
+}
+
+.expert-cat-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--primary), #5856d6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+.expert-cat-tab span {
+  position: relative;
+  z-index: 1;
+}
+
+.expert-cat-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+}
+
+.expert-cat-tab.active {
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.expert-cat-tab.active::before {
+  opacity: 1;
+}
+
+/* ================== 侧边栏导航项 2.0 ================== */
+.sidebar-nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, var(--primary), #5856d6);
+  border-radius: 0 4px 4px 0;
+  transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.sidebar-nav-item:hover::before {
+  height: 60%;
+}
+
+.sidebar-nav-item.active::before {
+  height: 70%;
+  background: #fff;
+}
+
+/* 会话列表项渐变高亮 */
+.conv-item.active {
+  background: linear-gradient(135deg, var(--primary), #5856d6) !important;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+}
+
+.conv-item.active .conv-delete-x {
+  color: rgba(255,255,255,0.7);
+}
+.conv-item.active .conv-delete-x:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.15);
+}
+
+/* ================== 豆包风格输入框整合 ================== */
+.doubao-input-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: center;
+  z-index: 100;
+}
+
+.doubao-input-container {
+  width: 100%;
+  max-width: 860px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08),
+              0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  overflow: hidden;
+}
+
+.doubao-input-container:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light),
+              0 8px 32px rgba(0, 122, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 引用预览嵌入 */
+.doubao-input-container .quote-preview {
+  border-radius: 0;
+  border-left: 3px solid var(--primary);
+  border-bottom: 1px solid var(--border-light);
+  margin: 0;
+  background: var(--bg-hover);
+  padding: 10px 16px;
+}
+
+/* 输入行：textarea + 发送按钮 */
+.doubao-input-row {
+  display: flex;
+  align-items: flex-end;
+  padding: 12px 16px 12px 20px;
+  gap: 12px;
+}
+
+.doubao-textarea {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  resize: none;
+  min-height: 40px;
+  max-height: 200px;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-family: inherit;
+  line-height: 1.6;
+  padding: 4px 0;
+}
+
+.doubao-textarea::placeholder {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* 发送按钮 */
+.doubao-send-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary), #5856d6);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+}
+
+.doubao-send-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 16px rgba(0, 122, 255, 0.4);
+}
+
+.doubao-send-btn:active {
+  transform: scale(0.95);
+}
+
+.doubao-send-btn:disabled {
+  background: var(--border-color);
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.doubao-send-btn.is-stop {
+  background: var(--danger);
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3);
+}
+
+/* 工具栏行 */
+.doubao-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--border-light);
+  background: rgba(0, 0, 0, 0.01);
+}
+
+.doubao-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.doubao-toolbar-btn svg {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.doubao-toolbar-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.doubao-toolbar-btn:hover svg {
+  opacity: 1;
+}
+
+/* 彩色变体 */
+.doubao-toolbar-btn.accent-cyan {
+  border-color: rgba(0, 217, 255, 0.2);
+  background: rgba(0, 217, 255, 0.06);
+  color: #00b8d9;
+}
+.doubao-toolbar-btn.accent-cyan:hover {
+  background: rgba(0, 217, 255, 0.12);
+  border-color: rgba(0, 217, 255, 0.3);
+}
+
+.doubao-toolbar-btn.accent-purple {
+  border-color: rgba(108, 99, 255, 0.2);
+  background: rgba(108, 99, 255, 0.06);
+  color: #6c63ff;
+}
+.doubao-toolbar-btn.accent-purple:hover {
+  background: rgba(108, 99, 255, 0.12);
+  border-color: rgba(108, 99, 255, 0.3);
+}
+
+.doubao-toolbar-btn.accent-green {
+  border-color: rgba(52, 199, 89, 0.2);
+  background: rgba(52, 199, 89, 0.06);
+  color: #28a745;
+}
+.doubao-toolbar-btn.accent-green:hover {
+  background: rgba(52, 199, 89, 0.12);
+  border-color: rgba(52, 199, 89, 0.3);
+}
+
+.doubao-toolbar-btn.accent-orange {
+  border-color: rgba(255, 159, 10, 0.2);
+  background: rgba(255, 159, 10, 0.06);
+  color: #e67e22;
+}
+.doubao-toolbar-btn.accent-orange:hover {
+  background: rgba(255, 159, 10, 0.12);
+  border-color: rgba(255, 159, 10, 0.3);
+}
+
+.doubao-toolbar-btn.accent-red {
+  border-color: rgba(255, 59, 48, 0.2);
+  background: rgba(255, 59, 48, 0.06);
+  color: var(--danger);
+}
+.doubao-toolbar-btn.accent-red:hover {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.3);
+}
+
+/* 工具栏中内嵌的 select */
+.doubao-toolbar-select {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  padding-right: 4px;
+  width: 100%;
+}
+
+.doubao-toolbar-select option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* 右侧自动吸边 */
+.doubao-toolbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Token 圆环 */
+.doubao-token-ring {
+  width: 30px;
+  height: 30px;
+  position: relative;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.doubao-token-ring:hover {
+  transform: scale(1.1);
+}
+
+/* 深色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .doubao-input-container {
+    background: rgba(44, 44, 46, 0.9);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  .doubao-toolbar-row {
+    background: rgba(0, 0, 0, 0.1);
+  }
+  .doubao-toolbar-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .doubao-toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .expert-cat-tab {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
 

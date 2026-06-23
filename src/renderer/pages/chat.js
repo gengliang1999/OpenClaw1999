@@ -83,67 +83,16 @@ export async function render(container) {
       </div>
 
       <!-- 聊天消息展示区 -->
-      <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 24px; padding-bottom: 250px; display: flex; flex-direction: column; gap: 24px;">
+      <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 24px; padding-bottom: 220px; display: flex; flex-direction: column; gap: 24px;">
         <!-- Messages -->
       </div>
 
-      <!-- 底部输入区 (高度紧凑左对齐) -->
-      <div style="position: absolute; bottom: 0; left: 0; width: 100%; padding: 16px 24px; background: var(--bg-app); border-top: 1px solid var(--border-light); display: flex; flex-direction: column; align-items: center; gap: 12px; z-index: 100; box-sizing: border-box;">
-        
-        <!-- Apple-style Glassmorphism Controls -->
-        <div class="chat-input-controls-glass" style="width: 100%; max-width: 850px; justify-content: flex-start; gap: 8px; padding: 6px 12px;">
-          
-          <!-- 1. 上传文件 -->
-          <button id="fileUploadBtn" class="toolbar-btn" title="上传文件" style="padding: 6px 12px; border-radius: 8px; flex: 1; justify-content: center;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-            上传
-          </button>
+      <!-- 底部输入区 — 豆包风格整合 -->
+      <div class="doubao-input-wrapper">
 
-          <!-- 2. 模型选择弹窗入口 -->
-          <button id="modelModalBtn" class="toolbar-btn" title="选择模型" style="padding: 6px 12px; border-radius: 8px; flex: 1; justify-content: center; background: rgba(0, 217, 255, 0.1); border: 1px solid rgba(0, 217, 255, 0.2); font-weight: 600; color: var(--text-primary);">
-            <span class="icon">🤖</span>
-            <span id="activeModelLabel" style="max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
-          </button>
-
-          <!-- 3. 思考深度 -->
-          <div class="sleek-select-wrapper" style="flex: 1; padding: 0; background: rgba(108, 99, 255, 0.1); border-radius: 8px; border: 1px solid rgba(108, 99, 255, 0.2); justify-content: center;">
-            <span class="icon" style="padding-left: 8px;">🧠</span>
-            <select id="depthSelect" class="sleek-select" style="font-weight: 600; width: 100%; padding: 6px 4px; color: var(--text-primary); text-align: center;">
-              <option value="auto">自动</option>
-              <option value="low">低</option>
-              <option value="medium">中</option>
-              <option value="high">高</option>
-              <option value="extreme">极高</option>
-            </select>
-          </div>
-
-          <!-- 4. 读取屏幕 -->
-          <button id="readScreenBtn" class="toolbar-btn" title="读取屏幕" style="padding: 6px 12px; border-radius: 8px; flex: 1; justify-content: center;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            截屏
-          </button>
-
-          <!-- 5. 通话 -->
-          <button id="callBtn" class="toolbar-btn" title="通话" style="padding: 6px 12px; border-radius: 8px; flex: 1; justify-content: center;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-            通话
-          </button>
-
-          <!-- 右侧：圆形上下文进度条 -->
-          <div style="margin-left: auto; display: flex; align-items: center;" title="上下文占用情况 (点击压缩)">
-             <div id="tokenCircleBtn" style="cursor: pointer; width: 32px; height: 32px; position: relative; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-               <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                 <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(0,0,0,0.1)" stroke-width="3"></circle>
-                 <circle id="tokenCircleFill" cx="18" cy="18" r="16" fill="none" stroke="var(--success)" stroke-width="3" stroke-dasharray="100 100" stroke-dashoffset="100" stroke-linecap="round" style="transition: all 0.3s ease;"></circle>
-               </svg>
-               <span style="position: absolute; font-size: 10px; font-weight: bold; color: var(--text-primary);">🧠</span>
-             </div>
-          </div>
-        </div>
-
-        <div style="width: 100%; max-width: 850px; position: relative; display: flex; align-items: flex-end; gap: 12px;">
-          <!-- 引用预览区 (默认隐藏) -->
-          <div id="quotePreview" class="quote-preview" style="display: none; position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 8px;">
+        <div class="doubao-input-container">
+          <!-- 引用预览 (嵌入容器内顶部) -->
+          <div id="quotePreview" class="quote-preview" style="display: none;">
             <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               <strong style="color: var(--primary);">引用：</strong>
               <span id="quoteText"></span>
@@ -151,18 +100,68 @@ export async function render(container) {
             <span class="close-quote" id="closeQuoteBtn">&times;</span>
           </div>
 
-          <textarea id="chatInput" placeholder="输入消息，Shift + Enter 换行..." style="flex: 1; min-height: 56px; max-height: 200px; padding: 16px 20px; border-radius: 16px; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-primary); font-size: 15px; resize: none; overflow-y: auto; outline: none; font-family: inherit; box-shadow: 0 4px 12px rgba(0,0,0,0.1); line-height: 1.5;"></textarea>
-          
-          <div style="display: flex; gap: 8px; align-items: center; padding-bottom: 8px;">
-            <!-- 垃圾桶按钮：与发送按钮水平对齐，高对比度放大 -->
-            <button id="clearMemoryBtn" title="清空上下文" style="width: 40px; height: 40px; border-radius: 12px; background: rgba(255, 59, 48, 0.1); border: 1px solid rgba(255, 59, 48, 0.2); color: var(--danger); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-            </button>
-
-            <!-- 发送按钮 -->
-            <button id="sendBtn" class="chat-send-btn" style="width: 40px; height: 40px; border-radius: 12px; background: var(--primary); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+          <!-- 输入行 -->
+          <div class="doubao-input-row">
+            <textarea id="chatInput" class="doubao-textarea" placeholder="输入消息...  Shift+Enter 换行" rows="1"></textarea>
+            <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
             </button>
+          </div>
+
+          <!-- 工具栏行：功能按钮整合到输入框内部 -->
+          <div class="doubao-toolbar-row">
+            <!-- 上传文件 -->
+            <button id="fileUploadBtn" class="doubao-toolbar-btn accent-green" title="上传文件">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <span>上传</span>
+            </button>
+
+            <!-- 模型选择 -->
+            <button id="modelModalBtn" class="doubao-toolbar-btn accent-cyan" title="切换模型">
+              <span>🤖</span>
+              <span id="activeModelLabel" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
+            </button>
+
+            <!-- 思考深度 -->
+            <div class="doubao-toolbar-btn accent-purple" title="思考深度" style="gap: 4px;">
+              <span>🧠</span>
+              <select id="depthSelect" class="doubao-toolbar-select">
+                <option value="auto">自动</option>
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+                <option value="extreme">极高</option>
+              </select>
+            </div>
+
+            <!-- 截屏 -->
+            <button id="readScreenBtn" class="doubao-toolbar-btn" title="截屏识别">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+              <span>截屏</span>
+            </button>
+
+            <!-- 通话 -->
+            <button id="callBtn" class="doubao-toolbar-btn accent-orange" title="语音通话">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+              <span>通话</span>
+            </button>
+
+            <!-- 清空上下文 -->
+            <button id="clearMemoryBtn" class="doubao-toolbar-btn accent-red" title="清空上下文记忆">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+              <span>清空</span>
+            </button>
+
+            <!-- 右侧：上下文进度环 -->
+            <div class="doubao-toolbar-right">
+              <div id="tokenCircleBtn" class="doubao-token-ring" title="上下文占用 (点击压缩)">
+                <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="3"></circle>
+                  <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--success)" stroke-width="3" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
+                </svg>
+                <span style="position: absolute; font-size: 11px;">🧠</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -381,12 +380,12 @@ function updateExpertIndicator() {
 function updateTokenUsage() {
   const fill = document.getElementById('tokenCircleFill');
   if (!fill) return;
-  
-  // r=16 -> circumference = 2 * pi * 16 ≈ 100.5
-  // dasharray = 100
-  // dashoffset: 100 (0%) -> 0 (100%)
+
+  // r=15 -> circumference = 2 * pi * 15 ≈ 94.2
+  // dasharray = 94
+  // dashoffset: 94 (0%) -> 0 (100%)
   const percentage = Math.min(tokenUsage, 100);
-  const offset = 100 - percentage;
+  const offset = 94 - (percentage * 94 / 100);
   fill.style.strokeDashoffset = offset;
   
   if (tokenUsage < 50) fill.style.stroke = 'var(--success)';
@@ -641,8 +640,9 @@ async function sendMessage() {
   if (isGenerating) {
     window.openClaw.chat.abortStream();
     isGenerating = false;
-    document.getElementById('sendBtn').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
-    document.getElementById('sendBtn').style.background = 'var(--primary)';
+    const btn = document.getElementById('sendBtn');
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
+    btn.classList.remove('is-stop');
     return;
   }
 
@@ -671,7 +671,7 @@ async function sendMessage() {
   isGenerating = true;
   const sendBtn = document.getElementById('sendBtn');
   sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="10" x="7" y="7" rx="1"></rect></svg>`;
-  sendBtn.style.background = 'var(--danger)';
+  sendBtn.classList.add('is-stop');
 
   const aiBox = appendMessage('ai');
   let fullResponse = '';
@@ -717,7 +717,7 @@ async function sendMessage() {
   } finally {
     isGenerating = false;
     sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
-    sendBtn.style.background = 'var(--primary)';
+    sendBtn.classList.remove('is-stop');
     aiBox.innerHTML = parseMarkdown(fullResponse);
     loadConversations();
   }

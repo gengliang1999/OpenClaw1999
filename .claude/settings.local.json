@@ -6,7 +6,8 @@
       "Bash(git commit *)",
       "Bash(git config *)",
       "Bash(where git *)",
-      "Bash(git --version)"
+      "Bash(git --version)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

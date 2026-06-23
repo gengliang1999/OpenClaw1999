@@ -4,57 +4,41 @@
  */
 
 export async function render(container) {
-  container.classList.add('page-layout-split');
   container.style.padding = '0';
+  container.style.overflow = 'auto';
 
   container.innerHTML = `
-    <!-- 左侧分类侧栏 -->
-    <div class="page-sidebar" id="expertSidebar" style="width: 220px;">
-      <div class="page-sidebar-reopen" id="reopenExpertSidebar" title="展开侧栏">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 4px;"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><path d="M9 3v18"></path><path d="m14 9 3 3-3 3"></path></svg>
-        <span style="font-size: 13px;">展开</span>
+    <!-- 顶部：欢迎栏 -->
+    <div style="background: var(--bg-card); border-bottom: 1px solid var(--border-light); padding: 32px 40px; position: relative; overflow: hidden;">
+      <div style="position: absolute; right: -50px; top: -50px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(108,99,255,0.15) 0%, rgba(108,99,255,0) 70%); border-radius: 50%;"></div>
+      <div style="position: absolute; left: -30px; bottom: -40px; width: 150px; height: 150px; background: radial-gradient(circle, rgba(0,122,255,0.1) 0%, transparent 70%); border-radius: 50%;"></div>
+      <h2 style="font-size: 28px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.5px;">👨‍🏫 专家角色中心</h2>
+      <p style="margin: 0; font-size: 15px; color: var(--text-light); max-width: 600px; line-height: 1.6;">
+        选择一个领域专家，它将自动加载专属的系统提示词（System Prompt）和工作流上下文。
+      </p>
+
+      <!-- 搜索栏 -->
+      <div style="margin-top: 24px; max-width: 400px; position: relative;">
+        <input type="text" class="input" id="searchExpert" placeholder="搜索专家名称或领域..." style="width: 100%; border-radius: 20px; padding-left: 36px; background: var(--bg-body); border: 1px solid var(--border-light);" />
+        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted);">🔎</span>
       </div>
-      <div class="page-sidebar-header">
-        <h3 class="sidebar-title">专家分类</h3>
-        <button class="btn btn-sm btn-ghost" id="toggleExpertSidebarBtn" title="收起侧栏" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><path d="M9 3v18"></path><path d="m16 15-3-3 3-3"></path></svg>
-          <span style="font-size: 13px;">收缩</span>
-        </button>
-      </div>
-      <div class="page-sidebar-list" id="expertCategories">
-        <button class="sidebar-nav-item active" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="all">🌟 全部领域</button>
-        <button class="sidebar-nav-item" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="coding">💻 编程开发</button>
-        <button class="sidebar-nav-item" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="writing">✍️ 文案创作</button>
-        <button class="sidebar-nav-item" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="analysis">📊 数据与逻辑</button>
-        <button class="sidebar-nav-item" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="design">🎨 创意设计</button>
-        <button class="sidebar-nav-item" style="text-align: left; background: transparent; border: none; width: 100%; justify-content: flex-start; font-size: 14px; padding: 10px 16px;" data-cat="life">☕ 生活与效率</button>
+
+      <!-- 药丸标签分类 -->
+      <div class="expert-cat-tabs" id="expertCategories" style="margin-top: 20px;">
+        <button class="expert-cat-tab active" data-cat="all"><span>🌟 全部</span></button>
+        <button class="expert-cat-tab" data-cat="coding"><span>💻 编程开发</span></button>
+        <button class="expert-cat-tab" data-cat="writing"><span>✍️ 文案创作</span></button>
+        <button class="expert-cat-tab" data-cat="analysis"><span>📊 数据逻辑</span></button>
+        <button class="expert-cat-tab" data-cat="design"><span>🎨 创意设计</span></button>
+        <button class="expert-cat-tab" data-cat="life"><span>☕ 生活效率</span></button>
       </div>
     </div>
 
-    <!-- 右侧专家列表主区 -->
-    <div class="page-main" style="overflow-y: auto;">
-      
-      <!-- 顶部：欢迎栏 -->
-      <div style="background: var(--bg-card); border-bottom: 1px solid var(--border-light); padding: 32px 40px; flex-shrink: 0; position: relative; overflow: hidden;">
-        <div style="position: absolute; right: -50px; top: -50px; width: 200px; height: 200px; background: radial-gradient(circle, rgba(108,99,255,0.15) 0%, rgba(108,99,255,0) 70%); border-radius: 50%;"></div>
-        <h2 style="font-size: 28px; font-weight: 700; margin: 0 0 12px 0; letter-spacing: -0.5px;">👨‍🏫 专家角色中心</h2>
-        <p style="margin: 0; font-size: 15px; color: var(--text-light); max-width: 600px; line-height: 1.6;">
-          选择一个领域专家，它将自动加载专属的系统提示词（System Prompt）和工作流上下文。
-        </p>
-        
-        <div style="margin-top: 24px; max-width: 400px; position: relative;">
-          <input type="text" class="input" id="searchExpert" placeholder="搜索专家名称或领域..." style="width: 100%; border-radius: 20px; padding-left: 36px; background: var(--bg-body); border: 1px solid var(--border-light);" />
-          <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted);">🔎</span>
-        </div>
+    <!-- 专家列表 -->
+    <div style="padding: 32px 40px;">
+      <div id="expertsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px;">
+        <!-- 专家卡片将渲染在这里 -->
       </div>
-      
-      <!-- 专家列表 -->
-      <div style="padding: 40px;">
-        <div id="expertsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px;">
-          <!-- 专家卡片将渲染在这里 -->
-        </div>
-      </div>
-      
     </div>
   `;
 }
@@ -237,7 +221,7 @@ export async function init(container) {
   let currentCat = 'all';
   let currentSearch = '';
   let installedSkills = [];
-  
+
   try {
     installedSkills = await window.openClaw.skill.getSkills();
   } catch (err) {
@@ -251,46 +235,35 @@ export async function init(container) {
       id: skill.id,
       name: skill.name,
       icon: skill.icon || '🛠️',
-      category: 'coding', // default category
+      category: 'coding',
       description: skill.description || '来自技能市场的扩展能力',
       prompt: skill.prompt || `你是一个有用的助手。你的专业身份是：${skill.name}。请根据你的专业背景回答问题。`,
-      color: '#ff9500' // orange for market skills
+      color: '#ff9500'
     }));
     combinedExperts = [...EXPERTS, ...marketSkillsAsExperts];
   }
 
   renderExpertsGrid(currentCat, currentSearch, combinedExperts);
 
-  // 侧边栏展开与收缩逻辑
-  const toggleExpertSidebar = () => {
-    document.getElementById('expertSidebar').classList.toggle('collapsed');
-  };
-  document.getElementById('toggleExpertSidebarBtn')?.addEventListener('click', toggleExpertSidebar);
-  document.getElementById('reopenExpertSidebar')?.addEventListener('click', toggleExpertSidebar);
-
+  // 搜索
   document.getElementById('searchExpert').addEventListener('input', (e) => {
     currentSearch = e.target.value.toLowerCase();
     renderExpertsGrid(currentCat, currentSearch, combinedExperts);
   });
 
+  // 药丸标签分类切换
   const categories = document.getElementById('expertCategories');
   if (categories) {
     categories.addEventListener('click', (e) => {
-      const btn = e.target.closest('button');
+      const btn = e.target.closest('.expert-cat-tab');
       if (!btn) return;
-      
+
       currentCat = btn.dataset.cat;
-      // 重置所有激活状态
-      Array.from(categories.children).forEach(b => {
-        b.classList.remove('active');
-        b.style.background = 'transparent';
-        b.style.color = 'var(--text-secondary)';
-      });
+      // 重置所有
+      categories.querySelectorAll('.expert-cat-tab').forEach(b => b.classList.remove('active'));
       // 激活当前
       btn.classList.add('active');
-      btn.style.background = 'var(--primary)';
-      btn.style.color = '#fff';
-      
+
       renderExpertsGrid(currentCat, currentSearch, combinedExperts);
     });
   }
