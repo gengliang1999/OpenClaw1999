@@ -142,6 +142,18 @@ contextBridge.exposeInMainWorld('openClaw', {
     /** 添加本地模型并可选设为默认 */
     addLocalModel: (provider, modelId, modelName, setDefault) =>
       apiRequest('/models/local/add', { method: 'POST', body: { provider, modelId, modelName, setDefault } }),
+
+    /** 代理获取外部 API 模型列表 */
+    proxyFetchModels: (baseUrl, apiKey) =>
+      apiRequest('/models/proxy-fetch', { method: 'POST', body: { baseUrl, apiKey } }),
+
+    /** 代理连通测试 */
+    proxyTest: (baseUrl, apiKey) =>
+      apiRequest('/models/proxy-test', { method: 'POST', body: { baseUrl, apiKey } }),
+
+    /** 删除本地模型 */
+    deleteLocalModel: (provider, modelId) =>
+      apiRequest(`/models/local/${provider}/${encodeURIComponent(modelId)}`, { method: 'DELETE' }),
   },
 
   // ===== 记忆相关 =====

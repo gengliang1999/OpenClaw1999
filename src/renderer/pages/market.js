@@ -53,12 +53,12 @@ export async function render(container) {
         <div class="cloud-vendor-grid" id="cloudVendorGrid"></div>
       </div>
 
-      <!-- Section 2: 本地模型运行时 -->
+      <!-- Section 2: 本地模型 -->
       <div class="market-section-block">
         <div class="market-section-header">
           <h3>
             <span class="section-bar" style="background: linear-gradient(180deg, #00d9ff, #6c63ff);"></span>
-            本地模型运行时
+            本地模型
           </h3>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;" id="localRuntimeGrid">
@@ -318,7 +318,6 @@ function openCloudConfig(vendor) {
   const body = document.getElementById('cloudConfigBody');
   const models = conf.models || [];
   body.innerHTML = `
-    <!-- 基本信息 -->
     <div class="config-form-group">
       <label>自定义名称</label>
       <input type="text" class="input" id="cfgName" value="${escapeHtml(conf.customName || vendor.name)}" placeholder="${vendor.name}" />
@@ -337,9 +336,8 @@ function openCloudConfig(vendor) {
       <input type="password" class="input" id="cfgApiKey" value="${escapeHtml(conf.apiKey || '')}" placeholder="sk-..." />
     </div>
 
-    <!-- 模型列表（通过 API 拉取） -->
     <div class="config-form-group">
-      <label>模型列表 <span style="font-weight:400;color:var(--text-muted);">（点击上方「获取模型」自动拉取，或手动添加）</span></label>
+      <label>模型列表 <span style="font-weight:400;color:var(--text-muted);">（点击「获取模型」自动拉取，或手动输入添加）</span></label>
       <div class="cloud-model-list" id="cfgModelList">
         ${models.map(m => `
           <div class="cloud-model-tag">
@@ -355,87 +353,25 @@ function openCloudConfig(vendor) {
       <div id="cfgFetchStatus" style="font-size: 12px; margin-top: 6px; min-height: 18px;"></div>
     </div>
 
-    <!-- 高级参数 -->
     <div class="config-form-group">
       <label>默认模型</label>
       <select class="input select" id="cfgDefaultModel">
-        <option value="">-- 请先获取模型列表 --</option>
+        <option value="">-- 请选择 --</option>
         ${models.map(m => `<option value="${m}" ${conf.defaultModel === m ? 'selected' : ''}>${m}</option>`).join('')}
       </select>
     </div>
 
-    <div class="config-form-row">
-      <div class="config-form-group">
-        <label>最大 Token 数</label>
-        <input type="number" class="input" id="cfgMaxTokens" value="${conf.maxTokens || 4096}" min="1" max="1000000" />
-      </div>
-      <div class="config-form-group">
-        <label>上下文窗口 (tokens)</label>
-        <input type="number" class="input" id="cfgContextWindow" value="${conf.contextWindow || 4096}" min="1" />
-      </div>
-    </div>
-
-    <div class="config-form-row">
-      <div class="config-form-group">
-        <label>Temperature <span style="font-weight:400;color:var(--text-muted);">创造力</span></label>
-        <div class="range-row">
-          <input type="range" id="cfgTemperature" min="0" max="2" step="0.1" value="${conf.temperature ?? 0.7}" />
-          <span class="range-value" id="cfgTempVal">${conf.temperature ?? 0.7}</span>
-        </div>
-      </div>
-      <div class="config-form-group">
-        <label>Top P <span style="font-weight:400;color:var(--text-muted);">采样</span></label>
-        <div class="range-row">
-          <input type="range" id="cfgTopP" min="0" max="1" step="0.05" value="${conf.topP ?? 1}" />
-          <span class="range-value" id="cfgTopPVal">${conf.topP ?? 1}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="config-form-group">
-      <label>系统提示词 (System Prompt)</label>
-      <textarea class="input" id="cfgSystemPrompt" rows="3" style="resize: vertical;" placeholder="可选，全局系统提示词...">${escapeHtml(conf.systemPrompt || '')}</textarea>
-    </div>
-
-    <div class="config-form-row">
-      <div class="config-form-group">
-        <label style="display:flex;align-items:center;gap:8px;">
-          启用流式输出
-          <label class="switch" style="margin:0;">
-            <input type="checkbox" id="cfgStream" ${conf.stream !== false ? 'checked' : ''} />
-            <span class="switch-slider"></span>
-          </label>
-        </label>
-      </div>
-      <div class="config-form-group">
-        <label>超时时间 (秒)</label>
-        <input type="number" class="input" id="cfgTimeout" value="${conf.timeout || 60}" min="5" max="600" />
-      </div>
-    </div>
-
-    <!-- 删除配置（底部） -->
-    <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
       <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 12px;">🗑 删除配置</button>
     </div>
   `;
 
-  // 滑块实时显示
-  body.querySelector('#cfgTemperature').addEventListener('input', (e) => {
-    body.querySelector('#cfgTempVal').textContent = e.target.value;
-  });
-  body.querySelector('#cfgTopP').addEventListener('input', (e) => {
-    body.querySelector('#cfgTopPVal').textContent = e.target.value;
-  });
-
   // 模型列表删除
   body.querySelectorAll('.model-tag-remove').forEach(btn => {
-    btn.addEventListener('click', () => {
-      btn.closest('.cloud-model-tag').remove();
-      refreshModelSelect();
-    });
+    btn.addEventListener('click', () => { btn.closest('.cloud-model-tag').remove(); refreshModelSelect(); });
   });
 
-  // 手动添加模型
+  // 手动添加
   body.querySelector('#cfgAddModelBtn').addEventListener('click', () => {
     const input = body.querySelector('#cfgNewModel');
     const name = input.value.trim();
@@ -443,23 +379,26 @@ function openCloudConfig(vendor) {
     addModelToList(name);
     input.value = '';
   });
+  body.querySelector('#cfgNewModel').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); body.querySelector('#cfgAddModelBtn').click(); }
+  });
 
-  // 获取模型按钮
-  body.querySelector('#cfgFetchModels').addEventListener('click', () => fetchModelsFromApi(vendor));
+  // 获取模型
+  body.querySelector('#cfgFetchModels').addEventListener('click', () => fetchModelsFromApi());
 
-  // 保存按钮
+  // 保存
   const saveBtn = document.getElementById('saveCloudConfig');
   const newSaveBtn = saveBtn.cloneNode(true);
   saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
   newSaveBtn.addEventListener('click', () => saveCloudConfig(vendor));
 
-  // 测试连接按钮
+  // 测试连接
   const testBtn = document.getElementById('testConnectionBtn');
   const newTestBtn = testBtn.cloneNode(true);
   testBtn.parentNode.replaceChild(newTestBtn, testBtn);
-  newTestBtn.addEventListener('click', () => testConnection(vendor));
+  newTestBtn.addEventListener('click', () => testConnection());
 
-  // 删除按钮（在 body 底部）
+  // 删除配置
   const delBtn = document.getElementById('deleteCloudConfig');
   delBtn.addEventListener('click', async () => {
     try {
@@ -478,37 +417,30 @@ async function saveCloudConfig(vendor) {
   const body = document.getElementById('cloudConfigBody');
   const modelTags = body.querySelectorAll('.cloud-model-tag .model-tag-name');
   const models = Array.from(modelTags).map(el => el.textContent.trim()).filter(Boolean);
+  const defaultModel = body.querySelector('#cfgDefaultModel').value || models[0] || '';
+  const customName = body.querySelector('#cfgName').value.trim() || vendor.name;
+  const apiKey = body.querySelector('#cfgApiKey').value.trim();
+  const baseUrl = body.querySelector('#cfgBaseUrl').value.trim() || vendor.url;
 
-  const config = {
-    customName: body.querySelector('#cfgName').value.trim() || vendor.name,
-    apiKey: body.querySelector('#cfgApiKey').value.trim(),
-    baseUrl: body.querySelector('#cfgBaseUrl').value.trim() || vendor.url,
-    models: models,
-    defaultModel: body.querySelector('#cfgDefaultModel').value,
-    maxTokens: parseInt(body.querySelector('#cfgMaxTokens').value) || 4096,
-    contextWindow: parseInt(body.querySelector('#cfgContextWindow').value) || 4096,
-    temperature: parseFloat(body.querySelector('#cfgTemperature').value),
-    topP: parseFloat(body.querySelector('#cfgTopP').value),
-    systemPrompt: body.querySelector('#cfgSystemPrompt').value,
-    stream: body.querySelector('#cfgStream').checked,
-    timeout: parseInt(body.querySelector('#cfgTimeout').value) || 60,
-    customLogo: currentLogoDataUrl || settings[vendor.id]?.customLogo || '',
-  };
+  if (!apiKey && !baseUrl) { window.__toast?.error('请填写 API 地址或 API Key'); return; }
+  if (models.length === 0) { window.__toast?.error('请先获取或手动添加至少一个模型'); return; }
+  if (!defaultModel) { window.__toast?.error('请选择一个默认模型'); return; }
+
+  const config = { customName, apiKey, baseUrl, models, defaultModel, customLogo: currentLogoDataUrl || settings[vendor.id]?.customLogo || '' };
 
   try {
+    const modelId = vendor.id === '_custom' ? `custom_${Date.now()}` : vendor.id;
     await window.openClaw.model.addModel({
-      id: vendor.id === '_custom' ? `custom_${Date.now()}` : vendor.id,
-      name: config.customName,
+      id: modelId,
+      name: customName,
       type: 'cloud',
       provider: vendor.name,
-      apiKey: config.apiKey,
-      baseUrl: config.baseUrl,
-      modelName: config.defaultModel || models[0] || vendor.id,
-      maxTokens: config.maxTokens,
-      temperature: config.temperature,
+      apiKey,
+      baseUrl,
+      modelName: defaultModel,
     });
     settings[vendor.id] = config;
-    window.__toast?.success(`${config.customName} 配置已保存！`);
+    window.__toast?.success(`${customName} 配置已保存！`);
     document.getElementById('cloudConfigModal').classList.remove('visible');
     renderCloudVendors();
   } catch(e) {
@@ -540,8 +472,8 @@ function refreshModelSelect() {
   sel.innerHTML = '<option value="">-- 请选择 --</option>' + names.map(n => `<option value="${escapeHtml(n)}" ${n === current ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
 }
 
-// ==================== 从 API 拉取模型列表 ====================
-async function fetchModelsFromApi(vendor) {
+// ==================== 从 API 拉取模型列表（通过后端代理） ====================
+async function fetchModelsFromApi() {
   const statusEl = document.getElementById('cfgFetchStatus');
   const btn = document.getElementById('cfgFetchModels');
   const baseUrl = document.getElementById('cfgBaseUrl').value.trim();
@@ -551,39 +483,35 @@ async function fetchModelsFromApi(vendor) {
 
   btn.disabled = true;
   btn.textContent = '⏳ 拉取中...';
-  statusEl.innerHTML = '<span style="color:var(--text-muted);">正在请求模型列表...</span>';
+  statusEl.innerHTML = '<span style="color:var(--text-muted);">正在通过后端请求模型列表...</span>';
 
   try {
-    // 尝试 OpenAI 兼容的 /models 端点
-    const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
-    const headers = { 'Accept': 'application/json' };
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-
-    const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(15000) });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    const data = await resp.json();
+    const data = await window.openClaw.model.proxyFetchModels(baseUrl, apiKey);
     let modelIds = [];
 
-    // OpenAI 格式: { data: [{ id: "..." }, ...] }
+    // OpenAI / DeepSeek / 通义千问 格式: { data: [{ id: "..." }] }
     if (Array.isArray(data.data)) {
       modelIds = data.data.map(m => m.id).filter(Boolean);
     }
-    // 直接数组: ["model1", ...]
+    // 直接数组
     else if (Array.isArray(data)) {
       modelIds = data.map(m => typeof m === 'string' ? m : m.id || m.name).filter(Boolean);
     }
-    // Ollama 格式: { models: [{ name: "..." }, ...] }
+    // Ollama 格式: { models: [{ name: "..." }] }
     else if (Array.isArray(data.models)) {
       modelIds = data.models.map(m => m.name || m.id).filter(Boolean);
     }
+    // Anthropic 格式: { data: [{ id: "claude-..." }] } 或 { models: [...] }
+    else if (data.models && typeof data.models === 'object') {
+      modelIds = Object.keys(data.models);
+    }
 
     if (modelIds.length === 0) {
-      statusEl.innerHTML = '<span style="color:var(--warning);">⚠ 未获取到模型，请检查地址和 Key</span>';
+      statusEl.innerHTML = '<span style="color:var(--warning);">⚠ 未获取到模型，请检查 API 地址和 Key 是否正确</span>';
       return;
     }
 
-    // 清空旧列表，填入新模型
+    // 填入模型列表
     const list = document.getElementById('cfgModelList');
     list.innerHTML = '';
     modelIds.forEach(id => addModelToList(id));
@@ -591,7 +519,7 @@ async function fetchModelsFromApi(vendor) {
     statusEl.innerHTML = `<span style="color:var(--success);">✅ 成功获取 ${modelIds.length} 个模型</span>`;
     window.__toast?.success(`已获取 ${modelIds.length} 个模型`);
   } catch(e) {
-    statusEl.innerHTML = `<span style="color:var(--danger);">❌ 获取失败: ${e.message}</span>`;
+    statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${e.message}</span>`;
     window.__toast?.error('获取模型失败: ' + e.message);
   } finally {
     btn.disabled = false;
@@ -599,13 +527,11 @@ async function fetchModelsFromApi(vendor) {
   }
 }
 
-// ==================== 连通测试 ====================
-async function testConnection(vendor) {
+// ==================== 连通测试（通过后端代理） ====================
+async function testConnection() {
   const btn = document.getElementById('testConnectionBtn');
   const baseUrl = document.getElementById('cfgBaseUrl').value.trim();
   const apiKey = document.getElementById('cfgApiKey').value.trim();
-  const sel = document.getElementById('cfgDefaultModel');
-  const modelId = sel?.value || '';
 
   if (!baseUrl) { window.__toast?.error('请先填写 API 地址'); return; }
 
@@ -614,19 +540,11 @@ async function testConnection(vendor) {
   btn.textContent = '⏳ 测试中...';
 
   try {
-    // 使用 /models 端点做轻量级连通测试
-    const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
-    const headers = { 'Accept': 'application/json' };
-    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-
-    const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(10000) });
-
-    if (resp.ok) {
-      const data = await resp.json();
-      const count = Array.isArray(data.data) ? data.data.length : Array.isArray(data.models) ? data.models.length : '?';
-      window.__toast?.success(`✅ 连接成功！API 可用，共 ${count} 个模型`);
+    const result = await window.openClaw.model.proxyTest(baseUrl, apiKey);
+    if (result.ok) {
+      window.__toast?.success(`✅ ${result.message}`);
     } else {
-      window.__toast?.warning(`⚠ 服务器响应 HTTP ${resp.status}，请检查配置`);
+      window.__toast?.error(`❌ ${result.message}`);
     }
   } catch(e) {
     window.__toast?.error(`❌ 连接失败: ${e.message}`);
@@ -1069,32 +987,74 @@ async function openLocalModelsModal(provider) {
   }
 
   body.innerHTML = `
-    <div style="display: flex; flex-direction: column; gap: 12px;">
+    <!-- 全选 + 批量删除 -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:0 4px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; color:var(--text-secondary);">
+        <input type="checkbox" id="selectAllLocalModels" style="width:16px; height:16px; cursor:pointer;" /> 全选
+      </label>
+      <button class="btn btn-danger btn-sm" id="batchDeleteLocalModels" style="border-radius:8px; font-size:12px; display:none;">🗑 删除选中</button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 10px;" id="localModelList">
       ${models.map(m => {
         const isDefault = activeModelId === m.id || activeModelId === (isOllama ? m.id : `lmstudio_${m.id}`);
         return `
-        <div class="local-model-item" data-id="${m.id}" data-name="${m.name}" style="background: var(--bg-card); border: 1.5px solid ${isDefault ? 'var(--primary)' : 'var(--border-light)'}; border-radius: 14px; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; ${isDefault ? 'box-shadow: 0 0 0 3px var(--primary-light);' : ''}">
-          <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="width: 40px; height: 40px; background: ${isDefault ? 'var(--primary)' : 'var(--bg-hover)'}; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: ${isDefault ? '#fff' : 'var(--text-primary)'};">${isOllama ? '🦙' : '💻'}</div>
-            <div>
-              <div style="font-size: 15px; font-weight: 600;">${escapeHtml(m.name)}</div>
-              <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 12px; margin-top: 2px;">
-                ${m.size ? `<span>📦 ${m.size}</span>` : ''}
-                ${m.parameterSize ? `<span>🔢 ${m.parameterSize}</span>` : ''}
-                ${m.family ? `<span>👨‍👩‍👧 ${m.family}</span>` : ''}
-                ${m.owned_by ? `<span>🏷️ ${m.owned_by}</span>` : ''}
-                ${isDefault ? '<span style="color: var(--primary); font-weight: 600;">⭐ 默认模型</span>' : ''}
-              </div>
+        <div class="local-model-item" data-id="${m.id}" data-name="${m.name}" style="background: var(--bg-card); border: 1.5px solid ${isDefault ? 'var(--primary)' : 'var(--border-light)'}; border-radius: 12px; padding: 14px 18px; display: flex; align-items: center; gap: 12px; transition: all 0.2s; ${isDefault ? 'box-shadow: 0 0 0 3px var(--primary-light);' : ''}">
+          <input type="checkbox" class="local-model-cb" data-id="${m.id}" data-name="${m.name}" style="width:16px; height:16px; cursor:pointer; flex-shrink:0;" />
+          <div style="width:36px; height:36px; background:${isDefault ? 'var(--primary)' : 'var(--bg-hover)'}; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:16px; color:${isDefault ? '#fff' : 'var(--text-primary)'}; flex-shrink:0;">${isOllama ? '🦙' : '💻'}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(m.name)}</div>
+            <div style="font-size:11px; color:var(--text-muted); display:flex; gap:10px; margin-top:2px; flex-wrap:wrap;">
+              ${m.size ? `<span>📦 ${m.size}</span>` : ''}
+              ${m.parameterSize ? `<span>🔢 ${m.parameterSize}</span>` : ''}
+              ${m.family ? `<span>👨‍👩‍👧 ${m.family}</span>` : ''}
+              ${isDefault ? '<span style="color:var(--primary);font-weight:600;">⭐ 默认</span>' : ''}
             </div>
           </div>
-          <div style="display: flex; gap: 8px;">
-            ${!isDefault ? `<button class="btn btn-primary set-default-btn" data-provider="${provider}" data-id="${m.id}" data-name="${m.name}" style="border-radius: 10px; font-size: 12px; padding: 6px 14px;">设为默认</button>` : ''}
-            <button class="btn btn-default use-model-btn" data-provider="${provider}" data-id="${m.id}" data-name="${m.name}" style="border-radius: 10px; font-size: 12px; padding: 6px 14px;">使用</button>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            ${!isDefault ? `<button class="btn btn-primary btn-sm set-default-btn" data-provider="${provider}" data-id="${m.id}" data-name="${m.name}" style="border-radius:8px;">设为默认</button>` : ''}
+            <button class="btn btn-default btn-sm use-model-btn" data-provider="${provider}" data-id="${m.id}" data-name="${m.name}" style="border-radius:8px;">使用</button>
           </div>
         </div>
       `}).join('')}
     </div>
   `;
+
+  // 全选逻辑
+  const selectAll = document.getElementById('selectAllLocalModels');
+  const batchBtn = document.getElementById('batchDeleteLocalModels');
+  const checkboxes = body.querySelectorAll('.local-model-cb');
+
+  function updateBatchBtn() {
+    const checked = body.querySelectorAll('.local-model-cb:checked');
+    batchBtn.style.display = checked.length > 0 ? '' : 'none';
+    batchBtn.textContent = `🗑 删除选中 (${checked.length})`;
+    selectAll.checked = checked.length === checkboxes.length && checkboxes.length > 0;
+  }
+
+  selectAll.addEventListener('change', () => {
+    checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+    updateBatchBtn();
+  });
+  checkboxes.forEach(cb => cb.addEventListener('change', updateBatchBtn));
+
+  // 批量删除
+  batchBtn.addEventListener('click', async () => {
+    const checked = body.querySelectorAll('.local-model-cb:checked');
+    if (checked.length === 0) return;
+    if (!confirm(`确定要删除 ${checked.length} 个模型吗？此操作不可恢复。`)) return;
+
+    let success = 0, fail = 0;
+    for (const cb of checked) {
+      try {
+        await window.openClaw.model.deleteLocalModel(provider, cb.dataset.id);
+        success++;
+      } catch(e) { fail++; console.warn('删除失败:', cb.dataset.id, e); }
+    }
+
+    if (success > 0) window.__toast?.success(`已删除 ${success} 个模型`);
+    if (fail > 0) window.__toast?.error(`${fail} 个模型删除失败`);
+    openLocalModelsModal(provider); // 刷新列表
+  });
 
   // 设为默认
   body.querySelectorAll('.set-default-btn').forEach(btn => {
@@ -1102,19 +1062,19 @@ async function openLocalModelsModal(provider) {
       try {
         await window.openClaw.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, true);
         activeModelId = btn.dataset.provider === 'ollama' ? btn.dataset.id : `lmstudio_${btn.dataset.id}`;
-        if (window.__toast) window.__toast.success(`已将 ${btn.dataset.name} 设为默认模型`);
-        openLocalModelsModal(provider); // 刷新列表
-      } catch(e) { if (window.__toast) window.__toast.error(e.message); }
+        window.__toast?.success(`已将 ${btn.dataset.name} 设为默认模型`);
+        openLocalModelsModal(provider);
+      } catch(e) { window.__toast?.error(e.message); }
     });
   });
 
-  // 使用模型
+  // 使用
   body.querySelectorAll('.use-model-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       try {
         await window.openClaw.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, false);
-        if (window.__toast) window.__toast.success(`已添加模型 ${btn.dataset.name}`);
-      } catch(e) { if (window.__toast) window.__toast.error(e.message); }
+        window.__toast?.success(`已添加模型 ${btn.dataset.name}`);
+      } catch(e) { window.__toast?.error(e.message); }
     });
   });
 }

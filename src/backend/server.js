@@ -563,6 +563,75 @@ async function createServer(port = 3721, rendererPath) {
     }
   });
 
+  /** 代理请求外部 API 的 /models 端点（解决 CORS） */
+  app.post('/api/models/proxy-fetch', async (req, res) => {
+    try {
+      const { baseUrl, apiKey } = req.body;
+      if (!baseUrl) return res.status(400).json({ message: 'baseUrl 不能为空' });
+
+      const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
+      const headers = { 'Accept': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(15000) });
+      if (!resp.ok) return res.status(resp.status).json({ message: `上游返回 HTTP ${resp.status}` });
+
+      const data = await resp.json();
+      res.json(data);
+    } catch (error) {
+      res.status(502).json({ message: `请求失败: ${error.message}` });
+    }
+  });
+
+  /** 代理连通测试 */
+  app.post('/api/models/proxy-test', async (req, res) => {
+    try {
+      const { baseUrl, apiKey } = req.body;
+      if (!baseUrl) return res.status(400).json({ message: 'baseUrl 不能为空' });
+
+      const modelsUrl = baseUrl.replace(/\/+$/, '') + '/models';
+      const headers = { 'Accept': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const resp = await fetch(modelsUrl, { headers, signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) return res.json({ ok: false, status: resp.status, message: `HTTP ${resp.status}` });
+
+      const data = await resp.json();
+      const count = Array.isArray(data.data) ? data.data.length : Array.isArray(data.models) ? data.models.length : 0;
+      res.json({ ok: true, count, message: `连接成功，共 ${count} 个模型` });
+    } catch (error) {
+      res.json({ ok: false, message: `连接失败: ${error.message}` });
+    }
+  });
+
+  /** 删除本地模型（Ollama） */
+  app.delete('/api/models/local/:provider/:modelId', async (req, res) => {
+    try {
+      const { provider, modelId } = req.params;
+      if (provider === 'ollama') {
+        const resp = await fetch('http://127.0.0.1:11434/api/delete', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: modelId })
+        });
+        if (!resp.ok && resp.status !== 200) {
+          // Ollama 有些版本返回 200 无 body
+          const text = await resp.text().catch(() => '');
+          if (text) return res.status(resp.status).json({ message: text });
+        }
+        // 同时从已配置列表移除
+        modelManager.removeModel(modelId).catch(() => {});
+        res.json({ success: true });
+      } else {
+        // LM Studio 没有标准删除 API，只从配置移除
+        modelManager.removeModel(`lmstudio_${modelId}`).catch(() => {});
+        res.json({ success: true });
+      }
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   /** 预加载模型到显存 */
   app.post('/api/models/preload', async (req, res) => {
     try {
