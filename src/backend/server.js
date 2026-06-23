@@ -853,21 +853,6 @@ async function createServer(port = 3721, rendererPath) {
   } catch(e) {}
   const saveSkills = () => fs.writeFileSync(skillsPath, JSON.stringify(installedSkills, null, 2));
 
-  // 首次启动时自动安装新增技能
-  const AUTO_INSTALL_SKILLS = ['skill-security', 'skill-crawler', 'skill-prompt', 'skill-math', 'skill-aiart', 'skill-resume'];
-  let skillsUpdated = false;
-  for (const skillId of AUTO_INSTALL_SKILLS) {
-    if (!installedSkills.some(s => s.id === skillId)) {
-      const skill = SKILL_MARKET.find(s => s.id === skillId);
-      if (skill) {
-        installedSkills.push({ ...skill, installedAt: new Date().toISOString() });
-        skillsUpdated = true;
-        console.log(`[技能市场] 自动安装新技能: ${skill.name}`);
-      }
-    }
-  }
-  if (skillsUpdated) saveSkills();
-
   const SKILL_MARKET = [
     { id: 'skill-writer', name: '文章写作专家', icon: '📝', description: '专为撰写高质量文章、报告而生的 AI 技能。', author: 'OpenClaw', type: '创作', downloads: 12000, rating: 4.8, lastUpdated: '2026-06-10', prompt: '你是一位资深的媒体主编和文案专家。你的写作兼具深度与可读性，能够根据不同的目标受众和发布平台（公众号、知乎、博客等）灵活调整风格。请严格遵循 Markdown 格式输出，确保结构清晰。' },
     { id: 'skill-coder', name: '全栈编程助手', icon: '💻', description: '精通多语言编程，自动生成代码和定位 Bug。', author: 'OpenClaw', type: '开发', downloads: 35000, rating: 4.9, lastUpdated: '2026-06-12', prompt: '你是一位资深全栈工程师，精通 JavaScript/TypeScript、Python、Go 等主流语言。回答时请直接给出可运行的代码，包含关键注释，并主动考虑边界情况和安全性问题。' },
@@ -883,6 +868,21 @@ async function createServer(port = 3721, rendererPath) {
     { id: 'skill-aiart', name: 'AI 绘画提示词师', icon: '🎨', description: '精通 Midjourney/Stable Diffusion/DALL-E 提示词，生成精美画面描述。', author: 'OpenClaw', type: '创作', downloads: 19700, rating: 4.8, lastUpdated: '2026-06-21', prompt: '你是一位专业的 AI 绘画提示词工程师，精通 Midjourney、Stable Diffusion 和 DALL-E 的提示词语法。请根据用户的创意需求，生成结构化的英文提示词，包含：主体描述、艺术风格、光照效果、镜头参数、色调氛围、画面质量词（如 8K、masterpiece 等）。同时提供中文解释，并给出 2-3 个不同风格的变体供选择。' },
     { id: 'skill-resume', name: '简历优化顾问', icon: '📄', description: '专业 HR 视角优化简历，让你的简历在 3 秒内抓住面试官眼球。', author: 'Community', type: '效率', downloads: 14600, rating: 4.7, lastUpdated: '2026-06-19', prompt: '你是一位拥有 15 年经验的猎头顾问和职业规划师。请帮助用户优化简历。你的方法论：1. 用 STAR 法则（情境-任务-行动-结果）重写工作经历；2. 量化成果（提升 XX%、节省 XX 万等）；3. 针对目标岗位调整关键词密度；4. 优化排版层次，确保 3 秒原则（HR 前 3 秒能抓住核心亮点）。请直接输出优化后的简历内容。' },
   ];
+
+  // 首次启动时自动安装新增技能
+  const AUTO_INSTALL_SKILLS = ['skill-security', 'skill-crawler', 'skill-prompt', 'skill-math', 'skill-aiart', 'skill-resume'];
+  let skillsUpdated = false;
+  for (const skillId of AUTO_INSTALL_SKILLS) {
+    if (!installedSkills.some(s => s.id === skillId)) {
+      const skill = SKILL_MARKET.find(s => s.id === skillId);
+      if (skill) {
+        installedSkills.push({ ...skill, installedAt: new Date().toISOString() });
+        skillsUpdated = true;
+        console.log(`[技能市场] 自动安装新技能: ${skill.name}`);
+      }
+    }
+  }
+  if (skillsUpdated) saveSkills();
 
   /** 获取技能市场列表 (带筛选排序) */
   app.get('/api/skills/marketplace', (req, res) => {
