@@ -47,71 +47,76 @@ export async function render(container) {
   try { const am = await window.openClaw.model.getActiveModel(); activeModelId = am?.id || ''; } catch(e) {}
 
   container.style.padding = '0';
-  container.style.overflow = 'hidden';
+  container.style.overflow = 'auto';
 
   container.innerHTML = `
     <div class="model-market-page">
-      <!-- 上方：云端模型服务 -->
-      <div class="cloud-service-section" id="cloudServiceSection">
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
-          <div>
-            <h2 style="margin: 0 0 6px 0; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">☁️ 云端模型服务</h2>
-            <p style="margin: 0; color: var(--text-muted); font-size: 13px;">配置国内外主流 AI 模型 API，点击厂商卡片进入详细配置。</p>
-          </div>
-          <button id="addCustomModelBtn" class="btn btn-primary" style="padding: 8px 18px; border-radius: 12px; font-size: 13px; font-weight: 600;">+ 自定义模型</button>
+      <!-- 页面标题 -->
+      <div style="margin-bottom: 28px;">
+        <h2 style="margin: 0 0 6px 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;">🛒 模型市场</h2>
+        <p style="margin: 0; color: var(--text-muted); font-size: 13px;">一站式管理云端 API、本地运行时与开源模型。</p>
+      </div>
+
+      <!-- Section 1: 云端模型服务 -->
+      <div class="market-section-block">
+        <div class="market-section-header">
+          <h3>
+            <span class="section-bar" style="background: linear-gradient(180deg, #6c63ff, #af52de);"></span>
+            云端模型服务
+          </h3>
+          <button id="addCustomModelBtn" class="btn btn-primary" style="padding: 6px 16px; border-radius: 10px; font-size: 12px; font-weight: 600;">+ 自定义模型</button>
         </div>
         <div class="cloud-vendor-grid" id="cloudVendorGrid"></div>
       </div>
 
-      <!-- 下方：模型市场（可滚动） -->
-      <div class="local-market-section" id="localMarketSection">
-        <!-- 本地运行时区域 -->
-        <div style="margin-bottom: 32px;">
-          <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 14px 0; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
-            <span style="width: 4px; height: 18px; background: linear-gradient(180deg, #00d9ff, #6c63ff); border-radius: 2px;"></span>
+      <!-- Section 2: 本地模型运行时 -->
+      <div class="market-section-block">
+        <div class="market-section-header">
+          <h3>
+            <span class="section-bar" style="background: linear-gradient(180deg, #00d9ff, #6c63ff);"></span>
             本地模型运行时
           </h3>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" id="localRuntimeGrid">
-            <!-- Ollama 卡片 -->
-            <div id="ollamaCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
-              <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #00d9ff, #6c63ff); opacity: 0.5;"></div>
-              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(108,99,255,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🦙</div>
-                <div style="flex: 1;">
-                  <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">Ollama</h3>
-                  <div style="font-size: 12px; color: var(--text-muted);">轻量级本地大模型运行框架</div>
-                </div>
-                <div id="ollamaStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" id="localRuntimeGrid">
+          <div id="ollamaCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #00d9ff, #6c63ff); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+              <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(108,99,255,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">🦙</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">Ollama</h3>
+                <div style="font-size: 12px; color: var(--text-muted);">轻量级本地大模型运行框架</div>
               </div>
-              <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">一键拉取 Llama、Qwen、DeepSeek 等主流开源模型，本地推理零延迟。</div>
-              <div id="ollamaActions" style="display: flex; gap: 8px;"></div>
+              <div id="ollamaStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
             </div>
-            <!-- LM Studio 卡片 -->
-            <div id="lmstudioCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
-              <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff2d55); opacity: 0.5;"></div>
-              <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,45,85,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">💻</div>
-                <div style="flex: 1;">
-                  <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">LM Studio</h3>
-                  <div style="font-size: 12px; color: var(--text-muted);">可视化本地模型管理与推理</div>
-                </div>
-                <div id="lmstudioStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">一键拉取 Llama、Qwen、DeepSeek 等主流开源模型，本地推理零延迟。</div>
+            <div id="ollamaActions" style="display: flex; gap: 8px;"></div>
+          </div>
+          <div id="lmstudioCard" style="background: var(--bg-card); border: 1.5px solid var(--border-light); border-radius: 16px; padding: 22px; cursor: pointer; transition: all 0.25s; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #ff9500, #ff2d55); opacity: 0.5;"></div>
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 12px;">
+              <div style="width: 48px; height: 48px; background: linear-gradient(135deg, rgba(255,149,0,0.15), rgba(255,45,85,0.15)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px;">💻</div>
+              <div style="flex: 1;">
+                <h3 style="margin: 0 0 2px 0; font-size: 18px; font-weight: 700;">LM Studio</h3>
+                <div style="font-size: 12px; color: var(--text-muted);">可视化本地模型管理与推理</div>
               </div>
-              <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。</div>
-              <div id="lmstudioActions" style="display: flex; gap: 8px;"></div>
+              <div id="lmstudioStatus" style="font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 16px;">检测中...</div>
             </div>
+            <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 12px;">支持 HuggingFace / ModelScope GGUF 模型，图形界面一键加载。</div>
+            <div id="lmstudioActions" style="display: flex; gap: 8px;"></div>
           </div>
         </div>
+      </div>
 
-        <!-- 模型大市场入口 -->
-        <div style="margin-bottom: 20px;">
-          <h3 style="font-size: 16px; font-weight: 600; margin: 0 0 14px 0; color: var(--text-secondary); display: flex; align-items: center; gap: 8px;">
-            <span style="width: 4px; height: 18px; background: linear-gradient(180deg, #34c759, #00d9ff); border-radius: 2px;"></span>
+      <!-- Section 3: 模型大市场 -->
+      <div class="market-section-block">
+        <div class="market-section-header">
+          <h3>
+            <span class="section-bar" style="background: linear-gradient(180deg, #34c759, #00d9ff);"></span>
             模型大市场（本地拉取）
           </h3>
-          <div id="modelMarketContainer" style="min-height: 200px;">
-            <div style="text-align: center; padding: 40px; color: var(--text-muted);">正在加载模型市场数据...</div>
-          </div>
+        </div>
+        <div id="modelMarketContainer" style="min-height: 120px;">
+          <div style="text-align: center; padding: 30px; color: var(--text-muted);">正在加载模型市场数据...</div>
         </div>
       </div>
     </div>
