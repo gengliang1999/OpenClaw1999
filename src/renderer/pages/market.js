@@ -224,6 +224,12 @@ export async function render(container) {
   logoInput.style.display = 'none';
   document.body.appendChild(logoInput);
 
+  // 将所有模态框移到 body（避免被 page-container 的层叠上下文困住）
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'modelDetailModal'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) document.body.appendChild(el);
+  });
+
   bindModalEvents();
   renderCloudVendors();
   await detectLocalRuntimes();
