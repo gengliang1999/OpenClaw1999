@@ -35,7 +35,9 @@
       "Bash(taskkill //F //IM electron.exe)",
       "Bash(npx electron *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(grep -v \"page-sidebar\\\\|page-main\\\\|page-content\\\\|page-\\\\|\\\\/\\\\*\")"
+      "Bash(grep -v \"page-sidebar\\\\|page-main\\\\|page-content\\\\|page-\\\\|\\\\/\\\\*\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill *)"
     ]
   }
 }

@@ -72,6 +72,18 @@ class MemoryStore {
       )
     `);
 
+    // 垃圾篓表（软删除）
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS deleted_conversations (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        messages_json TEXT DEFAULT '[]',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        deleted_at TEXT NOT NULL
+      )
+    `);
+
     // 创建索引
     this.db.run('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)');
@@ -202,13 +214,131 @@ class MemoryStore {
   }
 
   /**
-   * 删除对话及其所有消息
+   * 删除对话及其所有消息（硬删除）
    * @param {string} conversationId - 对话 ID
    */
   deleteConversation(conversationId) {
     this.db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
     this.db.run('DELETE FROM conversations WHERE id = ?', [conversationId]);
     this._save();
+  }
+
+  /**
+   * 重命名对话
+   * @param {string} conversationId - 对话 ID
+   * @param {string} newTitle - 新标题
+   */
+  renameConversation(conversationId, newTitle) {
+    const now = new Date().toISOString();
+    this.db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [newTitle, now, conversationId]);
+    this._save();
+  }
+
+  /**
+   * 将对话移入垃圾篓（软删除）
+   * @param {string} conversationId - 对话 ID
+   */
+  moveToTrash(conversationId) {
+    const convResults = this.db.exec('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    if (!convResults.length || !convResults[0].values.length) return;
+    const columns = convResults[0].columns;
+    const row = convResults[0].values[0];
+    const conv = {};
+    columns.forEach((col, i) => { conv[col] = row[i]; });
+
+    const messages = this.getConversationHistory(conversationId);
+    const now = new Date().toISOString();
+
+    this.db.run(
+      'INSERT OR REPLACE INTO deleted_conversations (id, title, messages_json, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [conv.id, conv.title, JSON.stringify(messages), conv.created_at, conv.updated_at, now]
+    );
+
+    this.db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
+    this.db.run('DELETE FROM conversations WHERE id = ?', [conversationId]);
+    this._save();
+  }
+
+  /**
+   * 获取垃圾篓列表
+   * @returns {Array}
+   */
+  getTrash() {
+    const results = this.db.exec('SELECT id, title, created_at, updated_at, deleted_at FROM deleted_conversations ORDER BY deleted_at DESC');
+    return this._parseResults(results, 'deleted_conversations');
+  }
+
+  /**
+   * 从垃圾篓恢复对话
+   * @param {string} trashId - 垃圾篓条目 ID
+   */
+  restoreFromTrash(trashId) {
+    const results = this.db.exec('SELECT * FROM deleted_conversations WHERE id = ?', [trashId]);
+    if (!results.length || !results[0].values.length) return;
+    const columns = results[0].columns;
+    const row = results[0].values[0];
+    const item = {};
+    columns.forEach((col, i) => { item[col] = row[i]; });
+
+    this.db.run(
+      'INSERT OR REPLACE INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)',
+      [item.id, item.title, item.created_at, item.updated_at]
+    );
+
+    let messages = [];
+    try { messages = JSON.parse(item.messages_json || '[]'); } catch(e) {}
+    for (const msg of messages) {
+      this.db.run(
+        'INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
+        [msg.id, item.id, msg.role, msg.content, msg.created_at]
+      );
+    }
+
+    this.db.run('DELETE FROM deleted_conversations WHERE id = ?', [trashId]);
+    this._save();
+  }
+
+  /**
+   * 永久删除垃圾篓条目
+   * @param {string} trashId - 垃圾篓条目 ID
+   */
+  permanentDelete(trashId) {
+    this.db.run('DELETE FROM deleted_conversations WHERE id = ?', [trashId]);
+    this._save();
+  }
+
+  /**
+   * 清空垃圾篓
+   */
+  emptyTrash() {
+    this.db.run('DELETE FROM deleted_conversations');
+    this._save();
+  }
+
+  /**
+   * 获取垃圾篓条目数量
+   * @returns {number}
+   */
+  getTrashCount() {
+    const results = this.db.exec('SELECT COUNT(*) as count FROM deleted_conversations');
+    return results.length > 0 ? results[0].values[0][0] : 0;
+  }
+
+  /**
+   * 导出对话（含消息）
+   * @param {string} conversationId - 对话 ID
+   * @returns {Object|null}
+   */
+  exportConversation(conversationId) {
+    const convResults = this.db.exec('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    if (!convResults.length || !convResults[0].values.length) return null;
+    const columns = convResults[0].columns;
+    const row = convResults[0].values[0];
+    const conv = {};
+    columns.forEach((col, i) => { conv[col] = row[i]; });
+
+    const messages = this.getConversationHistory(conversationId);
+    return { ...conv, messages, exportedAt: new Date().toISOString() };
   }
 
   /**

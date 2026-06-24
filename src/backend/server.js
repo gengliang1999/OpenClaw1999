@@ -253,6 +253,89 @@ async function createServer(port = 3721, rendererPath) {
     }
   });
 
+  /** 重命名对话 */
+  app.put('/api/chat/conversations/:id', (req, res) => {
+    try {
+      const { title } = req.body;
+      if (!title) return res.status(400).json({ message: '标题不能为空' });
+      memoryStore.renameConversation(req.params.id, title);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 导出对话 */
+  app.get('/api/chat/conversations/:id/export', (req, res) => {
+    try {
+      const data = memoryStore.exportConversation(req.params.id);
+      if (!data) return res.status(404).json({ message: '对话不存在' });
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 移入垃圾篓 */
+  app.post('/api/chat/conversations/:id/trash', (req, res) => {
+    try {
+      memoryStore.moveToTrash(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 获取垃圾篓列表 */
+  app.get('/api/chat/trash', (req, res) => {
+    try {
+      const trash = memoryStore.getTrash();
+      res.json(trash);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 获取垃圾篓数量 */
+  app.get('/api/chat/trash/count', (req, res) => {
+    try {
+      const count = memoryStore.getTrashCount();
+      res.json({ count });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 从垃圾篓恢复 */
+  app.post('/api/chat/trash/:id/restore', (req, res) => {
+    try {
+      memoryStore.restoreFromTrash(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 永久删除垃圾篓条目 */
+  app.delete('/api/chat/trash/:id', (req, res) => {
+    try {
+      memoryStore.permanentDelete(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  /** 清空垃圾篓 */
+  app.delete('/api/chat/trash', (req, res) => {
+    try {
+      memoryStore.emptyTrash();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ========== 模型 API ==========
 
   /** 获取所有模型 */

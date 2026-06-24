@@ -8,6 +8,7 @@ let models = [];
 let activeModelId = '';
 let activeExpert = null;
 let tokenUsage = 0;
+let pendingLoadConvId = null; // 从侧边栏点击时预设的会话 ID
 
 export async function render(container) {
   container.className = 'page';
@@ -215,6 +216,11 @@ export async function render(container) {
     activeConvId = convId;
     await loadHistory(convId);
   };
+  // 供侧边栏在 navigateTo 之前设置待加载会话 ID
+  // 'NEW' = 创建新对话, 具体 ID = 加载已有对话, null = 显示空状态
+  window.__setPendingConv = (convId) => {
+    pendingLoadConvId = convId;
+  };
   window.__onConvDeleted = (convId) => {
     if (convId === activeConvId) {
       activeConvId = null;
@@ -230,8 +236,27 @@ export async function render(container) {
   if (localStorage.getItem('justActivatedExpert') === 'true') {
     localStorage.removeItem('justActivatedExpert');
     await createNewChat();
-  } else {
+  } else if (pendingLoadConvId === 'NEW') {
+    // 侧边栏"新建对话"按钮触发
+    pendingLoadConvId = null;
     await createNewChat();
+  } else if (pendingLoadConvId) {
+    // 从侧边栏点击了已有会话，加载它
+    const convId = pendingLoadConvId;
+    pendingLoadConvId = null;
+    activeConvId = convId;
+    await loadHistory(convId);
+  } else {
+    // 默认：显示空状态（不自动创建对话）
+    document.getElementById('chatMessages').innerHTML = `
+      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
+        <div style="font-size: 48px;">💬</div>
+        <div style="font-size: 16px;">发送一条消息开始吧</div>
+      </div>
+    `;
+    document.getElementById('chatTitle').textContent = '新对话';
+    tokenUsage = 0;
+    updateTokenUsage();
   }
 }
 
@@ -314,7 +339,7 @@ async function createNewChat() {
   try {
     const res = await window.openClaw.chat.createConversation('新对话');
     activeConvId = res.id;
-    window.refreshSidebarConversations?.();
+    await window.refreshSidebarConversations?.();
     document.getElementById('chatMessages').innerHTML = `
       <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
         <div style="font-size: 48px;">✨</div>

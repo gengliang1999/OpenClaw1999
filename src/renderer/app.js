@@ -62,25 +62,28 @@ function renderShell() {
         `).join('')}
       </nav>
 
-      <!-- 新建对话按钮 -->
-      <div id="sidebarNewChatBtn" style="margin: 8px 4px; padding: 8px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
-        ✨ 新建对话
+      <!-- 搜索会话 -->
+      <div class="nav-label" style="padding: 4px 4px 0 4px;">
+        <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 30px; border-radius: 16px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
       </div>
 
-      <!-- 搜索会话 -->
-      <div class="nav-label" style="padding: 8px 4px; margin-top: 8px;">
-        <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 30px; border-radius: 16px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
+      <!-- 新建对话按钮 -->
+      <div id="sidebarNewChatBtn" style="margin: 6px 4px; padding: 8px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
+        ✨ 新建对话
       </div>
 
       <!-- 会话列表 -->
       <div id="sidebarConvList" tabindex="0" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px; min-height: 0; outline: none; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;"></div>
 
-      <!-- 底部：版本 + 设置 -->
-      <div style="margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border-light);">
-        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 4px;">
+      <!-- 底部：垃圾篓 + 设置 + 版本 -->
+      <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border-light);">
+        <div id="sidebarTrashBtn" style="display: none; margin: 4px 4px 8px 4px; padding: 8px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
+          🗑️ 垃圾篓
+        </div>
+        <div class="nav-label" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 2px 0;">v1.0.0</div>
+        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-top: 4px; margin-bottom: 2px;">
           <span class="nav-label">设置</span>
         </div>
-        <div class="nav-label" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 4px 0;">v1.0.0</div>
       </div>
     </aside>
 
@@ -96,25 +99,44 @@ function renderShell() {
 
   // 搜索会话
   document.getElementById('sidebarConvSearch')?.addEventListener('input', (e) => {
+    // 搜索时清空批量选择，避免隐藏项被误删
+    if (batchMode) {
+      batchSelected.clear();
+    }
     loadSidebarConversations(e.target.value.trim());
   });
 
   // 新建对话按钮
   document.getElementById('sidebarNewChatBtn')?.addEventListener('click', async () => {
     if (currentRoute !== 'chat') {
-      await navigateTo('chat');
-    }
-    // 等 chat 页面 render 完成后调用
-    setTimeout(() => {
-      if (typeof window.__createNewChat === 'function') {
-        window.__createNewChat();
+      // 预设 'NEW' 哨兵，让 chat.js init() 知道要创建新对话
+      if (typeof window.__setPendingConv === 'function') {
+        window.__setPendingConv('NEW');
       }
-    }, 200);
+      await navigateTo('chat');
+    } else {
+      // 已在聊天页，直接创建
+      if (typeof window.__createNewChat === 'function') {
+        await window.__createNewChat();
+      }
+    }
   });
+
+  // 垃圾篓按钮
+  document.getElementById('sidebarTrashBtn')?.addEventListener('click', () => {
+    showTrashPanel();
+  });
+
+  // 初始加载垃圾篓状态
+  updateTrashBadge();
 }
 
 // 侧边栏会话搜索关键词
 let sidebarConvSearchQuery = '';
+
+// 批量管理模式状态
+let batchMode = false;
+let batchSelected = new Set();
 
 /**
  * 加载侧边栏会话列表
@@ -140,36 +162,110 @@ async function loadSidebarConversations(query = '') {
     return;
   }
 
-  listEl.innerHTML = conversations.map(c => `
+  // 批量管理模式工具栏
+  let batchToolbar = '';
+  if (batchMode) {
+    batchToolbar = `
+      <div class="batch-toolbar" style="display:flex; align-items:center; gap:6px; padding:6px 8px; margin-bottom:4px; border-radius:8px; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.15);">
+        <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer; color:var(--text-muted);">
+          <input type="checkbox" id="batchSelectAll" style="cursor:pointer;" /> 全选
+        </label>
+        <span style="font-size:11px; color:var(--text-muted);">${batchSelected.size > 0 ? `已选 ${batchSelected.size} 项` : ''}</span>
+        <div style="flex:1;"></div>
+        <button id="batchDeleteBtn" style="font-size:11px; padding:3px 8px; border-radius:6px; border:none; background:#ff3b30; color:#fff; cursor:pointer;">删除选中</button>
+        <button id="batchCancelBtn" style="font-size:11px; padding:3px 8px; border-radius:6px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer;">取消</button>
+      </div>
+    `;
+  }
+
+  listEl.innerHTML = batchToolbar + conversations.map(c => {
+    const checked = batchSelected.has(c.id) ? 'checked' : '';
+    const checkboxHtml = batchMode ? `<input type="checkbox" class="batch-conv-checkbox" data-conv-id="${c.id}" ${checked} style="flex-shrink:0; cursor:pointer;" />` : '';
+    return `
     <div class="sidebar-conv-item" data-conv-id="${c.id}" title="${escapeHtml(c.title || '新对话')}" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; cursor:pointer; transition: background 0.15s; font-size:13px; color:var(--text-primary); overflow:hidden;">
+      ${checkboxHtml}
       <span style="flex-shrink:0; font-size:14px;">💬</span>
       <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.title || '新对话')}</span>
-      <span class="sidebar-conv-delete" data-conv-id="${c.id}" style="flex-shrink:0; opacity:0; cursor:pointer; font-size:14px; color:var(--text-muted); padding:0 2px; transition:opacity 0.15s;" title="删除">&times;</span>
+      ${batchMode ? '' : '<span class="sidebar-conv-more" data-conv-id="' + c.id + '" style="flex-shrink:0; opacity:0; cursor:pointer; font-size:16px; color:var(--text-muted); padding:0 4px; transition:opacity 0.15s; letter-spacing:1px;" title="更多">⋯</span>'}
     </div>
-  `).join('');
+  `;}).join('');
+
+  // 批量模式事件
+  if (batchMode) {
+    const selectAll = document.getElementById('batchSelectAll');
+    if (selectAll) {
+      selectAll.checked = conversations.length > 0 && conversations.every(c => batchSelected.has(c.id));
+      selectAll.addEventListener('change', () => {
+        if (selectAll.checked) {
+          conversations.forEach(c => batchSelected.add(c.id));
+        } else {
+          batchSelected.clear();
+        }
+        loadSidebarConversations(sidebarConvSearchQuery);
+      });
+    }
+    document.querySelectorAll('.batch-conv-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) batchSelected.add(cb.dataset.convId);
+        else batchSelected.delete(cb.dataset.convId);
+      });
+    });
+    document.getElementById('batchDeleteBtn')?.addEventListener('click', async () => {
+      if (batchSelected.size === 0) { window.__toast?.info('请先选择要删除的会话'); return; }
+      const { showModal } = await import('./components/modal.js');
+      const ok = await showModal({ title: '批量删除', content: `确定将选中的 ${batchSelected.size} 个会话移入垃圾篓吗？`, confirmText: '删除', danger: true });
+      if (!ok) return;
+      for (const id of batchSelected) {
+        try { await window.openClaw.chat.moveToTrash(id); } catch(e) {}
+        if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(id);
+      }
+      window.__toast?.success(`已将 ${batchSelected.size} 个会话移入垃圾篓`);
+      batchSelected.clear();
+      exitBatchMode();
+      loadSidebarConversations(sidebarConvSearchQuery);
+      updateTrashBadge();
+    });
+    document.getElementById('batchCancelBtn')?.addEventListener('click', () => {
+      exitBatchMode();
+      loadSidebarConversations(sidebarConvSearchQuery);
+    });
+  }
 
   // 点击会话 → 跳转聊天页并加载
   listEl.querySelectorAll('.sidebar-conv-item').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if (e.target.closest('.sidebar-conv-delete')) return;
+    el.addEventListener('click', async (e) => {
+      if (e.target.closest('.sidebar-conv-more')) return;
+      if (e.target.closest('.batch-conv-checkbox')) return;
+      if (batchMode) return;
       const convId = el.dataset.convId;
-      navigateTo('chat');
-      // 等页面加载完成后加载历史
-      setTimeout(() => {
-        if (typeof window.__loadChatHistory === 'function') {
-          window.__loadChatHistory(convId);
-        }
-      }, 300);
+      // 预设待加载会话 ID，让 chat.js init() 知道要加载哪个会话
+      if (typeof window.__setPendingConv === 'function') {
+        window.__setPendingConv(convId);
+      }
+      const prevRoute = currentRoute;
+      await navigateTo('chat');
+      // 如果已在 chat 页（navigateTo 早退），init() 不会再执行，直接加载
+      if (prevRoute === 'chat' && typeof window.__loadChatHistory === 'function') {
+        await window.__loadChatHistory(convId);
+      }
     });
 
-    // hover 显示删除按钮
-    el.addEventListener('mouseenter', () => {
-      const del = el.querySelector('.sidebar-conv-delete');
-      if (del) del.style.opacity = '1';
+    // hover 显示更多按钮由 CSS .sidebar-conv-item:hover .sidebar-conv-more 控制
+
+    // 右键上下文菜单
+    el.addEventListener('contextmenu', (e) => {
+      if (batchMode) return;
+      e.preventDefault();
+      showConvContextMenu(el.dataset.convId, e.clientX, e.clientY);
     });
-    el.addEventListener('mouseleave', () => {
-      const del = el.querySelector('.sidebar-conv-delete');
-      if (del) del.style.opacity = '0';
+  });
+
+  // "..." 更多按钮点击
+  listEl.querySelectorAll('.sidebar-conv-more').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rect = btn.getBoundingClientRect();
+      showConvContextMenu(btn.dataset.convId, rect.right, rect.top);
     });
   });
 
@@ -185,7 +281,6 @@ async function loadSidebarConversations(query = '') {
     }
   }
 
-  // 键盘方向键导航
   listEl.onkeydown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -200,23 +295,258 @@ async function loadSidebarConversations(query = '') {
       items[selectedIdx].click();
     }
   };
+}
 
-  // 删除会话
-  listEl.querySelectorAll('.sidebar-conv-delete').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const convId = btn.dataset.convId;
+/** 进入批量管理模式 */
+function enterBatchMode() {
+  batchMode = true;
+  batchSelected.clear();
+  loadSidebarConversations(sidebarConvSearchQuery);
+}
+
+/** 退出批量管理模式 */
+function exitBatchMode() {
+  batchMode = false;
+  batchSelected.clear();
+}
+
+/**
+ * 显示会话上下文菜单
+ */
+function showConvContextMenu(convId, x, y) {
+  closeConvContextMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'conv-context-menu';
+  menu.style.cssText = `position:fixed; left:${x}px; top:${y}px; z-index:100001;`;
+
+  const items = [
+    { icon: '✏️', label: '重命名', action: () => renameConversationUI(convId) },
+    { icon: '📤', label: '导出对话', action: () => exportConversationUI(convId) },
+    { icon: '🗑️', label: '删除', action: () => deleteConversationUI(convId), danger: true },
+    { divider: true },
+    { icon: '☑️', label: '批量管理', action: () => enterBatchMode() },
+  ];
+
+  items.forEach(item => {
+    if (item.divider) {
+      const div = document.createElement('div');
+      div.className = 'conv-context-divider';
+      menu.appendChild(div);
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'conv-context-item' + (item.danger ? ' danger' : '');
+    row.innerHTML = `<span>${item.icon}</span> <span>${item.label}</span>`;
+    row.addEventListener('click', () => {
+      closeConvContextMenu();
+      item.action();
+    });
+    menu.appendChild(row);
+  });
+
+  document.body.appendChild(menu);
+
+  // 边界修正
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 8) + 'px';
+  if (rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 8) + 'px';
+  if (rect.left < 0) menu.style.left = '8px';
+  if (rect.top < 0) menu.style.top = '8px';
+
+  // 点击外部关闭
+  setTimeout(() => {
+    document.addEventListener('click', closeConvContextMenuHandler, { once: true });
+    document.addEventListener('contextmenu', closeConvContextMenuHandler, { once: true });
+  }, 0);
+}
+
+function closeConvContextMenuHandler() { closeConvContextMenu(); }
+function closeConvContextMenu() {
+  document.removeEventListener('click', closeConvContextMenuHandler);
+  document.removeEventListener('contextmenu', closeConvContextMenuHandler);
+  document.querySelectorAll('.conv-context-menu').forEach(el => el.remove());
+}
+
+/**
+ * 重命名会话 UI
+ */
+async function renameConversationUI(convId) {
+  const { showModal } = await import('./components/modal.js');
+  // 创建带输入框的 modal
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg-card); border-radius:16px; padding:24px; width:90%; max-width:400px; box-shadow:0 20px 40px rgba(0,0,0,0.2); transform:translateY(20px) scale(0.95); transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);';
+  box.innerHTML = `
+    <h3 style="margin:0 0 16px; font-size:18px; font-weight:600;">重命名对话</h3>
+    <input type="text" id="renameInput" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-app); color:var(--text-primary); font-size:14px; outline:none; box-sizing:border-box;" />
+    <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:20px;">
+      <button id="renameCancel" style="padding:8px 16px; border-radius:8px; border:1px solid var(--border-color); background:transparent; color:var(--text-primary); cursor:pointer;">取消</button>
+      <button id="renameConfirm" style="padding:8px 16px; border-radius:8px; border:none; background:var(--primary); color:#fff; cursor:pointer; font-weight:500;">确定</button>
+    </div>
+  `;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; box.style.transform = 'translateY(0) scale(1)'; });
+
+  const input = document.getElementById('renameInput');
+  // 获取当前标题
+  try {
+    const convs = await window.openClaw.chat.getConversations();
+    const conv = convs.find(c => c.id === convId);
+    if (conv) input.value = conv.title || '';
+  } catch(e) {}
+  input.focus();
+  input.select();
+
+  return new Promise(resolve => {
+    const close = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 200); resolve(); };
+    document.getElementById('renameCancel').onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+    document.getElementById('renameConfirm').onclick = async () => {
+      const newTitle = input.value.trim();
+      if (!newTitle) { window.__toast?.info('标题不能为空'); return; }
       try {
-        await window.openClaw.chat.deleteConversation(convId);
-        window.__toast?.success('会话已删除');
+        await window.openClaw.chat.renameConversation(convId, newTitle);
+        window.__toast?.success('已重命名');
         loadSidebarConversations(sidebarConvSearchQuery);
-        // 如果删除的是当前活跃会话，通知聊天页
-        if (typeof window.__onConvDeleted === 'function') {
-          window.__onConvDeleted(convId);
-        }
-      } catch(err) {
-        window.__toast?.error('删除失败: ' + err.message);
-      }
+      } catch(e) { window.__toast?.error('重命名失败: ' + e.message); }
+      close();
+    };
+    input.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('renameConfirm').click(); };
+  });
+}
+
+/**
+ * 导出对话 UI
+ */
+async function exportConversationUI(convId) {
+  try {
+    const data = await window.openClaw.chat.exportConversation(convId);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(data.title || '对话').replace(/[<>:"/\\|?*]/g, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    window.__toast?.success('对话已导出');
+  } catch(e) {
+    window.__toast?.error('导出失败: ' + e.message);
+  }
+}
+
+/**
+ * 删除会话 UI（移入垃圾篓）
+ */
+async function deleteConversationUI(convId) {
+  const { showModal } = await import('./components/modal.js');
+  const ok = await showModal({ title: '删除对话', content: '确定将此对话移入垃圾篓吗？', confirmText: '删除', danger: true });
+  if (!ok) return;
+  try {
+    await window.openClaw.chat.moveToTrash(convId);
+    window.__toast?.success('已移入垃圾篓');
+    loadSidebarConversations(sidebarConvSearchQuery);
+    if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(convId);
+    updateTrashBadge();
+  } catch(e) {
+    window.__toast?.error('删除失败: ' + e.message);
+  }
+}
+
+/**
+ * 更新垃圾篓按钮显示状态
+ */
+async function updateTrashBadge() {
+  try {
+    const res = await window.openClaw.chat.getTrashCount();
+    const btn = document.getElementById('sidebarTrashBtn');
+    if (btn) btn.style.display = (res && res.count > 0) ? 'block' : 'none';
+  } catch(e) {}
+}
+
+/**
+ * 显示垃圾篓面板
+ */
+async function showTrashPanel() {
+  let trashItems = [];
+  try {
+    trashItems = await window.openClaw.chat.getTrash() || [];
+  } catch(e) {}
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg-card); border-radius:16px; width:90%; max-width:480px; max-height:70vh; box-shadow:0 20px 40px rgba(0,0,0,0.2); display:flex; flex-direction:column; overflow:hidden; transform:translateY(20px) scale(0.95); transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);';
+
+  const listHtml = trashItems.length === 0
+    ? '<div style="text-align:center; padding:40px 16px; color:var(--text-muted);">垃圾篓为空</div>'
+    : trashItems.map(t => `
+      <div style="display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:8px; transition:background 0.15s;" class="trash-item-row">
+        <span style="flex-shrink:0;">🗑️</span>
+        <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px;">${escapeHtml(t.title || '无标题')}</span>
+        <span style="flex-shrink:0; font-size:11px; color:var(--text-muted);">${new Date(t.deleted_at).toLocaleDateString()}</span>
+        <button data-action="restore" data-id="${t.id}" style="font-size:11px; padding:3px 8px; border-radius:6px; border:1px solid var(--border-color); background:transparent; color:var(--text-primary); cursor:pointer;">恢复</button>
+        <button data-action="permanent" data-id="${t.id}" style="font-size:11px; padding:3px 8px; border-radius:6px; border:none; background:#ff3b30; color:#fff; cursor:pointer;">永久删除</button>
+      </div>
+    `).join('');
+
+  box.innerHTML = `
+    <div style="padding:16px 20px; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:16px;">🗑️ 垃圾篓</h3>
+      <div style="display:flex; gap:8px; align-items:center;">
+        ${trashItems.length > 0 ? '<button id="emptyTrashBtn" style="font-size:11px; padding:4px 10px; border-radius:6px; border:none; background:#ff3b30; color:#fff; cursor:pointer;">清空垃圾篓</button>' : ''}
+        <button id="closeTrashBtn" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-muted);">&times;</button>
+      </div>
+    </div>
+    <div style="flex:1; overflow-y:auto; padding:12px;">${listHtml}</div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; box.style.transform = 'translateY(0) scale(1)'; });
+
+  const close = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 200); };
+  document.getElementById('closeTrashBtn').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  document.getElementById('emptyTrashBtn')?.addEventListener('click', async () => {
+    const { showModal } = await import('./components/modal.js');
+    const ok = await showModal({ title: '清空垃圾篓', content: '确定永久删除所有垃圾篓中的对话吗？此操作不可撤销。', confirmText: '清空', danger: true });
+    if (!ok) return;
+    try {
+      await window.openClaw.chat.emptyTrash();
+      window.__toast?.success('垃圾篓已清空');
+      close();
+      updateTrashBadge();
+    } catch(e) { window.__toast?.error('操作失败: ' + e.message); }
+  });
+
+  box.querySelectorAll('[data-action="restore"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        await window.openClaw.chat.restoreFromTrash(btn.dataset.id);
+        window.__toast?.success('已恢复');
+        close();
+        loadSidebarConversations(sidebarConvSearchQuery);
+        updateTrashBadge();
+      } catch(e) { window.__toast?.error('恢复失败: ' + e.message); }
+    });
+  });
+
+  box.querySelectorAll('[data-action="permanent"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { showModal } = await import('./components/modal.js');
+      const ok = await showModal({ title: '永久删除', content: '确定永久删除此对话吗？此操作不可撤销。', confirmText: '永久删除', danger: true });
+      if (!ok) return;
+      try {
+        await window.openClaw.chat.permanentDelete(btn.dataset.id);
+        window.__toast?.success('已永久删除');
+        if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(btn.dataset.id);
+        close();
+        updateTrashBadge();
+      } catch(e) { window.__toast?.error('删除失败: ' + e.message); }
     });
   });
 }
@@ -356,6 +686,7 @@ function sleep(ms) {
 
 // 将 toast 挂到全局方便页面使用
 window.__toast = toast;
+window.refreshSidebarConversations = refreshSidebarConversations;
 
 // 启动应用
 document.addEventListener('DOMContentLoaded', init);

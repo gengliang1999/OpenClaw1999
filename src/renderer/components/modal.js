@@ -23,7 +23,7 @@ export function showModal({
     overlay.style.background = 'rgba(0, 0, 0, 0.5)';
     overlay.style.backdropFilter = 'blur(6px)';
     overlay.style.WebkitBackdropFilter = 'blur(6px)';
-    overlay.style.zIndex = '10000';
+    overlay.style.zIndex = '100001';
     overlay.style.display = 'flex';
     overlay.style.justifyContent = 'center';
     overlay.style.alignItems = 'center';
@@ -113,6 +113,14 @@ export function showModal({
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+
+    // 点击背景关闭
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        closeModal();
+        resolve(false);
+      }
+    });
 
     // trigger animation
     requestAnimationFrame(() => {

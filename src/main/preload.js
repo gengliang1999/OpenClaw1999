@@ -89,9 +89,38 @@ contextBridge.exposeInMainWorld('openClaw', {
       apiRequest('/chat/conversations', { method: 'POST', body: { title } }),
     
     /** 删除对话 */
-    deleteConversation: (conversationId) => 
+    deleteConversation: (conversationId) =>
       apiRequest(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
-    
+
+    /** 重命名对话 */
+    renameConversation: (conversationId, title) =>
+      apiRequest(`/chat/conversations/${conversationId}`, { method: 'PUT', body: { title } }),
+
+    /** 导出对话 */
+    exportConversation: (conversationId) =>
+      apiRequest(`/chat/conversations/${conversationId}/export`),
+
+    /** 移入垃圾篓 */
+    moveToTrash: (conversationId) =>
+      apiRequest(`/chat/conversations/${conversationId}/trash`, { method: 'POST' }),
+
+    /** 获取垃圾篓列表 */
+    getTrash: () => apiRequest('/chat/trash'),
+
+    /** 获取垃圾篓数量 */
+    getTrashCount: () => apiRequest('/chat/trash/count'),
+
+    /** 从垃圾篓恢复 */
+    restoreFromTrash: (trashId) =>
+      apiRequest(`/chat/trash/${trashId}/restore`, { method: 'POST' }),
+
+    /** 永久删除垃圾篓条目 */
+    permanentDelete: (trashId) =>
+      apiRequest(`/chat/trash/${trashId}`, { method: 'DELETE' }),
+
+    /** 清空垃圾篓 */
+    emptyTrash: () => apiRequest('/chat/trash', { method: 'DELETE' }),
+
     /** 清空聊天历史 */
     clearHistory: (conversationId) => 
       apiRequest(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`, { method: 'DELETE' }),

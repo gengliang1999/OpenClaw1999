@@ -2275,6 +2275,58 @@ input[type="range"]::-webkit-slider-thumb {
 .sidebar-conv-item:hover {
   background: var(--bg-hover) !important;
 }
-.sidebar-conv-item:hover .sidebar-conv-delete {
+.sidebar-conv-item:hover .sidebar-conv-more {
   opacity: 1 !important;
+}
+
+/* ================== 会话右键/更多菜单 ================== */
+.conv-context-menu {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 4px;
+  min-width: 140px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+.conv-context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.15s;
+}
+.conv-context-item:hover {
+  background: var(--bg-hover);
+}
+.conv-context-item.danger {
+  color: #ff3b30;
+}
+.conv-context-item.danger:hover {
+  background: rgba(255,59,48,0.1);
+}
+.conv-context-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 8px;
+}
+
+/* ================== 批量管理复选框 ================== */
+.batch-conv-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+}
+
+/* ================== 垃圾篓悬浮行 ================== */
+.trash-item-row:hover {
+  background: var(--bg-hover) !important;
+}
+
+/* ================== 垃圾篓按钮悬浮态 ================== */
+#sidebarTrashBtn:hover {
+  background: rgba(255,59,48,0.18) !important;
 }
