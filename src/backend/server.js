@@ -276,62 +276,6 @@ async function createServer(port = 3721, rendererPath) {
     }
   });
 
-  /** 移动对话到分组 */
-  app.post('/api/chat/conversations/:id/move', (req, res) => {
-    try {
-      const { groupId } = req.body;
-      memoryStore.moveConversationToGroup(req.params.id, groupId || null);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // ========== 分组 API ==========
-
-  /** 获取所有分组 */
-  app.get('/api/chat/groups', (req, res) => {
-    try {
-      const groups = memoryStore.getGroups();
-      const counts = memoryStore.getGroupCounts();
-      res.json(groups.map(g => ({ ...g, count: counts[g.id] || 0 })));
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  /** 创建分组 */
-  app.post('/api/chat/groups', (req, res) => {
-    try {
-      const { name, icon, color } = req.body;
-      if (!name) return res.status(400).json({ message: '分组名称不能为空' });
-      const group = memoryStore.createGroup(name, icon, color);
-      res.json(group);
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  /** 更新分组 */
-  app.put('/api/chat/groups/:id', (req, res) => {
-    try {
-      memoryStore.updateGroup(req.params.id, req.body);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  /** 删除分组 */
-  app.delete('/api/chat/groups/:id', (req, res) => {
-    try {
-      memoryStore.deleteGroup(req.params.id);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
   /** 移入垃圾篓 */
   app.post('/api/chat/conversations/:id/trash', (req, res) => {
     try {

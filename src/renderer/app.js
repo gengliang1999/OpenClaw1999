@@ -50,8 +50,8 @@ function renderShell() {
 
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
-      <div class="sidebar-logo">
-        <div class="logo-icon">🐾</div>
+      <div class="sidebar-logo" id="sidebarLogo" title="点击更换Logo" style="cursor: pointer;">
+        <div class="logo-icon" id="logoIcon">🐾</div>
         <span class="logo-text">OpenClaw</span>
       </div>
       <nav class="sidebar-nav" id="sidebarNav">
@@ -63,27 +63,27 @@ function renderShell() {
       </nav>
 
       <!-- 搜索会话 -->
-      <div class="nav-label" style="padding: 4px 4px 0 4px;">
-        <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 30px; border-radius: 16px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
+      <div class="nav-label" style="padding: 2px 4px 0 4px;">
+        <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 28px; border-radius: 14px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
       </div>
 
       <!-- 新建对话按钮 -->
-      <div id="sidebarNewChatBtn" style="margin: 6px 4px; padding: 8px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
+      <div id="sidebarNewChatBtn" style="margin: 4px; padding: 7px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
         ✨ 新建对话
       </div>
 
       <!-- 会话列表 -->
-      <div id="sidebarConvList" tabindex="0" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px; min-height: 0; outline: none; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;"></div>
+      <div id="sidebarConvList" tabindex="0" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 2px; min-height: 0; outline: none; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;"></div>
 
-      <!-- 底部：垃圾篓 + 设置 + 版本 -->
-      <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border-light);">
-        <div id="sidebarTrashBtn" style="display: none; margin: 4px 4px 8px 4px; padding: 8px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
+      <!-- 底部：垃圾篓 + 设置 + 版本号 -->
+      <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 6px; border-top: 1px solid var(--border-light);">
+        <div id="sidebarTrashBtn" style="display: none; margin: 2px 4px 4px 4px; padding: 6px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
           🗑️ 垃圾篓
         </div>
-        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 2px;">
+        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0;">
           <span class="nav-label">设置</span>
         </div>
-        <div class="nav-label" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 2px 0;">v1.0.0</div>
+        <div class="nav-label" style="font-size: 9px; color: var(--text-muted); text-align: center; padding: 2px 0; opacity: 0.6;">v1.0.0</div>
       </div>
     </aside>
 
@@ -92,6 +92,9 @@ function renderShell() {
       <!-- 页面容器 -->
       <div class="page-container" id="pageContainer"></div>
     </div>
+
+    <!-- 隐藏的Logo上传输入 -->
+    <input type="file" id="logoUploadInput" accept="image/*" style="display: none;" />
   `;
 
   // 加载会话列表
@@ -129,6 +132,91 @@ function renderShell() {
 
   // 初始加载垃圾篓状态
   updateTrashBadge();
+
+  // Logo 上传功能
+  initLogoUpload();
+}
+
+/**
+ * 初始化 Logo 上传功能
+ */
+function initLogoUpload() {
+  const logoEl = document.getElementById('sidebarLogo');
+  const uploadInput = document.getElementById('logoUploadInput');
+  const logoIcon = document.getElementById('logoIcon');
+
+  if (!logoEl || !uploadInput) return;
+
+  // 加载保存的自定义 Logo
+  const savedLogo = localStorage.getItem('openclaw_custom_logo');
+  if (savedLogo) {
+    logoIcon.innerHTML = `<img src="${savedLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+  }
+
+  // 点击 Logo 触发上传
+  logoEl.addEventListener('click', (e) => {
+    // 如果右键菜单打开则不触发
+    if (document.querySelector('.conv-context-menu')) return;
+    uploadInput.click();
+  });
+
+  // 右键 Logo 可恢复默认
+  logoEl.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (localStorage.getItem('openclaw_custom_logo')) {
+      const menu = document.createElement('div');
+      menu.className = 'conv-context-menu';
+      menu.style.cssText = `position:fixed; left:${e.clientX}px; top:${e.clientY}px; z-index:100001;`;
+
+      const restoreItem = document.createElement('div');
+      restoreItem.className = 'conv-context-item';
+      restoreItem.innerHTML = '<span>🔄</span> <span>恢复默认Logo</span>';
+      restoreItem.onclick = () => {
+        localStorage.removeItem('openclaw_custom_logo');
+        logoIcon.innerHTML = '🐾';
+        menu.remove();
+        window.__toast?.success('已恢复默认Logo');
+      };
+      menu.appendChild(restoreItem);
+
+      document.body.appendChild(menu);
+      setTimeout(() => {
+        document.addEventListener('click', () => menu.remove(), { once: true });
+      }, 0);
+    }
+  });
+
+  // 文件选择处理
+  uploadInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      window.__toast?.error('请选择图片文件');
+      return;
+    }
+
+    // 验证文件大小（限制 2MB）
+    if (file.size > 2 * 1024 * 1024) {
+      window.__toast?.error('图片大小不能超过 2MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target.result;
+      // 保存到 localStorage
+      localStorage.setItem('openclaw_custom_logo', dataUrl);
+      // 更新 Logo 显示
+      logoIcon.innerHTML = `<img src="${dataUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+      window.__toast?.success('Logo 已更新');
+    };
+    reader.readAsDataURL(file);
+
+    // 清空 input 以便重复选择同一文件
+    uploadInput.value = '';
+  });
 }
 
 // 侧边栏会话搜索关键词
@@ -151,7 +239,7 @@ async function loadSidebarConversations(query = '') {
     conversations = await window.openClaw.chat.getConversations() || [];
   } catch(e) { conversations = []; }
 
-  // 过滤
+  // 按搜索关键词过滤
   if (query) {
     const q = query.toLowerCase();
     conversations = conversations.filter(c => (c.title || '').toLowerCase().includes(q));
