@@ -26,7 +26,7 @@ const cloudVendors = [
   { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853', desc: 'Yi 系列模型，高性价比', url: 'https://api.lingyiwanwu.com/v1' },
 ];
 
-export async function render(container) {
+export async function render(container, params = {}) {
   try { settings = (await window.openClaw.settings.getAll()) || {}; } catch(e) { settings = {}; }
   try { const am = await window.openClaw.model.getActiveModel(); activeModelId = am?.id || ''; } catch(e) {}
 
@@ -146,6 +146,13 @@ export async function render(container) {
   renderCloudVendors();
   renderLocalRuntimes();
   renderMarketPlatforms();
+
+  if (params && params.openConfig) {
+    const v = cloudVendors.find(x => x.id === params.openConfig);
+    if (v) {
+      setTimeout(() => openCloudConfig(v), 50);
+    }
+  }
 }
 
 function bindModalEvents() {

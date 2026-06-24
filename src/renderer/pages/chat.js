@@ -8,6 +8,7 @@ let models = [];
 let activeModelId = '';
 let activeExpert = null;
 let tokenUsage = 0;
+let pendingAttachmentData = null;
 let pendingLoadConvId = null; // 从侧边栏点击时预设的会话 ID
 
 export async function render(container) {
@@ -25,12 +26,12 @@ export async function render(container) {
     <div style="display: flex; flex-direction: column; background: var(--bg-app); position: absolute; inset: 0;">
 
       <!-- 顶部 Header -->
-      <div style="height: 60px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-panel); backdrop-filter: blur(10px); z-index: 10;">
+      <div style="height: 56px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 10;">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <h2 id="chatTitle" style="margin: 0; font-size: 18px; font-weight: 600;">新对话</h2>
-          <div id="expertIndicator" style="display: none; align-items: center; gap: 8px; background: rgba(108, 99, 255, 0.15); color: #8e84ff; padding: 4px 12px; border-radius: 20px; font-size: 13px; border: 1px solid rgba(108, 99, 255, 0.3);">
+          <h2 id="chatTitle" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.2px;">新对话</h2>
+          <div id="expertIndicator" style="display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, rgba(108,99,255,0.12), rgba(88,86,214,0.12)); color: #7c6fff; padding: 3px 12px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(108,99,255,0.2); font-weight: 500;">
             <span id="expertName"></span>
-            <button id="clearExpertBtn" style="background: none; border: none; color: inherit; cursor: pointer; font-size: 16px; padding: 0 4px;">&times;</button>
+            <button id="clearExpertBtn" style="background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0.7;">&times;</button>
           </div>
         </div>
       </div>
@@ -53,6 +54,14 @@ export async function render(container) {
             <span class="close-quote" id="closeQuoteBtn">&times;</span>
           </div>
 
+          <!-- 截图预览 -->
+          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02);">
+            <div style="position: relative; display: inline-block;">
+              <img id="attachmentImg" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
+              <button id="removeAttachmentBtn" style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--danger, #ff4d4f); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">&times;</button>
+            </div>
+          </div>
+
           <!-- 输入行 -->
           <div class="doubao-input-row">
             <textarea id="chatInput" class="doubao-textarea" placeholder="输入消息...  Shift+Enter 换行" rows="1"></textarea>
@@ -64,61 +73,57 @@ export async function render(container) {
           <!-- 工具栏行：功能按钮整合到输入框内部 -->
           <div class="doubao-toolbar-row">
             <!-- 新建对话 -->
-            <button id="newChatBtn" class="doubao-toolbar-btn accent-green" title="新建对话">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            <button id="newChatBtn" class="doubao-toolbar-btn" title="新建对话">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               <span>新对话</span>
             </button>
 
             <!-- 上传文件 -->
-            <button id="fileUploadBtn" class="doubao-toolbar-btn accent-green" title="上传文件">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            <button id="fileUploadBtn" class="doubao-toolbar-btn" title="上传文件">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span>上传</span>
             </button>
 
             <!-- 模型选择 -->
-            <button id="modelModalBtn" class="doubao-toolbar-btn accent-cyan" title="切换模型">
-              <span>🤖</span>
+            <button id="modelModalBtn" class="doubao-toolbar-btn" title="切换模型">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="m4.2 4.2 2.8 2.8"/><path d="m17 17 2.8 2.8"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="m4.2 19.8 2.8-2.8"/><path d="m17 7 2.8-2.8"/></svg>
               <span id="activeModelLabel" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
             </button>
 
             <!-- 思考深度 -->
-            <div class="doubao-toolbar-btn accent-purple" title="思考深度" style="gap: 4px;">
-              <span>🧠</span>
+            <div class="doubao-toolbar-btn" title="思考深度" style="gap: 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
               <select id="depthSelect" class="doubao-toolbar-select">
                 <option value="auto">自动</option>
-                <option value="low">低</option>
+                <option value="low">浅</option>
                 <option value="medium">中</option>
-                <option value="high">高</option>
-                <option value="extreme">极高</option>
+                <option value="high">深</option>
+                <option value="extreme">极深</option>
               </select>
             </div>
 
-            <!-- 截屏 -->
-            <button id="readScreenBtn" class="doubao-toolbar-btn" title="截屏识别">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-              <span>截屏</span>
-            </button>
-
-            <!-- 通话 -->
-            <button id="callBtn" class="doubao-toolbar-btn accent-orange" title="语音通话">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-              <span>通话</span>
-            </button>
-
             <!-- 清空上下文 -->
-            <button id="clearMemoryBtn" class="doubao-toolbar-btn accent-red" title="清空上下文记忆">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+            <button id="clearMemoryBtn" class="doubao-toolbar-btn" title="清空上下文记忆">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               <span>清空</span>
             </button>
 
-            <!-- 右侧：上下文进度环 -->
-            <div class="doubao-toolbar-right">
+            <!-- 右侧：截图 + 上下文进度环 -->
+            <div class="doubao-toolbar-right" style="display: flex; align-items: center; gap: 6px;">
+              <!-- 截图 -->
+              <button id="readScreenBtn" class="doubao-toolbar-btn" title="截取屏幕">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 9h2"/><path d="M19 9h2"/></svg>
+                <span>截图</span>
+              </button>
+
               <div id="tokenCircleBtn" class="doubao-token-ring" title="上下文占用 (点击压缩)">
                 <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="3"></circle>
-                  <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--success)" stroke-width="3" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.06)" stroke-width="2.5"></circle>
+                  <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
                 </svg>
-                <span style="position: absolute; font-size: 11px;">🧠</span>
+                <span style="position: absolute; display: flex; align-items: center; justify-content: center;">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                </span>
               </div>
             </div>
           </div>
@@ -130,7 +135,7 @@ export async function render(container) {
     <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
        <div style="background: var(--bg-app); width: 600px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
           <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel);">
-             <h3 style="margin: 0; font-size: 18px;">🤖 切换模型</h3>
+             <h3 style="margin: 0; font-size: 18px;">切换模型</h3>
              <button id="closeModelModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
           </div>
           <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
@@ -180,17 +185,84 @@ export async function render(container) {
     if (window.__toast) window.__toast.success('已执行上下文自动压缩');
   });
 
-  // 垃圾桶按钮点击
-  document.getElementById('clearMemoryBtn').addEventListener('click', () => {
-    tokenUsage = 0;
-    updateTokenUsage();
-    if (window.__toast) window.__toast.success('上下文记忆已清空');
+  // 垃圾桶按钮点击 (情况当前上下文)
+  document.getElementById('clearMemoryBtn').addEventListener('click', async () => {
+    if (activeConvId) {
+      try {
+        await window.openClaw.chat.clearHistory(activeConvId);
+        document.getElementById('chatMessages').innerHTML = `
+          <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
+            <div style="font-size: 48px;">💬</div>
+            <div style="font-size: 16px;">上下文已清空，发送一条新消息开始吧</div>
+          </div>
+        `;
+        tokenUsage = 0;
+        updateTokenUsage();
+        if (window.__toast) window.__toast.success('上下文记忆已彻底清空');
+      } catch(e) {
+        if (window.__toast) window.__toast.error('清空上下文失败');
+      }
+    }
   });
 
   // 引用功能关闭
   document.getElementById('closeQuoteBtn').addEventListener('click', () => {
     document.getElementById('quotePreview').style.display = 'none';
     document.getElementById('quoteText').textContent = '';
+  });
+
+  // 截图功能
+  document.getElementById('readScreenBtn').addEventListener('click', async () => {
+    try {
+      if (window.__toast) window.__toast.info('请在屏幕上框选截图区域...');
+      // 隐藏窗口以便截图
+      await window.openClaw.system.hide();
+      
+      const dataUrl = await window.openClaw.system.captureScreenArea();
+      
+      // 截图完成后重新显示窗口
+      await window.openClaw.system.show();
+
+      if (dataUrl) {
+        if (window.__toast) window.__toast.success('截图成功');
+        pendingAttachmentData = dataUrl;
+        document.getElementById('attachmentImg').src = dataUrl;
+        document.getElementById('attachmentPreview').style.display = 'flex';
+        document.getElementById('chatInput').focus();
+      } else {
+        if (window.__toast) window.__toast.info('截图已取消');
+      }
+    } catch (e) {
+      if (window.__toast) window.__toast.error('截图失败: ' + e.message);
+    }
+  });
+
+  document.getElementById('removeAttachmentBtn').addEventListener('click', () => {
+    pendingAttachmentData = null;
+    document.getElementById('attachmentImg').src = '';
+    document.getElementById('attachmentPreview').style.display = 'none';
+  });
+
+  // 上传文件按钮（触发隐藏的 input type="file"）
+  document.getElementById('fileUploadBtn').addEventListener('click', () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e2) => {
+        const dataUrl = e2.target.result;
+        pendingAttachmentData = dataUrl;
+        document.getElementById('attachmentImg').src = dataUrl;
+        document.getElementById('attachmentPreview').style.display = 'flex';
+        document.getElementById('chatInput').focus();
+        if (window.__toast) window.__toast.success('图片已附加');
+      };
+      reader.readAsDataURL(file);
+    };
+    fileInput.click();
   });
 
   // 模型 Modal 逻辑
@@ -287,34 +359,105 @@ function updateTokenUsage() {
   else fill.style.stroke = 'var(--danger)';
 }
 
+const cloudVendors = [
+  { id: 'openai', name: 'OpenAI', icon: '🌌', color: '#10a37f' },
+  { id: 'anthropic', name: 'Anthropic', icon: '🧠', color: '#d97757' },
+  { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4' },
+  { id: 'groq', name: 'Groq', icon: '⚡', color: '#f55036' },
+  { id: 'mistral', name: 'Mistral AI', icon: '🌀', color: '#ff7000' },
+  { id: 'deepseek', name: 'DeepSeek', icon: '🐳', color: '#4d6bfe' },
+  { id: 'qwen', name: '通义千问', icon: '☁️', color: '#615ced' },
+  { id: 'zhipu', name: '智谱 AI', icon: '🔮', color: '#3269ff' },
+  { id: 'moonshot', name: '月之暗面 (Kimi)', icon: '🌙', color: '#000' },
+  { id: 'baidu', name: '百度文心', icon: '🐻', color: '#2932e1' },
+  { id: 'bytedance', name: '豆包 (字节)', icon: '🫘', color: '#fe2c55' },
+  { id: 'minimax', name: 'MiniMax', icon: '🔵', color: '#1677ff' },
+  { id: 'iflytek', name: '讯飞星火', icon: '🔥', color: '#ff6a00' },
+  { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853' }
+];
+
 async function loadModels() {
   try {
     const res = await window.openClaw.model.getModels();
-    models = res || [];
     
-    const cloudModels = models.filter(m => !m.id.toLowerCase().includes('ollama') && !m.id.toLowerCase().includes('local'));
-    const localModels = models.filter(m => m.id.toLowerCase().includes('ollama') || m.id.toLowerCase().includes('local'));
+    // 移除重复模型，保留最新/唯一的 ID
+    const uniqueMap = new Map();
+    (res || []).forEach(m => uniqueMap.set(m.id, m));
+    models = Array.from(uniqueMap.values());
     
-    const renderModelCard = (m) => `
-      <div class="model-select-card" data-id="${m.id}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px;">${m.name}</div>
+    // 判断本地模型的更严谨逻辑
+    const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
+    
+    const localModels = models.filter(m => isLocal(m));
+    const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
+    
+    // 渲染云端模型（展示为厂商，如果配了多个模型则默认选择第一个）
+    const renderedCloud = cloudVendors.map(vendor => {
+      // 检查是否已配置该厂商的模型
+      const matchedModels = cloudModelsConfigured.filter(m => 
+         (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) || 
+         (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+         m.id.toLowerCase().includes(vendor.id.toLowerCase())
+      );
+      
+      const isConfigured = matchedModels.length > 0;
+      const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
+      
+      return `
+        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${vendor.name}
+           </div>
+           <div style="font-size: 11px; color: ${isConfigured ? 'var(--success)' : 'var(--text-muted)'};">${isConfigured ? '✓ 已配置' : '去配置 &rarr;'}</div>
+        </div>
+      `;
+    }).join('');
+
+    const renderLocalCard = (m) => `
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+           <span>💻</span> ${m.name}
+         </div>
          <div style="font-size: 11px; color: var(--text-muted);">${m.id}</div>
       </div>
     `;
 
-    document.getElementById('cloudModelsGrid').innerHTML = cloudModels.map(renderModelCard).join('');
-    document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderModelCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
+    document.getElementById('cloudModelsGrid').innerHTML = renderedCloud;
+    document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
     
     // 绑定弹窗内模型点击
     document.querySelectorAll('.model-select-card').forEach(card => {
-       card.addEventListener('click', () => {
-          activeModelId = card.dataset.id;
+       card.addEventListener('click', async () => {
+          const isConfigured = card.dataset.configured === 'true';
+          const vendorId = card.dataset.vendor;
+          const id = card.dataset.id;
+          
+          if (!isConfigured && vendorId) {
+            // 未配置，跳转至模型市场配置
+            document.getElementById('modelSelectionModal').style.display = 'none';
+            if (window.navigateTo) {
+              window.navigateTo('market', { openConfig: vendorId });
+            }
+            return;
+          }
+
+          activeModelId = id;
           const modelObj = models.find(x => x.id === activeModelId);
           if(modelObj) {
             document.getElementById('activeModelLabel').textContent = modelObj.name;
+          } else {
+            // 如果是按厂商展示的，我们通过 DOM 更新显示名字
+            const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
+            document.getElementById('activeModelLabel').textContent = nameEl;
           }
+          
+          // 通知后端更新 activeModelId
+          if (window.openClaw.model && window.openClaw.model.setActiveModel) {
+            await window.openClaw.model.setActiveModel(id).catch(e=>console.error(e));
+          }
+
           document.getElementById('modelSelectionModal').style.display = 'none';
-          if(window.__toast) window.__toast.success(`已切换为: ${modelObj?.name}`);
+          if(window.__toast) window.__toast.success(`已切换为: ${modelObj?.name || id}`);
        });
     });
 
@@ -328,6 +471,8 @@ async function loadModels() {
     const initialModel = models.find(x => x.id === activeModelId);
     if(initialModel) {
        document.getElementById('activeModelLabel').textContent = initialModel.name;
+    } else if (activeModelId) {
+       document.getElementById('activeModelLabel').textContent = activeModelId;
     }
   } catch (e) {
     console.error('Failed to load models:', e);
@@ -368,43 +513,74 @@ async function loadHistory(convId) {
   }
 }
 
-function handleQuote(text) {
+function handleQuote(btn) {
+  let text = btn.dataset.text;
+  if (!text) return;
+  if (text.length > 50) text = text.substring(0, 50) + '...';
   document.getElementById('quotePreview').style.display = 'flex';
   document.getElementById('quoteText').textContent = text;
   document.getElementById('chatInput').focus();
 }
 
+async function handleCopy(btn) {
+  let text = btn.dataset.text;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    if (window.__toast) window.__toast.success('已复制');
+  } catch (e) {
+    if (window.__toast) window.__toast.error('复制失败');
+  }
+}
+
 window.handleQuote = handleQuote;
+window.handleCopy = handleCopy;
 
 function renderMessages(messages) {
   const container = document.getElementById('chatMessages');
   if (messages.length === 0) {
     container.innerHTML = `
-      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
-        <div style="font-size: 48px;">💬</div>
-        <div style="font-size: 16px;">发送一条消息开始吧</div>
+      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+        <div style="font-size: 14px; font-weight: 500;">发送一条消息开始对话</div>
       </div>
     `;
     return;
   }
 
-  container.innerHTML = messages.map(m => `
-    <div class="message" style="display: flex; gap: 16px; ${m.role === 'user' ? 'flex-direction: row-reverse;' : ''}">
-      <div style="width: 36px; height: 36px; border-radius: 50%; background: ${m.role === 'user' ? 'var(--primary)' : 'var(--bg-active)'}; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
-        ${m.role === 'user' ? '👤' : '🤖'}
+  container.innerHTML = messages.map(m => {
+    let textContent = '';
+    let attachmentHtml = '';
+    if (Array.isArray(m.content)) {
+      const textBlock = m.content.find(c => c.type === 'text');
+      const imgBlock = m.content.find(c => c.type === 'image_url');
+      if (textBlock) textContent = textBlock.text;
+      if (imgBlock && imgBlock.image_url) attachmentHtml = `<div style="margin-top: 8px;"><img src="${imgBlock.image_url.url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+    } else {
+      textContent = m.content || '';
+    }
+    
+    let renderedHtml = m.role === 'user' ? escapeHtml(textContent).replace(/\n/g, '<br/>') : parseMarkdown(textContent);
+    renderedHtml += attachmentHtml;
+
+    const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
+    return `
+    <div class="message" style="display: flex; gap: 12px; ${m.role === 'user' ? 'flex-direction: row-reverse;' : ''}">
+      <div style="width: 32px; height: 32px; border-radius: 10px; background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; ${m.role === 'user' ? '' : 'border: 1px solid var(--border-light);'} box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+        ${m.role === 'user' ? avatarUser : avatarAI}
       </div>
-      <div style="max-width: 75%; display: flex; flex-direction: column; align-items: ${m.role === 'user' ? 'flex-end' : 'flex-start'};">
-        <div style="background: ${m.role === 'user' ? 'var(--primary)' : 'var(--bg-card)'}; color: ${m.role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 12px 16px; border-radius: 16px; font-size: 15px; line-height: 1.6; border: ${m.role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: var(--shadow-sm);">
-          ${m.role === 'user' ? escapeHtml(m.content).replace(/\n/g, '<br/>') : parseMarkdown(m.content)}
+      <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${m.role === 'user' ? 'flex-end' : 'flex-start'};">
+        <div style="background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${m.role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${m.role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+          ${renderedHtml}
         </div>
-        <!-- 快捷操作栏 -->
-        <div class="message-actions" style="margin-top: 4px;">
-           <button class="action-btn" onclick="window.handleQuote('${escapeHtml(m.content).replace(/'/g, "\\'").substring(0, 50)}...')" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">引用</button>
-           <button class="action-btn" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">复制</button>
+        <div class="message-actions" style="margin-top: 3px; opacity: 0; transition: opacity 0.15s;">
+           <button class="action-btn" onclick="window.handleQuote(this)" data-text="${escapeHtml(textContent)}" style="font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 4px; transition: background 0.15s;">引用</button>
+           <button class="action-btn" onclick="window.handleCopy(this)" data-text="${escapeHtml(textContent)}" style="font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 4px; transition: background 0.15s;">复制</button>
         </div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
   
   scrollToBottom();
 }
@@ -423,12 +599,14 @@ function appendMessage(role, id = null) {
   msgDiv.style.marginBottom = '24px';
   if (role === 'user') msgDiv.style.flexDirection = 'row-reverse';
 
+  const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
   msgDiv.innerHTML = `
-    <div style="width: 36px; height: 36px; border-radius: 50%; background: ${role === 'user' ? 'var(--primary)' : 'var(--bg-active)'}; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">
-      ${role === 'user' ? '👤' : '🤖'}
+    <div style="width: 32px; height: 32px; border-radius: 10px; background: ${role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; ${role === 'user' ? '' : 'border: 1px solid var(--border-light);'} box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+      ${role === 'user' ? avatarUser : avatarAI}
     </div>
-    <div style="max-width: 75%; display: flex; flex-direction: column; align-items: ${role === 'user' ? 'flex-end' : 'flex-start'};">
-      <div class="msg-content-box" style="background: ${role === 'user' ? 'var(--primary)' : 'var(--bg-card)'}; color: ${role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 12px 16px; border-radius: 16px; font-size: 15px; line-height: 1.6; border: ${role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: var(--shadow-sm);">
+    <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${role === 'user' ? 'flex-end' : 'flex-start'};">
+      <div class="msg-content-box" style="background: ${role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
         <span class="cursor" style="display: ${role === 'ai' ? 'inline-block' : 'none'}; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite;"></span>
       </div>
     </div>
@@ -450,7 +628,7 @@ async function sendMessage() {
 
   const input = document.getElementById('chatInput');
   let text = input.value.trim();
-  if (!text) return;
+  if (!text && !pendingAttachmentData) return;
   
   const quotePreview = document.getElementById('quotePreview');
   if (quotePreview.style.display === 'flex') {
@@ -467,8 +645,17 @@ async function sendMessage() {
   input.value = '';
   input.style.height = '56px';
 
+  const attachmentData = pendingAttachmentData;
+  if (attachmentData) {
+    document.getElementById('removeAttachmentBtn').click(); // Clean UI state
+  }
+
   const userBox = appendMessage('user');
-  userBox.innerHTML = escapeHtml(text).replace(/\n/g, '<br/>');
+  let userHtml = escapeHtml(text).replace(/\n/g, '<br/>');
+  if (attachmentData) {
+    userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+  }
+  userBox.innerHTML = userHtml;
 
   isGenerating = true;
   const sendBtn = document.getElementById('sendBtn');
@@ -483,32 +670,22 @@ async function sendMessage() {
 
   try {
     const prompt = activeExpert ? activeExpert.prompt : undefined;
-    const response = await window.openClaw.chat.sendMessageStream(activeConvId, text, activeModelId, prompt, 0.7);
-    
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.content) {
-              fullResponse += parsed.content;
-              aiBox.innerHTML = parseMarkdown(fullResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
-              scrollToBottom();
-            }
-          } catch (e) {}
-        }
+    await window.openClaw.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, 0.7, (parsed) => {
+      if (parsed.type === 'error') {
+        fullResponse += `\n\n> ❌ **错误**: ${parsed.message}`;
+        aiBox.innerHTML = parseMarkdown(fullResponse);
+        scrollToBottom();
+        return;
       }
-    }
+      if (parsed.type === 'conversation' && parsed.id) {
+        activeConvId = parsed.id;
+      }
+      if (parsed.content) {
+        fullResponse += parsed.content;
+        aiBox.innerHTML = parseMarkdown(fullResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
+        scrollToBottom();
+      }
+    });
   } catch (err) {
     if (err.name === 'AbortError') {
       fullResponse += '\n\n*(已中断)*';
@@ -521,6 +698,26 @@ async function sendMessage() {
     sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
     sendBtn.classList.remove('is-stop');
     aiBox.innerHTML = parseMarkdown(fullResponse);
+    
+    // 为用户消息和 AI 消息动态添加快捷操作栏
+    const addActions = (box, text) => {
+       const actionsHtml = `
+         <div class="message-actions" style="margin-top: 4px;">
+            <button class="action-btn" onclick="window.handleQuote(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">引用</button>
+            <button class="action-btn" onclick="window.handleCopy(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">复制</button>
+         </div>
+       `;
+       const actionsDiv = document.createElement('div');
+       actionsDiv.innerHTML = actionsHtml;
+       box.parentElement.appendChild(actionsDiv.firstElementChild);
+    };
+    if (aiBox && aiBox.parentElement) {
+      addActions(aiBox, fullResponse);
+    }
+    if (userBox && userBox.parentElement) {
+      addActions(userBox, text);
+    }
+    
     window.refreshSidebarConversations?.();
   }
 }

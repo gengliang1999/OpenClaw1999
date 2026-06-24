@@ -106,7 +106,31 @@ class ModelManager extends EventEmitter {
    * @returns {Object|null} 当前模型信息
    */
   getActiveModel() {
-    const model = this.models.find(m => m.id === this.activeModelId);
+    let model = this.models.find(m => m.id === this.activeModelId);
+    
+    // 如果没有找到当前活跃的模型，或者还没有设置 activeModelId
+    if (!model && this.models.length > 0) {
+      // 优先寻找本地模型作为默认
+      const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
+      model = this.models.find(m => isLocal(m));
+      
+      // 如果没有本地模型，再取第一个云端配置好的模型
+      if (!model) {
+        model = this.models.find(m => m.type === 'cloud' && m.apiKey);
+      }
+      
+      // 最后的兜底
+      if (!model) {
+        model = this.models[0];
+      }
+      
+      // 自动保存这个新的默认选择
+      if (model) {
+        this.activeModelId = model.id;
+        this._saveConfig();
+      }
+    }
+    
     if (!model) return null;
     return {
       id: model.id,
@@ -494,12 +518,30 @@ class ModelManager extends EventEmitter {
       });
     }
 
+    const ollamaMessages = messages.map(m => {
+      if (Array.isArray(m.content)) {
+        const textBlock = m.content.find(c => c.type === 'text');
+        const imgBlock = m.content.find(c => c.type === 'image_url');
+        
+        const ollamaMsg = { role: m.role, content: textBlock ? textBlock.text : '' };
+        if (imgBlock && imgBlock.image_url) {
+           // Ollama expects base64 data without the 'data:image/...;base64,' prefix
+           const base64Data = imgBlock.image_url.url.split(',')[1];
+           if (base64Data) {
+             ollamaMsg.images = [base64Data];
+           }
+        }
+        return ollamaMsg;
+      }
+      return m;
+    });
+
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: actualModelName,
-        messages: messages,
+        messages: ollamaMessages,
         stream: true,
         options: {
           num_ctx: options.maxTokens || model.contextSize || 4096,

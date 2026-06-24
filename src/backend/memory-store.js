@@ -350,9 +350,11 @@ class MemoryStore {
     const id = uuidv4();
     const now = new Date().toISOString();
     
+    const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+
     this.db.run(
       'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
-      [id, conversationId, role, content, now]
+      [id, conversationId, role, contentStr, now]
     );
     
     // 更新对话的更新时间

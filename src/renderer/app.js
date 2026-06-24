@@ -60,20 +60,20 @@ function renderShell() {
             <span class="nav-label">${r.label}</span>
           </div>
         `).join('')}
+
+        <!-- 搜索会话 -->
+        <div style="padding: 4px;">
+          <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 28px; border-radius: 14px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
+        </div>
+
+        <!-- 新建对话按钮 -->
+        <div id="sidebarNewChatBtn" style="margin: 2px 4px; padding: 7px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
+          ✨ 新建对话
+        </div>
+
+        <!-- 会话列表 -->
+        <div id="sidebarConvList" tabindex="0" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 2px; min-height: 0; outline: none; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;"></div>
       </nav>
-
-      <!-- 搜索会话 -->
-      <div class="nav-label" style="padding: 2px 4px 0 4px;">
-        <input type="text" id="sidebarConvSearch" placeholder="🔍 搜索会话..." style="width: 100%; height: 28px; border-radius: 14px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); font-size: 12px; padding: 0 10px; box-sizing: border-box; outline: none;" />
-      </div>
-
-      <!-- 新建对话按钮 -->
-      <div id="sidebarNewChatBtn" style="margin: 4px; padding: 7px 12px; border-radius: 10px; background: var(--primary); color: #fff; text-align: center; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">
-        ✨ 新建对话
-      </div>
-
-      <!-- 会话列表 -->
-      <div id="sidebarConvList" tabindex="0" style="flex: 1; overflow-y: auto; overflow-x: hidden; padding: 2px; min-height: 0; outline: none; scrollbar-width: thin; scrollbar-color: var(--border-color) transparent;"></div>
 
       <!-- 底部：垃圾篓 + 设置 + 版本号 -->
       <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 6px; border-top: 1px solid var(--border-light);">
@@ -1001,8 +1001,8 @@ function bindRouteEvents() {
  * 导航到指定页面
  * @param {string} route - 路由路径
  */
-async function navigateTo(route) {
-  if (route === currentRoute) return;
+async function navigateTo(route, params = {}) {
+  if (route === currentRoute && Object.keys(params).length === 0) return;
 
   const routeConfig = ROUTES.find(r => r.path === route);
   if (!routeConfig) {
@@ -1043,14 +1043,14 @@ async function navigateTo(route) {
     pageEl.id = `page-${route}`;
     container.appendChild(pageEl);
 
-    // 调用页面渲染函数
+    // 调用页面渲染函数，传入 params
     if (typeof pageModule.render === 'function') {
-      await pageModule.render(pageEl);
+      await pageModule.render(pageEl, params);
     }
 
-    // 调用页面初始化函数（绑定事件等）
+    // 调用页面初始化函数，传入 params
     if (typeof pageModule.init === 'function') {
-      await pageModule.init(pageEl);
+      await pageModule.init(pageEl, params);
     }
   } catch (err) {
     console.error(`加载页面 [${route}] 失败:`, err);

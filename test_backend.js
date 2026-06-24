@@ -1,12 +1,13 @@
 const http = require('http');
 
-const payload = JSON.stringify({
-  conversationId: 'test_conv_123',
-  message: 'hi',
-  modelId: 'qwen2.5:7b',
-  systemPrompt: 'You are a helpful assistant.',
-  temperature: 0.7
-});
+const requestBody = {
+  conversationId: 'test-125-deepseek',
+  message: 'Hello DeepSeek!',
+  attachment: null,
+  modelId: 'deepseek'
+};
+
+const payload = JSON.stringify(requestBody);
 
 const req = http.request({
   hostname: '127.0.0.1',

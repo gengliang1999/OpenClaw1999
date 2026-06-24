@@ -53,16 +53,58 @@ contextBridge.exposeInMainWorld('openClaw', {
         body: { conversationId, message, modelId } 
       }),
     
-    /** 发送流式聊天消息 */
-    sendMessageStream: (conversationId, message, modelId, systemPrompt, temperature) => {
+    /** 发送流式聊天消息 — 在 preload 中消费流，通过回调传递解析后的 SSE 事件 */
+    sendMessageStream: (conversationId, message, attachment, modelId, systemPrompt, temperature, onData) => {
       if (currentChatController) currentChatController.abort();
       currentChatController = new AbortController();
-      return apiRequest('/chat/stream', { 
-        method: 'POST', 
-        body: { conversationId, message, modelId, systemPrompt, temperature },
-        stream: true,
-        signal: currentChatController.signal
-      });
+      const signal = currentChatController.signal;
+
+      return (async () => {
+        const response = await fetch(`${API_BASE}/chat/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId, message, attachment, modelId, systemPrompt, temperature }),
+          signal,
+        });
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({ message: '请求失败' }));
+          throw new Error(errBody.message || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // 保留未完成的行
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') return;
+              try {
+                const parsed = JSON.parse(data);
+                if (onData) onData(parsed);
+              } catch (e) {}
+            }
+          }
+        }
+
+        // 处理 buffer 中残留的最后一行
+        if (buffer.startsWith('data: ')) {
+          const data = buffer.slice(6);
+          try {
+            const parsed = JSON.parse(data);
+            if (onData) onData(parsed);
+          } catch (e) {}
+        }
+      })();
     },
 
     /** 中断生成 */
@@ -209,6 +251,12 @@ contextBridge.exposeInMainWorld('openClaw', {
       apiRequest(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
   },
 
+  // ===== 自动化相关 =====
+  automation: {
+    /** 截取全屏 */
+    captureScreen: () => apiRequest('/automation/screenshot', { method: 'POST' }),
+  },
+
   // ===== 沙盒相关 =====
   sandbox: {
     /** 执行沙盒命令 */
@@ -301,6 +349,9 @@ contextBridge.exposeInMainWorld('openClaw', {
 
   // ===== 系统相关 =====
   system: {
+    /** 框选截图 */
+    captureScreenArea: () => ipcRenderer.invoke('system:captureScreenArea'),
+
     /** 获取系统信息 */
     getInfo: () => ipcRenderer.invoke('system:getInfo'),
     
@@ -316,8 +367,19 @@ contextBridge.exposeInMainWorld('openClaw', {
     /** 窗口最小化 */
     minimize: () => ipcRenderer.invoke('window:minimize'),
     
+    /** 窗口隐藏 */
+    hide: () => ipcRenderer.invoke('window:hide'),
+    
+    /** 窗口显示 */
+    show: () => ipcRenderer.invoke('window:show'),
+    
     /** 窗口最大化/还原 */
     maximize: () => ipcRenderer.invoke('window:maximize'),
+    
+    /** 截图画板相关通信 */
+    getScreenCapture: () => ipcRenderer.invoke('system:getScreenCapture'),
+    finishScreenCapture: (dataUrl) => ipcRenderer.send('system:captureScreenArea-done', dataUrl),
+    onScreenshotStart: (callback) => ipcRenderer.on('screenshot:start', (event, dataUrl) => callback(dataUrl)),
     
     /** 关闭窗口 */
     close: () => ipcRenderer.invoke('window:close'),

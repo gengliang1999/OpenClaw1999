@@ -72,8 +72,12 @@ async function startApiServer() {
     apiServer = await createServer(3721, rendererPath);
     console.log('[主进程] API 服务器已启动，端口: 3721');
   } catch (error) {
-    console.error('[主进程] API 服务器启动失败:', error);
-    dialog.showErrorBox('启动错误', `API 服务器启动失败: ${error.message}`);
+    if (error.code === 'EADDRINUSE') {
+      console.warn('[主进程] 端口 3721 已被占用。假设 OpenClaw 后端已在运行，继续启动...');
+    } else {
+      console.error('[主进程] API 服务器启动失败:', error);
+      dialog.showErrorBox('启动错误', `API 服务器启动失败: ${error.message}`);
+    }
   }
 }
 
@@ -117,6 +121,8 @@ function registerIpcHandlers() {
 
   // 窗口控制
   ipcMain.handle('window:minimize', () => mainWindow?.minimize());
+  ipcMain.handle('window:hide', () => mainWindow?.hide());
+  ipcMain.handle('window:show', () => mainWindow?.show());
   ipcMain.handle('window:maximize', () => {
     if (mainWindow?.isMaximized()) {
       mainWindow.unmaximize();
@@ -130,6 +136,94 @@ function registerIpcHandlers() {
   ipcMain.handle('app:restart', () => {
     app.relaunch();
     app.exit(0);
+  });
+  // 截屏所需的方法
+  ipcMain.handle('system:getScreenCapture', async () => {
+    const { desktopCapturer, screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+    const scaleFactor = primaryDisplay.scaleFactor;
+    
+    // 获取屏幕的完整截图
+    const sources = await desktopCapturer.getSources({ 
+      types: ['screen'], 
+      thumbnailSize: { width: width * scaleFactor, height: height * scaleFactor } 
+    });
+    
+    if (sources.length > 0) {
+      return sources[0].thumbnail.toDataURL();
+    }
+    return null;
+  });
+
+  let captureWin = null;
+  function initCaptureWin() {
+    if (captureWin) return;
+    const { BrowserWindow, screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    captureWin = new BrowserWindow({
+      x: primaryDisplay.bounds.x,
+      y: primaryDisplay.bounds.y,
+      width: primaryDisplay.bounds.width,
+      height: primaryDisplay.bounds.height,
+      transparent: true,
+      frame: false,
+      fullscreen: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      resizable: false,
+      movable: false,
+      show: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    captureWin.loadFile(path.join(__dirname, '../renderer/screenshot.html'));
+  }
+
+  // 初始化隐藏的截屏窗口
+  app.whenReady().then(initCaptureWin);
+
+  // 区域截图
+  ipcMain.handle('system:captureScreenArea', async () => {
+    return new Promise(async (resolve) => {
+      const { ipcMain: ipc, desktopCapturer, screen } = require('electron');
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.size;
+      const scaleFactor = primaryDisplay.scaleFactor;
+      
+      // 在 mainWindow 被完全隐藏后再抓取屏幕（这里已经隐藏完毕）
+      const sources = await desktopCapturer.getSources({ 
+        types: ['screen'], 
+        thumbnailSize: { width: width, height: height } // 移除 scaleFactor 以大幅加快底层 C++ 捕捉速度
+      });
+      
+      let dataUrl = null;
+      if (sources.length > 0) {
+        // 使用 JPEG 编码代替默认的 PNG(toDataURL)，大幅减少压缩和转换时间
+        const buffer = sources[0].thumbnail.toJPEG(100);
+        dataUrl = 'data:image/jpeg;base64,' + buffer.toString('base64');
+      }
+      
+      if (!dataUrl) return resolve(null);
+      if (!captureWin) initCaptureWin();
+      
+      captureWin.webContents.send('screenshot:start', dataUrl);
+      captureWin.show();
+      
+      const onDone = (event, resultUrl) => {
+        resolve(resultUrl);
+        ipc.removeListener('system:captureScreenArea-done', onDone);
+        if (captureWin && !captureWin.isDestroyed()) {
+          captureWin.hide();
+        }
+      };
+      
+      ipc.once('system:captureScreenArea-done', onDone);
+    });
   });
 }
 

@@ -101,8 +101,10 @@ async function createServer(port = 3721, rendererPath) {
   /** 流式聊天（SSE） */
   app.post('/api/chat/stream', async (req, res) => {
     try {
-      const { conversationId, message, modelId, systemPrompt, temperature } = req.body;
-      if (!message) return res.status(400).json({ message: '消息不能为空' });
+      const { conversationId, message, attachment, modelId, systemPrompt, temperature } = req.body;
+      console.log(`[API /api/chat/stream] Body:`, { conversationId, message: message ? '...text...' : null, attachment: attachment ? '...image...' : null, modelId, temperature });
+      
+      if (!message && !attachment) return res.status(400).json({ message: '消息不能为空' });
 
       // SSE 头部
       res.setHeader('Content-Type', 'text/event-stream');
@@ -118,12 +120,34 @@ async function createServer(port = 3721, rendererPath) {
 
       const abortController = new AbortController();
 
-      memoryStore.saveMessage(convId, 'user', message);
+      let finalContent = message;
+      if (attachment) {
+        finalContent = [
+          { type: 'text', text: message },
+          { type: 'image_url', image_url: { url: attachment } }
+        ];
+      }
+
+      memoryStore.saveMessage(convId, 'user', finalContent);
 
       let history = memoryStore.getConversationHistory(convId);
       // [上下文压缩] 保留最后20条，避免爆显存
       if (history.length > 20) history = history.slice(history.length - 20);
-      let messages = history.map(m => ({ role: m.role, content: m.content }));
+      let messages = history.map((m, index) => {
+        let content = m.content;
+        try {
+          // Check if content is a JSON string of array (from SQLite)
+          if (typeof content === 'string' && content.startsWith('[')) {
+             content = JSON.parse(content);
+             // 历史记录中的图片不再发送给模型，防止文本模型崩溃并节省大量 Token
+             if (index < history.length - 1) {
+               const textBlock = content.find(c => c.type === 'text');
+               content = textBlock ? textBlock.text : '[历史图片]';
+             }
+          }
+        } catch(e) {}
+        return { role: m.role, content: content };
+      });
 
       // RAG 记忆检索与注入
       const relevantMemories = memoryStore.searchMemory(message, 3);
@@ -937,6 +961,18 @@ async function createServer(port = 3721, rendererPath) {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ========== 自动化 API ==========
+  
+  /** 截屏并返回文件路径 */
+  app.post('/api/automation/screenshot', async (req, res) => {
+    try {
+      const outputPath = await automation.captureScreen();
+      res.json({ success: true, path: outputPath });
+    } catch (error) {
+      res.status(500).json({ success: false, message: error.message });
     }
   });
 

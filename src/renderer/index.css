@@ -1853,13 +1853,13 @@ input, textarea, [contenteditable] {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 /* Token 圆环 */
 .doubao-token-ring {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   position: relative;
   border-radius: 50%;
   display: flex;
