@@ -1,5 +1,10 @@
+# 依赖文件夹
 node_modules/
-.DS_Store
-dist/
-build/
-*.log
+# 编译产物
+dist/ build/ out/ target/
+# IDE配置
+.idea/ .vscode/ *.iml
+# 日志、缓存
+*.log .DS_Store *.swp
+# 环境配置
+.env .env.local
