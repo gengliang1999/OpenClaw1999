@@ -80,10 +80,10 @@ function renderShell() {
         <div id="sidebarTrashBtn" style="display: none; margin: 4px 4px 8px 4px; padding: 8px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
           🗑️ 垃圾篓
         </div>
-        <div class="nav-label" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 2px 0;">v1.0.0</div>
-        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-top: 4px; margin-bottom: 2px;">
+        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 2px;">
           <span class="nav-label">设置</span>
         </div>
+        <div class="nav-label" style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 2px 0;">v1.0.0</div>
       </div>
     </aside>
 
@@ -419,21 +419,345 @@ async function renameConversationUI(convId) {
 }
 
 /**
- * 导出对话 UI
+ * 导出对话 UI - 支持多种格式
  */
 async function exportConversationUI(convId) {
+  // 格式配置
+  const formats = [
+    { id: 'json', icon: '📋', label: 'JSON', desc: '完整数据，可备份恢复', ext: '.json' },
+    { id: 'markdown', icon: '📝', label: 'Markdown', desc: '易读文本格式', ext: '.md' },
+    { id: 'html', icon: '🌐', label: 'HTML', desc: '网页格式，带样式', ext: '.html' },
+    { id: 'txt', icon: '📄', label: 'TXT', desc: '纯文本格式', ext: '.txt' },
+    { id: 'pdf', icon: '📕', label: 'PDF', desc: '便携文档格式', ext: '.pdf' },
+    { id: 'word', icon: '📘', label: 'Word', desc: 'Office 文档格式', ext: '.docx' },
+    { id: 'png', icon: '🖼️', label: 'PNG', desc: '长截图格式', ext: '.png' },
+  ];
+
+  // 创建格式选择弹窗
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg-card); border-radius:16px; width:90%; max-width:420px; box-shadow:0 20px 40px rgba(0,0,0,0.2); transform:translateY(20px) scale(0.95); transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);';
+
+  box.innerHTML = `
+    <div style="padding:20px 24px; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:18px; font-weight:600;">📤 导出对话</h3>
+      <button id="closeExportBtn" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-muted);">&times;</button>
+    </div>
+    <div style="padding:16px 20px;">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">选择导出格式：</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${formats.map(f => `
+          <div class="export-format-item" data-format="${f.id}" style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px; border:1.5px solid var(--border-light); cursor:pointer; transition:all 0.2s;">
+            <span style="font-size:24px;">${f.icon}</span>
+            <div style="flex:1;">
+              <div style="font-weight:600; font-size:14px;">${f.label}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${f.desc}</div>
+            </div>
+            <span style="font-size:11px; color:var(--text-muted); background:var(--bg-hover); padding:2px 8px; border-radius:6px;">${f.ext}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; box.style.transform = 'translateY(0) scale(1)'; });
+
+  const close = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 200); };
+  document.getElementById('closeExportBtn').onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+  // 格式项 hover 效果
+  box.querySelectorAll('.export-format-item').forEach(item => {
+    item.onmouseenter = () => { item.style.borderColor = 'var(--primary)'; item.style.background = 'var(--primary-light)'; };
+    item.onmouseleave = () => { item.style.borderColor = 'var(--border-light)'; item.style.background = 'transparent'; };
+    item.onclick = async () => {
+      const format = item.dataset.format;
+      close();
+      await doExport(convId, format);
+    };
+  });
+}
+
+/**
+ * 执行导出
+ */
+async function doExport(convId, format) {
   try {
+    window.__toast?.info('正在导出...');
     const data = await window.openClaw.chat.exportConversation(convId);
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(data.title || '对话').replace(/[<>:"/\\|?*]/g, '_')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    window.__toast?.success('对话已导出');
+    const safeName = (data.title || '对话').replace(/[<>:"/\\|?*]/g, '_');
+
+    switch (format) {
+      case 'json':
+        downloadBlob(JSON.stringify(data, null, 2), `${safeName}.json`, 'application/json');
+        break;
+      case 'markdown':
+        downloadBlob(convertToMarkdown(data), `${safeName}.md`, 'text/markdown');
+        break;
+      case 'html':
+        downloadBlob(convertToHTML(data), `${safeName}.html`, 'text/html');
+        break;
+      case 'txt':
+        downloadBlob(convertToTXT(data), `${safeName}.txt`, 'text/plain');
+        break;
+      case 'pdf':
+        await exportToPDF(data, safeName);
+        break;
+      case 'word':
+        await exportToWord(data, safeName);
+        break;
+      case 'png':
+        await exportToPNG(data, safeName);
+        break;
+    }
+    window.__toast?.success('导出成功');
   } catch(e) {
+    console.error('导出失败:', e);
     window.__toast?.error('导出失败: ' + e.message);
+  }
+}
+
+/**
+ * 下载 Blob 文件
+ */
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * 转换为 Markdown 格式
+ */
+function convertToMarkdown(data) {
+  let md = `# ${data.title || '对话'}\n\n`;
+  md += `> 创建时间：${formatDate(data.created_at)}  \n`;
+  md += `> 导出时间：${formatDate(data.exported_at)}\n\n`;
+  md += `---\n\n`;
+
+  (data.messages || []).forEach(msg => {
+    const role = msg.role === 'user' ? '👤 **用户**' : '🤖 **AI助手**';
+    md += `${role}\n\n${msg.content}\n\n---\n\n`;
+  });
+
+  return md;
+}
+
+/**
+ * 转换为 HTML 格式
+ */
+function convertToHTML(data) {
+  const messages = (data.messages || []).map(msg => {
+    const isUser = msg.role === 'user';
+    return `
+      <div class="message ${isUser ? 'user' : 'ai'}">
+        <div class="avatar">${isUser ? '👤' : '🤖'}</div>
+        <div class="bubble">
+          <div class="role">${isUser ? '用户' : 'AI助手'}</div>
+          <div class="content">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(data.title || '对话')}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; padding: 40px 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
+    .header { padding: 24px; border-bottom: 1px solid #eee; }
+    .header h1 { font-size: 24px; font-weight: 600; }
+    .header .meta { font-size: 13px; color: #86868b; margin-top: 8px; }
+    .messages { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    .message { display: flex; gap: 12px; }
+    .message.user { flex-direction: row-reverse; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: #f0f0f0; flex-shrink: 0; }
+    .message.user .avatar { background: #007aff; }
+    .bubble { max-width: 70%; padding: 12px 16px; border-radius: 16px; background: #f0f0f0; }
+    .message.user .bubble { background: #007aff; color: #fff; }
+    .role { font-size: 12px; font-weight: 600; margin-bottom: 4px; opacity: 0.7; }
+    .content { font-size: 14px; line-height: 1.6; }
+    .footer { padding: 16px 24px; border-top: 1px solid #eee; text-align: center; font-size: 12px; color: #86868b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>${escapeHtml(data.title || '对话')}</h1>
+      <div class="meta">导出时间：${formatDate(data.exported_at)}</div>
+    </div>
+    <div class="messages">${messages}</div>
+    <div class="footer">由 OpenClaw Assistant 导出</div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * 转换为 TXT 格式
+ */
+function convertToTXT(data) {
+  let txt = `${data.title || '对话'}\n`;
+  txt += `${'='.repeat(40)}\n`;
+  txt += `创建时间：${formatDate(data.created_at)}\n`;
+  txt += `导出时间：${formatDate(data.exported_at)}\n`;
+  txt += `${'='.repeat(40)}\n\n`;
+
+  (data.messages || []).forEach(msg => {
+    const role = msg.role === 'user' ? '【用户】' : '【AI助手】';
+    txt += `${role}\n${msg.content}\n\n${'-'.repeat(40)}\n\n`;
+  });
+
+  return txt;
+}
+
+/**
+ * 动态加载外部脚本
+ */
+function loadExternalScript(url) {
+  return new Promise((resolve, reject) => {
+    // 检查是否已加载
+    const existing = document.querySelector(`script[src="${url}"]`);
+    if (existing) {
+      resolve(window[url.split('/').pop().replace('.min.js', '').replace('.js', '')]);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => resolve();
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * 导出为 PDF
+ */
+async function exportToPDF(data, filename) {
+  // 动态加载 jsPDF
+  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js');
+  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+
+  // 创建临时 HTML
+  const html = convertToHTML(data);
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  document.body.appendChild(container);
+
+  try {
+    await html2pdf().from(container).set({
+      margin: 10,
+      filename: `${filename}.pdf`,
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).save();
+  } finally {
+    container.remove();
+  }
+}
+
+/**
+ * 导出为 Word
+ */
+async function exportToWord(data, filename) {
+  // 动态加载 docx 库
+  await loadExternalScript('https://unpkg.com/docx@8.5.0/build/index.umd.js');
+
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
+
+  const children = [
+    new Paragraph({
+      children: [new TextRun({ text: data.title || '对话', bold: true, size: 36 })],
+      heading: HeadingLevel.HEADING_1,
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `导出时间：${formatDate(data.exported_at)}`, color: '86868b', size: 20 })],
+    }),
+    new Paragraph({ text: '' }),
+  ];
+
+  (data.messages || []).forEach(msg => {
+    const isUser = msg.role === 'user';
+    children.push(new Paragraph({
+      children: [new TextRun({ text: isUser ? '👤 用户' : '🤖 AI助手', bold: true, size: 24 })],
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: msg.content, size: 22 })],
+    }));
+    children.push(new Paragraph({ text: '' }));
+  });
+
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * 导出为 PNG
+ */
+async function exportToPNG(data, filename) {
+  // 动态加载 html2canvas
+  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+
+  // 创建临时 HTML 容器
+  const html = convertToHTML(data);
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '800px';
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container.querySelector('.container'), {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    });
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  } finally {
+    container.remove();
+  }
+}
+
+/**
+ * 格式化日期
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return dateStr;
   }
 }
 

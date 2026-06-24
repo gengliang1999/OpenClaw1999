@@ -100,6 +100,25 @@ contextBridge.exposeInMainWorld('openClaw', {
     exportConversation: (conversationId) =>
       apiRequest(`/chat/conversations/${conversationId}/export`),
 
+    /** 移动对话到分组 */
+    moveToGroup: (conversationId, groupId) =>
+      apiRequest(`/chat/conversations/${conversationId}/move`, { method: 'POST', body: { groupId } }),
+
+    /** 获取所有分组 */
+    getGroups: () => apiRequest('/chat/groups'),
+
+    /** 创建分组 */
+    createGroup: (name, icon, color) =>
+      apiRequest('/chat/groups', { method: 'POST', body: { name, icon, color } }),
+
+    /** 更新分组 */
+    updateGroup: (groupId, updates) =>
+      apiRequest(`/chat/groups/${groupId}`, { method: 'PUT', body: updates }),
+
+    /** 删除分组 */
+    deleteGroup: (groupId) =>
+      apiRequest(`/chat/groups/${groupId}`, { method: 'DELETE' }),
+
     /** 移入垃圾篓 */
     moveToTrash: (conversationId) =>
       apiRequest(`/chat/conversations/${conversationId}/trash`, { method: 'POST' }),
@@ -321,5 +340,8 @@ contextBridge.exposeInMainWorld('openClaw', {
     
     /** 关闭窗口 */
     close: () => ipcRenderer.invoke('window:close'),
+
+    /** 重启应用 */
+    restart: () => ipcRenderer.invoke('app:restart'),
   },
 });

@@ -125,6 +125,12 @@ function registerIpcHandlers() {
     }
   });
   ipcMain.handle('window:close', () => mainWindow?.close());
+
+  // 重启应用
+  ipcMain.handle('app:restart', () => {
+    app.relaunch();
+    app.exit(0);
+  });
 }
 
 // 应用准备就绪

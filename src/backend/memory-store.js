@@ -84,9 +84,29 @@ class MemoryStore {
       )
     `);
 
+    // 对话分组表
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS conversation_groups (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon TEXT DEFAULT '📁',
+        color TEXT DEFAULT '#007aff',
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL
+      )
+    `);
+
+    // 为 conversations 表添加 group_id 字段（如果不存在）
+    try {
+      this.db.run('ALTER TABLE conversations ADD COLUMN group_id TEXT DEFAULT NULL');
+    } catch (e) {
+      // 字段已存在，忽略错误
+    }
+
     // 创建索引
     this.db.run('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
     this.db.run('CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)');
+    this.db.run('CREATE INDEX IF NOT EXISTS idx_conversations_group ON conversations(group_id)');
 
     this._save();
     this._initialized = true;
@@ -204,13 +224,101 @@ class MemoryStore {
 
   /**
    * 获取所有对话列表
+   * @param {string|null} groupId - 分组 ID，null 表示全部
    * @returns {Array} 对话列表
    */
-  getConversations() {
-    const results = this.db.exec(
-      'SELECT * FROM conversations ORDER BY updated_at DESC'
-    );
+  getConversations(groupId = null) {
+    let sql = 'SELECT * FROM conversations';
+    const params = [];
+    if (groupId) {
+      sql += ' WHERE group_id = ?';
+      params.push(groupId);
+    }
+    sql += ' ORDER BY updated_at DESC';
+    const results = this.db.exec(sql, params);
     return this._parseResults(results, 'conversations');
+  }
+
+  // ===== 分组管理 =====
+
+  /**
+   * 获取所有分组
+   * @returns {Array} 分组列表
+   */
+  getGroups() {
+    const results = this.db.exec('SELECT * FROM conversation_groups ORDER BY sort_order ASC, created_at ASC');
+    return this._parseResults(results, 'conversation_groups');
+  }
+
+  /**
+   * 创建分组
+   * @param {string} name - 分组名称
+   * @param {string} icon - 图标
+   * @param {string} color - 颜色
+   * @returns {Object} 新创建的分组
+   */
+  createGroup(name, icon = '📁', color = '#007aff') {
+    const id = uuidv4();
+    const now = new Date().toISOString();
+    this.db.run(
+      'INSERT INTO conversation_groups (id, name, icon, color, sort_order, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+      [id, name, icon, color, now]
+    );
+    this._save();
+    return { id, name, icon, color, sort_order: 0, created_at: now };
+  }
+
+  /**
+   * 更新分组
+   * @param {string} groupId - 分组 ID
+   * @param {Object} updates - 更新字段 { name, icon, color, sort_order }
+   */
+  updateGroup(groupId, updates) {
+    const fields = [];
+    const params = [];
+    if (updates.name !== undefined) { fields.push('name = ?'); params.push(updates.name); }
+    if (updates.icon !== undefined) { fields.push('icon = ?'); params.push(updates.icon); }
+    if (updates.color !== undefined) { fields.push('color = ?'); params.push(updates.color); }
+    if (updates.sort_order !== undefined) { fields.push('sort_order = ?'); params.push(updates.sort_order); }
+    if (fields.length === 0) return;
+    params.push(groupId);
+    this.db.run(`UPDATE conversation_groups SET ${fields.join(', ')} WHERE id = ?`, params);
+    this._save();
+  }
+
+  /**
+   * 删除分组（对话移回未分组）
+   * @param {string} groupId - 分组 ID
+   */
+  deleteGroup(groupId) {
+    this.db.run('UPDATE conversations SET group_id = NULL WHERE group_id = ?', [groupId]);
+    this.db.run('DELETE FROM conversation_groups WHERE id = ?', [groupId]);
+    this._save();
+  }
+
+  /**
+   * 移动对话到分组
+   * @param {string} conversationId - 对话 ID
+   * @param {string|null} groupId - 目标分组 ID，null 表示取消分组
+   */
+  moveConversationToGroup(conversationId, groupId) {
+    this.db.run('UPDATE conversations SET group_id = ? WHERE id = ?', [groupId, conversationId]);
+    this._save();
+  }
+
+  /**
+   * 获取分组下的对话数量
+   * @returns {Object} { groupId: count }
+   */
+  getGroupCounts() {
+    const results = this.db.exec('SELECT group_id, COUNT(*) as count FROM conversations WHERE group_id IS NOT NULL GROUP BY group_id');
+    const counts = {};
+    if (results.length > 0) {
+      results[0].values.forEach(row => {
+        counts[row[0]] = row[1];
+      });
+    }
+    return counts;
   }
 
   /**
