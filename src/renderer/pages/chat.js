@@ -65,35 +65,40 @@ export async function render(container) {
           <!-- 输入行 -->
           <div class="doubao-input-row">
             <textarea id="chatInput" class="doubao-textarea" placeholder="输入消息...  Shift+Enter 换行" rows="1"></textarea>
-            <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-            </button>
+            <div style="display: flex; gap: 8px;">
+              <button id="optimizePromptBtn" class="doubao-send-btn" title="AI 提示词魔法优化 🪄" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-light); box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
+              </button>
+              <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+              </button>
+            </div>
           </div>
 
           <!-- 工具栏行：功能按钮整合到输入框内部 -->
           <div class="doubao-toolbar-row">
             <!-- 新建对话 -->
-            <button id="newChatBtn" class="doubao-toolbar-btn" title="新建对话">
+            <button id="newChatBtn" class="doubao-toolbar-btn btn-color-blue" title="新建对话">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
               <span>新对话</span>
             </button>
 
             <!-- 上传文件 -->
-            <button id="fileUploadBtn" class="doubao-toolbar-btn" title="上传文件">
+            <button id="fileUploadBtn" class="doubao-toolbar-btn btn-color-orange" title="上传文件">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span>上传</span>
             </button>
 
             <!-- 模型选择 -->
-            <button id="modelModalBtn" class="doubao-toolbar-btn" title="切换模型">
+            <button id="modelModalBtn" class="doubao-toolbar-btn btn-color-purple" title="切换模型">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="m4.2 4.2 2.8 2.8"/><path d="m17 17 2.8 2.8"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="m4.2 19.8 2.8-2.8"/><path d="m17 7 2.8-2.8"/></svg>
               <span id="activeModelLabel" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
             </button>
 
             <!-- 思考深度 -->
-            <div class="doubao-toolbar-btn" title="思考深度" style="gap: 4px;">
+            <div class="doubao-toolbar-btn btn-color-cyan" title="思考深度" style="gap: 4px;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
-              <select id="depthSelect" class="doubao-toolbar-select">
+              <select id="depthSelect" class="doubao-toolbar-select" style="background:transparent; border:none; color:inherit; outline:none; font-weight:500; cursor:pointer;">
                 <option value="auto">自动</option>
                 <option value="low">浅</option>
                 <option value="medium">中</option>
@@ -103,7 +108,7 @@ export async function render(container) {
             </div>
 
             <!-- 清空上下文 -->
-            <button id="clearMemoryBtn" class="doubao-toolbar-btn" title="清空上下文记忆">
+            <button id="clearMemoryBtn" class="doubao-toolbar-btn btn-color-red" title="清空上下文记忆">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               <span>清空</span>
             </button>
@@ -111,7 +116,7 @@ export async function render(container) {
             <!-- 右侧：截图 + 上下文进度环 -->
             <div class="doubao-toolbar-right" style="display: flex; align-items: center; gap: 6px;">
               <!-- 截图 -->
-              <button id="readScreenBtn" class="doubao-toolbar-btn" title="截取屏幕">
+              <button id="readScreenBtn" class="doubao-toolbar-btn btn-color-green" title="截取屏幕">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 9h2"/><path d="M19 9h2"/></svg>
                 <span>截图</span>
               </button>
@@ -122,7 +127,7 @@ export async function render(container) {
                   <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
                 </svg>
                 <span style="position: absolute; display: flex; align-items: center; justify-content: center;">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
                 </span>
               </div>
             </div>
@@ -176,13 +181,67 @@ export async function render(container) {
     }
   });
 
+  // 提示词魔法优化按钮
+  document.getElementById('optimizePromptBtn').addEventListener('click', () => {
+    const input = document.getElementById('chatInput');
+    let text = input.value.trim();
+    if (!text) {
+      if (window.__toast) window.__toast.info('请先输入需要优化的原始提示词');
+      return;
+    }
+    
+    // 使用高级框架包裹提示词，极大地提升各类大模型（尤其是开源/小参数模型）的理解与推理能力
+    const optimized = `请你作为一位资深的顶尖领域专家，仔细理解并深度解答我的以下需求。
+为了达到最佳效果，请严格遵循以下要求：
+1. 【结构清晰】请使用 Markdown 格式（标题、加粗、列表）将你的回答分点、分段组织。
+2. 【深度详尽】请尽量提供具体的例子、代码片段或数据来支持你的解答。
+3. 【多维思考】请主动考虑潜在的边缘情况、局限性以及替代方案，并在必要时给出最佳实践建议。
+
+【我的原始需求】：
+${text}
+
+请深思熟虑后，开始你的正式解答：`;
+    
+    input.value = optimized;
+    // 触发自适应高度调整
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+    if (window.__toast) window.__toast.success('🪄 提示词已魔法优化！结构已增强');
+  });
+
   document.getElementById('sendBtn').addEventListener('click', sendMessage);
 
-  // 上下文圆环点击
-  document.getElementById('tokenCircleBtn').addEventListener('click', () => {
-    tokenUsage = 0;
-    updateTokenUsage();
-    if (window.__toast) window.__toast.success('已执行上下文自动压缩');
+  // 上下文圆环点击（执行真正的上下文压缩：删除一半最老的消息）
+  document.getElementById('tokenCircleBtn').addEventListener('click', async () => {
+    if (!activeConvId) {
+      if (window.__toast) window.__toast.info('暂无上下文可压缩');
+      return;
+    }
+    try {
+      if (window.__toast) window.__toast.info('正在压缩上下文...');
+      const history = await window.openClaw.chat.getHistory(activeConvId);
+      // 如果历史少于4条，不值得压缩
+      if (!history || history.length < 4) {
+        if (window.__toast) window.__toast.success('当前上下文已是最佳状态，无需压缩');
+        return;
+      }
+      
+      // 删除前一半的消息 (保留最新的)
+      const toDeleteCount = Math.floor(history.length / 2);
+      for (let i = 0; i < toDeleteCount; i++) {
+         if (history[i].id) {
+            await window.openClaw.chat.deleteMessage(history[i].id).catch(e => console.error(e));
+         }
+      }
+      
+      // 更新前端 token 模拟使用量
+      tokenUsage = Math.max(0, tokenUsage - Math.floor(tokenUsage * 0.5));
+      updateTokenUsage();
+      if (window.__toast) window.__toast.success(`上下文压缩完成！已清理 ${toDeleteCount} 条早期记忆`);
+    } catch(e) {
+      if (window.__toast) window.__toast.error('上下文压缩失败');
+      console.error(e);
+    }
   });
 
   // 垃圾桶按钮点击 (情况当前上下文)
@@ -669,8 +728,24 @@ async function sendMessage() {
   updateTokenUsage();
 
   try {
-    const prompt = activeExpert ? activeExpert.prompt : undefined;
-    await window.openClaw.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, 0.7, (parsed) => {
+    let temp = 0.7;
+    let extraPrompt = '';
+    const depth = document.getElementById('depthSelect').value;
+    
+    if (depth === 'low') {
+       temp = 0.8;
+       extraPrompt = '\n\n【系统提示：请尽可能简明扼要、直接了当地回答。】';
+    } else if (depth === 'high') {
+       temp = 0.3;
+       extraPrompt = '\n\n【系统提示：请进行深思熟虑。一步一步地拆解问题，考虑各种边界情况和深层逻辑，提供详尽且富有洞察力的回答。】';
+    } else if (depth === 'extreme') {
+       temp = 0.1;
+       extraPrompt = '\n\n【系统提示：启用深度推理模式。你必须极其彻底地思考此问题，展开所有可能的推理链条，检查每一个假设，并且以长篇幅的深度分析来回复。】';
+    }
+    
+    const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
+    
+    await window.openClaw.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, (parsed) => {
       if (parsed.type === 'error') {
         fullResponse += `\n\n> ❌ **错误**: ${parsed.message}`;
         aiBox.innerHTML = parseMarkdown(fullResponse);

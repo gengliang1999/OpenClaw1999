@@ -145,6 +145,35 @@ body {
   position: relative;
 }
 
+/* 侧边栏拖拽白条把手 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px; /* 伸出边缘以便容易抓取 */
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resizer-handle {
+  width: 4px;
+  height: 36px;
+  background: var(--text-muted);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+.sidebar-resizer:hover .resizer-handle,
+.sidebar-resizer.active .resizer-handle {
+  opacity: 0.8;
+  background: var(--primary);
+  box-shadow: 0 0 12px rgba(0, 122, 255, 0.4);
+  transform: scaleY(1.2);
+}
+
 /* 右边框居中的收缩按钮 */
 .sidebar-edge-toggle {
   position: absolute;
@@ -161,7 +190,7 @@ body {
   justify-content: center;
   cursor: pointer;
   color: var(--text-muted);
-  z-index: 20;
+  z-index: 30;
   transition: all 0.2s;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
@@ -177,25 +206,55 @@ body {
   transform: rotate(180deg);
 }
 
-/* 收缩状态：只保留图�?*/
+/* 收缩状态：只保留图标 */
 .sidebar.collapsed {
-  width: 40px;
+  width: 52px !important;
   padding-left: 2px;
   padding-right: 2px;
 }
 .sidebar.collapsed .logo-text,
-.sidebar.collapsed .nav-label {
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .sidebar-resizer,
+.sidebar.collapsed #sidebarConvSearch,
+.sidebar.collapsed #sidebarNewChatBtn,
+.sidebar.collapsed #sidebarConvList {
   display: none;
 }
 .sidebar.collapsed .sidebar-logo {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
+  margin-bottom: 12px;
 }
 .sidebar.collapsed .sidebar-nav-item {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
+}
+.sidebar.collapsed .sidebar-bottom-controls {
+  flex-direction: column-reverse !important;
+  padding-right: 0 !important;
+  gap: 12px;
+}
+.sidebar.collapsed .sidebar-bottom-toggle {
+  transform: rotate(180deg);
+}
+
+/* 底部侧边栏收缩按钮 */
+.sidebar-bottom-toggle {
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+  flex-shrink: 0;
+}
+.sidebar-bottom-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
 }
 
 .sidebar-logo {
@@ -244,6 +303,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-height: 0;
 }
 
 .sidebar-nav-item {
@@ -260,15 +320,27 @@ body {
 }
 
 .sidebar-nav-item:hover {
-  background: var(--bg-hover);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
 }
-
 .sidebar-nav-item.active {
   background: var(--primary);
   color: #fff;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.25);
+  font-weight: 600;
 }
 
+/* 侧边栏图标 */
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+/* 隐藏滚动条 */
 .sidebar-nav-item.active .nav-icon {
   color: #fff;
 }
@@ -1777,26 +1849,24 @@ input, textarea, [contenteditable] {
   opacity: 1;
 }
 
-/* 彩色变体 */
-.doubao-toolbar-btn.accent-cyan {
-  border-color: rgba(0, 217, 255, 0.2);
-  background: rgba(0, 217, 255, 0.06);
-  color: #00b8d9;
-}
-.doubao-toolbar-btn.accent-cyan:hover {
-  background: rgba(0, 217, 255, 0.12);
-  border-color: rgba(0, 217, 255, 0.3);
-}
+/* 彩色变体 (macOS 风格) */
+.btn-color-blue { background: rgba(0, 122, 255, 0.08); color: #007aff; border-color: rgba(0, 122, 255, 0.2); }
+.btn-color-blue:hover { background: rgba(0, 122, 255, 0.15); border-color: rgba(0, 122, 255, 0.3); color: #007aff; }
 
-.doubao-toolbar-btn.accent-purple {
-  border-color: rgba(108, 99, 255, 0.2);
-  background: rgba(108, 99, 255, 0.06);
-  color: #6c63ff;
-}
-.doubao-toolbar-btn.accent-purple:hover {
-  background: rgba(108, 99, 255, 0.12);
-  border-color: rgba(108, 99, 255, 0.3);
-}
+.btn-color-orange { background: rgba(255, 149, 0, 0.08); color: #ff9500; border-color: rgba(255, 149, 0, 0.2); }
+.btn-color-orange:hover { background: rgba(255, 149, 0, 0.15); border-color: rgba(255, 149, 0, 0.3); color: #ff9500; }
+
+.btn-color-purple { background: rgba(175, 82, 222, 0.08); color: #af52de; border-color: rgba(175, 82, 222, 0.2); }
+.btn-color-purple:hover { background: rgba(175, 82, 222, 0.15); border-color: rgba(175, 82, 222, 0.3); color: #af52de; }
+
+.btn-color-cyan { background: rgba(88, 86, 214, 0.08); color: #5856d6; border-color: rgba(88, 86, 214, 0.2); }
+.btn-color-cyan:hover { background: rgba(88, 86, 214, 0.15); border-color: rgba(88, 86, 214, 0.3); color: #5856d6; }
+
+.btn-color-red { background: rgba(255, 59, 48, 0.08); color: #ff3b30; border-color: rgba(255, 59, 48, 0.2); }
+.btn-color-red:hover { background: rgba(255, 59, 48, 0.15); border-color: rgba(255, 59, 48, 0.3); color: #ff3b30; }
+
+.btn-color-green { background: rgba(52, 199, 89, 0.08); color: #34c759; border-color: rgba(52, 199, 89, 0.2); }
+.btn-color-green:hover { background: rgba(52, 199, 89, 0.15); border-color: rgba(52, 199, 89, 0.3); color: #34c759; }
 
 .doubao-toolbar-btn.accent-green {
   border-color: rgba(52, 199, 89, 0.2);

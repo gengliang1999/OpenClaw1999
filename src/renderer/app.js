@@ -7,13 +7,13 @@ import toast from './components/toast.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
-  { path: 'chat',    label: '新建对话', shortLabel: '新建', icon: '💬', module: './pages/chat.js' },
-  { path: 'experts', label: '专家中心', shortLabel: '专家', icon: '👨‍🏫', module: './pages/experts.js' },
-  { path: 'memory',  label: '记忆',     shortLabel: '记忆', icon: '🧠', module: './pages/memory.js' },
-  { path: 'skills',  label: '技能库',   shortLabel: '技能', icon: '🛠️', module: './pages/skills.js' },
-  { path: 'plugins', label: '应用市场', shortLabel: '插件', icon: '🔌', module: './pages/plugins.js' },
-  { path: 'market',  label: '模型市场', shortLabel: '模型', icon: '🛒', module: './pages/market.js' },
-  { path: 'settings',label: '设置',     shortLabel: '设置', icon: '⚙️', module: './pages/settings.js' },
+  { path: 'chat',    label: '新建对话', shortLabel: '新建', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', module: './pages/chat.js' },
+  { path: 'experts', label: '专家中心', shortLabel: '专家', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>', module: './pages/experts.js' },
+  { path: 'memory',  label: '核心记忆', shortLabel: '记忆', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', module: './pages/memory.js' },
+  { path: 'skills',  label: '技能库',   shortLabel: '技能', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', module: './pages/skills.js' },
+  { path: 'plugins', label: '应用市场', shortLabel: '插件', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>', module: './pages/plugins.js' },
+  { path: 'market',  label: '模型市场', shortLabel: '模型', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', module: './pages/market.js' },
+  { path: 'settings',label: '设置',     shortLabel: '设置', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', module: './pages/settings.js' },
 ];
 
 // 页面模块缓存
@@ -27,8 +27,70 @@ let currentModel = 'GPT-4o';
 function init() {
   renderShell();
   bindRouteEvents();
+  bindGlobalShortcuts();
   // 根据当前 hash 或默认跳转到聊天页
   navigateTo(getRouteFromHash() || 'chat');
+}
+
+/**
+ * 绑定全局快捷键（如 ESC 关闭弹窗）
+ */
+function bindGlobalShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // 聊天页弹窗
+      const modelSelectionModal = document.getElementById('modelSelectionModal');
+      if (modelSelectionModal && modelSelectionModal.style.display === 'flex') {
+        modelSelectionModal.style.display = 'none';
+        return;
+      }
+      
+      const attachmentPreview = document.getElementById('attachmentPreview');
+      if (attachmentPreview && attachmentPreview.style.display === 'flex') {
+        document.getElementById('removeAttachmentBtn')?.click();
+        return;
+      }
+      
+      const quotePreview = document.getElementById('quotePreview');
+      if (quotePreview && quotePreview.style.display === 'flex') {
+        document.getElementById('closeQuoteBtn')?.click();
+        return;
+      }
+
+      // 市场页弹窗
+      const cloudConfigModal = document.getElementById('cloudConfigModal');
+      if (cloudConfigModal && cloudConfigModal.classList.contains('visible')) {
+        cloudConfigModal.classList.remove('visible');
+        return;
+      }
+      
+      const installGuideModal = document.getElementById('installGuideModal');
+      if (installGuideModal && installGuideModal.style.display === 'flex') {
+        installGuideModal.style.display = 'none';
+        return;
+      }
+      
+      const localModelsModal = document.getElementById('localModelsModal');
+      if (localModelsModal && localModelsModal.style.display === 'flex') {
+        localModelsModal.style.display = 'none';
+        return;
+      }
+      
+      // 全局上下文菜单
+      const contextMenus = document.querySelectorAll('.conv-context-menu');
+      if (contextMenus.length > 0) {
+        contextMenus.forEach(m => m.remove());
+        return;
+      }
+      
+      // 重命名输入框取消
+      const renameInputs = document.querySelectorAll('.rename-input-container');
+      if (renameInputs.length > 0) {
+        document.getElementById('renameCancel')?.click();
+        return;
+      }
+    }
+  });
 }
 
 /**
@@ -50,6 +112,11 @@ function renderShell() {
 
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
+      <!-- 拖拽调整宽度的把手 -->
+      <div class="sidebar-resizer" id="sidebarResizer">
+        <div class="resizer-handle"></div>
+      </div>
+      
       <div class="sidebar-logo" id="sidebarLogo" title="点击更换Logo" style="cursor: pointer;">
         <div class="logo-icon" id="logoIcon">🐾</div>
         <span class="logo-text">OpenClaw</span>
@@ -57,6 +124,7 @@ function renderShell() {
       <nav class="sidebar-nav" id="sidebarNav">
         ${ROUTES.filter(r => r.path !== 'settings' && r.path !== 'chat').map(r => `
           <div class="sidebar-nav-item" data-route="${r.path}" title="${r.label}">
+            <div class="nav-icon">${r.icon}</div>
             <span class="nav-label">${r.label}</span>
           </div>
         `).join('')}
@@ -76,12 +144,18 @@ function renderShell() {
       </nav>
 
       <!-- 底部：垃圾篓 + 设置 + 版本号 -->
-      <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 6px; border-top: 1px solid var(--border-light);">
+      <div id="sidebarTrashArea" style="margin-top: auto; padding-top: 6px; border-top: 1px solid var(--border-light); display: flex; flex-direction: column;">
         <div id="sidebarTrashBtn" style="display: none; margin: 2px 4px 4px 4px; padding: 6px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
           🗑️ 垃圾篓
         </div>
-        <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0;">
-          <span class="nav-label">设置</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 6px;" class="sidebar-bottom-controls">
+          <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0; flex: 1;">
+            <div class="nav-icon">${ROUTES.find(r => r.path === 'settings').icon}</div>
+            <span class="nav-label">设置</span>
+          </div>
+          <div id="sidebarBottomToggleBtn" class="sidebar-bottom-toggle" title="展开/收起侧边栏">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+          </div>
         </div>
         <div class="nav-label" style="font-size: 9px; color: var(--text-muted); text-align: center; padding: 2px 0; opacity: 0.6;">v1.0.0</div>
       </div>
@@ -322,7 +396,6 @@ async function loadSidebarConversations(query = '') {
   // 点击会话 → 跳转聊天页并加载
   listEl.querySelectorAll('.sidebar-conv-item').forEach(el => {
     el.addEventListener('click', async (e) => {
-      if (e.target.closest('.sidebar-conv-more')) return;
       if (e.target.closest('.batch-conv-checkbox')) return;
       if (batchMode) return;
       const convId = el.dataset.convId;
@@ -345,15 +418,6 @@ async function loadSidebarConversations(query = '') {
       if (batchMode) return;
       e.preventDefault();
       showConvContextMenu(el.dataset.convId, e.clientX, e.clientY);
-    });
-  });
-
-  // "..." 更多按钮点击
-  listEl.querySelectorAll('.sidebar-conv-more').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const rect = btn.getBoundingClientRect();
-      showConvContextMenu(btn.dataset.convId, rect.right, rect.top);
     });
   });
 
@@ -976,17 +1040,96 @@ function escapeHtml(s) {
 }
 
 /**
- * 绑定路由相关事件
+ * 绑定路由相关事件和拖拽相关事件
  */
 function bindRouteEvents() {
-  // 侧边栏点击导航（包括底部设置按钮）
+  // 恢复保存的侧边栏状态和宽度
   const sidebar = document.getElementById('sidebar');
+  const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  if (isCollapsed) {
+    sidebar.classList.add('collapsed');
+  } else {
+    const savedWidth = localStorage.getItem('sidebarWidth');
+    if (savedWidth) {
+      sidebar.style.width = savedWidth;
+    }
+  }
+
+  // 侧边栏点击导航（包括底部设置按钮）
   sidebar.addEventListener('click', (e) => {
+    // 收缩/展开按钮点击
+    if (e.target.closest('#sidebarBottomToggleBtn')) {
+      sidebar.classList.toggle('collapsed');
+      // 重置拖动带来的内联宽度
+      sidebar.style.width = '';
+      if (sidebar.classList.contains('collapsed')) {
+        localStorage.setItem('sidebarCollapsed', 'true');
+      } else {
+        localStorage.removeItem('sidebarCollapsed');
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) sidebar.style.width = savedWidth;
+      }
+      return;
+    }
     const item = e.target.closest('.sidebar-nav-item');
     if (!item) return;
     const route = item.dataset.route;
     if (route) navigateTo(route);
   });
+
+  // 侧边栏拖动调整宽度逻辑
+  const resizer = document.getElementById('sidebarResizer');
+  let isResizing = false;
+
+  if (resizer && sidebar) {
+    resizer.addEventListener('mousedown', (e) => {
+      // 避免左键以外点击
+      if (e.button !== 0) return;
+      // 如果当前是收缩状态，不允许拖动
+      if (sidebar.classList.contains('collapsed')) return;
+      
+      isResizing = true;
+      resizer.classList.add('active');
+      sidebar.style.transition = 'none'; // 拖动时禁用动画以防卡顿
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none'; // 禁用选中文本
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      let newWidth = e.clientX;
+      
+      // 如果拖到最窄（小于 120px），自动收缩
+      if (newWidth < 120) {
+        sidebar.classList.add('collapsed');
+        isResizing = false;
+        resizer.classList.remove('active');
+        sidebar.style.transition = '';
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        sidebar.style.width = '';
+        localStorage.setItem('sidebarCollapsed', 'true');
+        return;
+      }
+      
+      // 设定最小和最大拖动范围
+      if (newWidth < 180) newWidth = 180;
+      if (newWidth > 600) newWidth = 600;
+      sidebar.style.width = newWidth + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizing) {
+        isResizing = false;
+        resizer.classList.remove('active');
+        sidebar.style.transition = ''; // 恢复动画
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        // 保存宽度
+        localStorage.setItem('sidebarWidth', sidebar.style.width);
+      }
+    });
+  }
 
   // 浏览器 hash 变化
   window.addEventListener('hashchange', () => {

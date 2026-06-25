@@ -33,8 +33,7 @@
       "package.json"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "src/renderer/assets/icon.ico"
+      "target": "nsis"
     },
     "nsis": {
       "oneClick": true,
