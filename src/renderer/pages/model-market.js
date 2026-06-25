@@ -3,6 +3,8 @@
  * 采用全屏三级钻取视图交互：Provider -> Series -> Version
  */
 
+import { api } from '../utils/api.js';
+
 let marketData = [];
 let currentProvider = null;
 let currentSeries = null;
@@ -73,7 +75,7 @@ export async function render(container) {
 
 async function loadMarketData() {
   try {
-    const data = await window.openClaw.model.getMarketplace();
+    const data = await api.model.getMarketplace();
     marketData = data.models || [];
     hwInfo = data.hardware;
     

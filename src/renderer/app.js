@@ -4,6 +4,7 @@
  */
 
 import toast from './components/toast.js';
+import { api } from './utils/api.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
@@ -310,7 +311,7 @@ async function loadSidebarConversations(query = '') {
 
   let conversations = [];
   try {
-    conversations = await window.openClaw.chat.getConversations() || [];
+    conversations = await api.chat.getConversations() || [];
   } catch(e) { conversations = []; }
 
   // 按搜索关键词过滤
@@ -378,7 +379,7 @@ async function loadSidebarConversations(query = '') {
       const ok = await showModal({ title: '批量删除', content: `确定将选中的 ${batchSelected.size} 个会话移入垃圾篓吗？`, confirmText: '删除', danger: true });
       if (!ok) return;
       for (const id of batchSelected) {
-        try { await window.openClaw.chat.moveToTrash(id); } catch(e) {}
+        try { await api.chat.moveToTrash(id); } catch(e) {}
         if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(id);
       }
       window.__toast?.success(`已将 ${batchSelected.size} 个会话移入垃圾篓`);
@@ -545,7 +546,7 @@ async function renameConversationUI(convId) {
   const input = document.getElementById('renameInput');
   // 获取当前标题
   try {
-    const convs = await window.openClaw.chat.getConversations();
+    const convs = await api.chat.getConversations();
     const conv = convs.find(c => c.id === convId);
     if (conv) input.value = conv.title || '';
   } catch(e) {}
@@ -560,7 +561,7 @@ async function renameConversationUI(convId) {
       const newTitle = input.value.trim();
       if (!newTitle) { window.__toast?.info('标题不能为空'); return; }
       try {
-        await window.openClaw.chat.renameConversation(convId, newTitle);
+        await api.chat.renameConversation(convId, newTitle);
         window.__toast?.success('已重命名');
         loadSidebarConversations(sidebarConvSearchQuery);
       } catch(e) { window.__toast?.error('重命名失败: ' + e.message); }
@@ -639,7 +640,7 @@ async function exportConversationUI(convId) {
 async function doExport(convId, format) {
   try {
     window.__toast?.info('正在导出...');
-    const data = await window.openClaw.chat.exportConversation(convId);
+    const data = await api.chat.exportConversation(convId);
     const safeName = (data.title || '对话').replace(/[<>:"/\\|?*]/g, '_');
 
     switch (format) {
@@ -921,7 +922,7 @@ async function deleteConversationUI(convId) {
   const ok = await showModal({ title: '删除对话', content: '确定将此对话移入垃圾篓吗？', confirmText: '删除', danger: true });
   if (!ok) return;
   try {
-    await window.openClaw.chat.moveToTrash(convId);
+    await api.chat.moveToTrash(convId);
     window.__toast?.success('已移入垃圾篓');
     loadSidebarConversations(sidebarConvSearchQuery);
     if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(convId);
@@ -936,7 +937,7 @@ async function deleteConversationUI(convId) {
  */
 async function updateTrashBadge() {
   try {
-    const res = await window.openClaw.chat.getTrashCount();
+    const res = await api.chat.getTrashCount();
     const btn = document.getElementById('sidebarTrashBtn');
     if (btn) btn.style.display = (res && res.count > 0) ? 'block' : 'none';
   } catch(e) {}
@@ -948,7 +949,7 @@ async function updateTrashBadge() {
 async function showTrashPanel() {
   let trashItems = [];
   try {
-    trashItems = await window.openClaw.chat.getTrash() || [];
+    trashItems = await api.chat.getTrash() || [];
   } catch(e) {}
 
   const overlay = document.createElement('div');
@@ -992,7 +993,7 @@ async function showTrashPanel() {
     const ok = await showModal({ title: '清空垃圾篓', content: '确定永久删除所有垃圾篓中的对话吗？此操作不可撤销。', confirmText: '清空', danger: true });
     if (!ok) return;
     try {
-      await window.openClaw.chat.emptyTrash();
+      await api.chat.emptyTrash();
       window.__toast?.success('垃圾篓已清空');
       close();
       updateTrashBadge();
@@ -1002,7 +1003,7 @@ async function showTrashPanel() {
   box.querySelectorAll('[data-action="restore"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       try {
-        await window.openClaw.chat.restoreFromTrash(btn.dataset.id);
+        await api.chat.restoreFromTrash(btn.dataset.id);
         window.__toast?.success('已恢复');
         close();
         loadSidebarConversations(sidebarConvSearchQuery);
@@ -1017,7 +1018,7 @@ async function showTrashPanel() {
       const ok = await showModal({ title: '永久删除', content: '确定永久删除此对话吗？此操作不可撤销。', confirmText: '永久删除', danger: true });
       if (!ok) return;
       try {
-        await window.openClaw.chat.permanentDelete(btn.dataset.id);
+        await api.chat.permanentDelete(btn.dataset.id);
         window.__toast?.success('已永久删除');
         if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(btn.dataset.id);
         close();
@@ -1085,8 +1086,6 @@ function bindRouteEvents() {
     resizer.addEventListener('mousedown', (e) => {
       // 避免左键以外点击
       if (e.button !== 0) return;
-      // 如果当前是收缩状态，不允许拖动
-      if (sidebar.classList.contains('collapsed')) return;
       
       isResizing = true;
       resizer.classList.add('active');
@@ -1099,17 +1098,22 @@ function bindRouteEvents() {
       if (!isResizing) return;
       let newWidth = e.clientX;
       
-      // 如果拖到最窄（小于 120px），自动收缩
-      if (newWidth < 120) {
-        sidebar.classList.add('collapsed');
-        isResizing = false;
-        resizer.classList.remove('active');
-        sidebar.style.transition = '';
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        sidebar.style.width = '';
-        localStorage.setItem('sidebarCollapsed', 'true');
-        return;
+      if (sidebar.classList.contains('collapsed')) {
+        // 如果处于收缩状态，向右拖动超过 150 像素则展开
+        if (newWidth > 150) {
+          sidebar.classList.remove('collapsed');
+          localStorage.removeItem('sidebarCollapsed');
+        } else {
+          return;
+        }
+      } else {
+        // 如果拖到小于 150px，自动收缩
+        if (newWidth < 150) {
+          sidebar.classList.add('collapsed');
+          sidebar.style.width = '';
+          localStorage.setItem('sidebarCollapsed', 'true');
+          return;
+        }
       }
       
       // 设定最小和最大拖动范围
@@ -1125,8 +1129,10 @@ function bindRouteEvents() {
         sidebar.style.transition = ''; // 恢复动画
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
-        // 保存宽度
-        localStorage.setItem('sidebarWidth', sidebar.style.width);
+        // 保存宽度（仅在未收缩时）
+        if (!sidebar.classList.contains('collapsed')) {
+          localStorage.setItem('sidebarWidth', sidebar.style.width);
+        }
       }
     });
   }
@@ -1242,6 +1248,45 @@ function sleep(ms) {
 // 将 toast 挂到全局方便页面使用
 window.__toast = toast;
 window.refreshSidebarConversations = refreshSidebarConversations;
+
+// ==================== 全局 Modal 交互优化 ====================
+// 支持 ESC 按键和点击背景关闭所有弹窗
+const globalModalIds = [
+  'modelSelectionModal', 
+  'tuningModal', 
+  'installGuideModal', 
+  'localModelsModal', 
+  'cloudConfigModal'
+];
+
+function closeActiveModals() {
+  let closedAny = false;
+  for (const id of globalModalIds) {
+    const modal = document.getElementById(id);
+    if (modal) {
+      if (modal.style.display === 'flex' || modal.classList.contains('visible')) {
+        modal.style.display = 'none';
+        modal.classList.remove('visible');
+        closedAny = true;
+      }
+    }
+  }
+  return closedAny;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeActiveModals();
+  }
+});
+
+document.addEventListener('click', (e) => {
+  // 判断点击的是否是 Modal 背景层自身
+  if (globalModalIds.includes(e.target.id) || e.target.classList.contains('cloud-config-modal')) {
+    e.target.style.display = 'none';
+    e.target.classList.remove('visible');
+  }
+});
 
 // 启动应用
 document.addEventListener('DOMContentLoaded', init);

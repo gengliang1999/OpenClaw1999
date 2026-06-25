@@ -214,7 +214,6 @@ body {
 }
 .sidebar.collapsed .logo-text,
 .sidebar.collapsed .nav-label,
-.sidebar.collapsed .sidebar-resizer,
 .sidebar.collapsed #sidebarConvSearch,
 .sidebar.collapsed #sidebarNewChatBtn,
 .sidebar.collapsed #sidebarConvList {
@@ -1732,17 +1731,213 @@ input, textarea, [contenteditable] {
   border-radius: 0;
   border-left: 3px solid var(--primary);
   border-bottom: 1px solid var(--border-light);
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+/* 优雅的底部垃圾篓 */
+.sleek-trash-btn {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  color: var(--danger);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  z-index: 10;
+}
+.sleek-trash-btn:hover {
+  background: var(--danger);
+  color: white;
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(255,59,48,0.2);
+}
+
+/* ================== Module 3: 二级侧边栏平滑收缩 ================== */
+.page-sidebar {
+  transition: width 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  overflow: hidden;
+  border-right: 1px solid var(--border-light);
+  background: var(--bg-card) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.page-sidebar.collapsed {
+  width: 48px !important;
+  min-width: 48px !important;
+  background: var(--bg-card) !important;
+}
+
+/* ====================================================================
+   🎨 UI 2.0 — 侧边栏视觉升级 & 聊天输入框整合（豆包风格）
+   ==================================================================== */
+
+/* ================== 二级分类标签（专家中心等） ================== */
+.expert-cat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.expert-cat-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 24px;
+  border: 1.5px solid var(--border-light);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  letter-spacing: 0.2px;
+}
+
+.expert-cat-tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--primary), #5856d6);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+.expert-cat-tab span {
+  position: relative;
+  z-index: 1;
+}
+
+.expert-cat-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.12);
+}
+
+.expert-cat-tab.active {
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.expert-cat-tab.active::before {
+  opacity: 1;
+}
+
+/* ================== 侧边栏导航项 2.0 ================== */
+.sidebar-nav-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-nav-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, var(--primary), #5856d6);
+  border-radius: 0 4px 4px 0;
+  transition: height 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.sidebar-nav-item:hover::before {
+  height: 60%;
+}
+
+.sidebar-nav-item.active::before {
+  height: 70%;
+  background: #fff;
+}
+
+/* 会话列表项渐变高亮 */
+.conv-item.active {
+  background: linear-gradient(135deg, var(--primary), #5856d6) !important;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.2);
+}
+
+.conv-item.active .conv-delete-x {
+  color: rgba(255,255,255,0.7);
+}
+.conv-item.active .conv-delete-x:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.15);
+}
+
+/* ================== 豆包风格输入框整合 ================== */
+.doubao-input-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: center;
+  z-index: 100;
+}
+
+.doubao-input-container {
+  width: 100%;
+  max-width: 860px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-color);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08),
+              0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  overflow: hidden;
+}
+
+.doubao-input-container:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light),
+              0 8px 32px rgba(0, 122, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 引用预览嵌入 */
+.doubao-input-container .quote-preview {
+  border-radius: 0;
+  border-left: 3px solid var(--primary);
+  border-bottom: 1px solid var(--border-light);
   margin: 0;
   background: var(--bg-hover);
   padding: 10px 16px;
 }
 
-/* 输入行：textarea + 发送按钮 */
+/* 输入行：textarea + 底部工具栏竖向排列 */
 .doubao-input-row {
   display: flex;
-  align-items: flex-end;
-  padding: 12px 16px 12px 20px;
-  gap: 12px;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 12px 16px;
+  gap: 8px;
 }
 
 .doubao-textarea {
@@ -1767,11 +1962,11 @@ input, textarea, [contenteditable] {
 
 /* 发送按钮 */
 .doubao-send-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--primary), #5856d6);
-  color: #fff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  color: var(--bg-card);
   border: none;
   display: flex;
   align-items: center;
@@ -1779,7 +1974,14 @@ input, textarea, [contenteditable] {
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
-  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+  box-shadow: var(--shadow-sm);
+}
+
+.doubao-input-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
 }
 
 .doubao-send-btn:hover {
@@ -1812,6 +2014,88 @@ input, textarea, [contenteditable] {
   padding: 8px 16px 12px;
   border-top: 1px solid var(--border-light);
   background: rgba(0, 0, 0, 0.01);
+}
+
+/* 大厂极简风格：幽灵按钮 (Ghost Button) */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* 图标按钮 (Icon Button) */
+.btn-icon {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* 全局点击阻尼感微动效 */
+button:active, .clickable:active {
+  transform: scale(0.96) !important;
+  transition: transform 0.05s !important;
+}
+
+/* 毛玻璃悬浮菜单 (Popover Menu) */
+.popover-menu {
+  position: absolute;
+  background: var(--bg-panel);
+  backdrop-filter: var(--blur-material);
+  -webkit-backdrop-filter: var(--blur-material);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1000;
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom left;
+}
+
+.popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+}
+.popover-item:hover {
+  background: var(--bg-hover);
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .doubao-toolbar-btn {
@@ -2413,4 +2697,149 @@ input[type="range"]::-webkit-slider-thumb {
 /* ================== 垃圾篓按钮悬浮态 ================== */
 #sidebarTrashBtn:hover {
   background: rgba(255,59,48,0.18) !important;
+}
+
+/* --- Extracted from chat.js --- */
+.chat-messages-container {
+  flex: 1; 
+  overflow-y: auto; 
+  padding: 24px; 
+  padding-bottom: 220px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 24px;
+}
+
+/* ================== Mention Popup (@呼出专家) ================== */
+.mention-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 16px;
+  margin-bottom: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  width: 280px;
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 1000;
+  backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+}
+
+.mention-popup-item {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.mention-popup-item:last-child {
+  border-bottom: none;
+}
+
+.mention-popup-item:hover, .mention-popup-item.active {
+  background: var(--bg-hover);
+}
+
+.mention-popup-item .icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.mention-popup-item .info {
+  display: flex;
+  flex-direction: column;
+}
+
+.mention-popup-item .info .name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mention-popup-item .info .desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+/* ================== Tuning Modal (思考设定) ================== */
+.tuning-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tuning-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tuning-slider-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tuning-slider-value {
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 500;
+  background: rgba(108, 99, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.tuning-slider-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tuning-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 6px;
+  background: var(--border-light);
+  border-radius: 3px;
+  outline: none;
+}
+
+.tuning-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.1s;
+}
+
+.tuning-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }

@@ -4,6 +4,8 @@
  * 下方：本地运行时检测 + 模型大市场（可滚动）
  */
 
+import { api } from '../utils/api.js';
+
 let settings = {};
 let localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
 let activeModelId = '';
@@ -27,8 +29,8 @@ const cloudVendors = [
 ];
 
 export async function render(container, params = {}) {
-  try { settings = (await window.openClaw.settings.getAll()) || {}; } catch(e) { settings = {}; }
-  try { const am = await window.openClaw.model.getActiveModel(); activeModelId = am?.id || ''; } catch(e) {}
+  try { settings = (await api.settings.getAll()) || {}; } catch(e) { settings = {}; }
+  try { const am = await api.model.getActiveModel(); activeModelId = am?.id || ''; } catch(e) {}
 
   container.style.padding = '0';
   container.style.overflow = 'auto';
@@ -162,9 +164,9 @@ function bindModalEvents() {
       document.getElementById(id).closest('[id$="Modal"]').style.display = 'none';
     });
   });
-  // 背景点击关闭
+  // 背景点击关闭 (使用 mousedown 避免拖拽选中文本时误触关闭)
   ['installGuideModal','localModelsModal'].forEach(id => {
-    document.getElementById(id)?.addEventListener('click', (e) => {
+    document.getElementById(id)?.addEventListener('mousedown', (e) => {
       if (e.target.id === id) e.target.style.display = 'none';
     });
   });
@@ -172,7 +174,7 @@ function bindModalEvents() {
   const ccm = document.getElementById('cloudConfigModal');
   document.getElementById('closeCloudConfig').addEventListener('click', () => ccm.classList.remove('visible'));
   document.getElementById('cancelCloudConfig').addEventListener('click', () => ccm.classList.remove('visible'));
-  ccm.addEventListener('click', (e) => { if (e.target === ccm) ccm.classList.remove('visible'); });
+  ccm.addEventListener('mousedown', (e) => { if (e.target === ccm) ccm.classList.remove('visible'); });
   // 自定义模型按钮
   document.getElementById('addCustomModelBtn').addEventListener('click', () => {
     openCloudConfig({ id: '_custom', name: '自定义模型', icon: '➕', color: '#888', desc: '添加任意 OpenAI 兼容 API', url: '', models: [] });
@@ -185,71 +187,99 @@ function bindModalEvents() {
 // ==================== 云端厂商渲染 ====================
 function renderCloudVendors() {
   const grid = document.getElementById('cloudVendorGrid');
+  let html = '';
 
-  // 内置厂商
-  let html = cloudVendors.map(v => {
-    const conf = settings[v.id] || {};
-    const isConfigured = conf.apiKey && conf.apiKey.trim() !== '';
-    const customLogo = conf.customLogo || '';
-    const displayName = conf.customName || v.name;
+  // 将 cloudVendors 按名称字母顺序排序
+  const sortedCloudVendors = [...cloudVendors].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase(), 'zh-CN'));
+
+  // 1. 获取所有已保存的配置
+  let configuredCards = Object.keys(settings).map(key => {
+    const conf = settings[key];
+    if (!conf.apiKey && !conf.baseUrl) return null;
+
+    const baseVendor = cloudVendors.find(v => v.name === conf.customName || key.startsWith(v.id)) || { name: '自定义模型', icon: '✨', color: '#888', desc: '自定义 API' };
+    const isCustom = key.startsWith('custom_');
+    const displayName = conf.customName || baseVendor.name;
+    const modelName = conf.defaultModel || '未知模型';
+    const icon = conf.customLogo ? `<img src="${conf.customLogo}" alt="logo" />` : `<span>${baseVendor.icon}</span>`;
+
+    return { key, conf, baseVendor, isCustom, displayName, modelName, icon };
+  }).filter(Boolean);
+
+  // 分离出官方已配置和自定义已配置，并各自排序
+  const officialCards = configuredCards.filter(c => !c.isCustom).sort((a, b) => {
+    const nameA = a.displayName.toLowerCase();
+    const nameB = b.displayName.toLowerCase();
+    if (nameA !== nameB) return nameA.localeCompare(nameB, 'zh-CN');
+    return a.modelName.toLowerCase().localeCompare(b.modelName.toLowerCase(), 'zh-CN');
+  });
+
+  const customCards = configuredCards.filter(c => c.isCustom).sort((a, b) => {
+    return a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase(), 'zh-CN');
+  });
+
+  const renderCard = (item) => {
+    const { key, conf, baseVendor, isCustom, displayName, modelName, icon } = item;
     return `
-    <div class="cloud-vendor-card" data-id="${v.id}">
-      ${isConfigured ? '<div class="configured-dot"></div>' : ''}
+      <div class="cloud-vendor-card" data-id="${key}" data-existing="true">
+        <div style="position: absolute; top: 12px; right: 14px; display: flex; align-items: center; gap: 6px;">
+          ${isCustom ? '<span style="font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #8b5cf6, #6d28d9); padding: 2px 6px; border-radius: 4px; box-shadow: 0 2px 4px rgba(139,92,246,0.2);">自定义</span>' : ''}
+          <div class="configured-dot" style="position: static; margin: 0;"></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+          <div class="vendor-logo" style="background: ${baseVendor.color}15;">
+            ${icon}
+          </div>
+          <div class="vendor-info">
+            <h4>${escapeHtml(displayName)}</h4>
+            <div class="vendor-status">✅ 已配置 [${escapeHtml(modelName)}]</div>
+          </div>
+        </div>
+        <p class="vendor-desc" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(conf.baseUrl || baseVendor.desc)}</p>
+      </div>
+    `;
+  };
+
+  // 渲染区域 1：官方厂商已配置
+  html += officialCards.map(renderCard).join('');
+
+  // 渲染区域 2：基础厂商模板（按字母排序）
+  html += sortedCloudVendors.map(v => `
+    <div class="cloud-vendor-card" data-id="${v.id}" data-existing="false">
       <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
         <div class="vendor-logo" style="background: ${v.color}15;">
-          ${customLogo ? `<img src="${customLogo}" alt="${v.name}" />` : `<span>${v.icon}</span>`}
+          <span>${v.icon}</span>
         </div>
         <div class="vendor-info">
-          <h4>${escapeHtml(displayName)}</h4>
-          <div class="vendor-status">${isConfigured ? '✅ 已配置' : '未配置'}</div>
+          <h4>${escapeHtml(v.name)}</h4>
+          <div class="vendor-status">未配置</div>
         </div>
       </div>
       <p class="vendor-desc">${v.desc}</p>
     </div>
-  `}).join('');
+  `).join('');
 
-  // 自定义模型（settings 中以 custom_ 开头的）
-  const customKeys = Object.keys(settings).filter(k => k.startsWith('custom_'));
-  html += customKeys.map(key => {
-    const conf = settings[key];
-    const displayName = conf.customName || '自定义模型';
-    const modelCount = conf.models?.length || 0;
-    return `
-    <div class="cloud-vendor-card" data-id="${key}">
-      <div class="configured-dot"></div>
-      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-        <div class="vendor-logo" style="background: #88888815;">
-          <span>➕</span>
-        </div>
-        <div class="vendor-info">
-          <h4>${escapeHtml(displayName)}</h4>
-          <div class="vendor-status">✅ ${modelCount} 个模型</div>
-        </div>
-      </div>
-      <p class="vendor-desc">${escapeHtml(conf.baseUrl || '自定义 API')}</p>
-    </div>
-  `}).join('');
+  // 渲染区域 3：自定义模型已配置
+  html += customCards.map(renderCard).join('');
 
   grid.innerHTML = html;
 
   grid.querySelectorAll('.cloud-vendor-card').forEach(card => {
     card.addEventListener('click', () => {
       const id = card.dataset.id;
-      // 查找内置厂商或自定义模型
-      const v = cloudVendors.find(x => x.id === id);
-      if (v) {
-        openCloudConfig(v);
-      } else if (id.startsWith('custom_') && settings[id]) {
-        // 自定义模型：构造 vendor 对象
+      const isExisting = card.dataset.existing === 'true';
+
+      if (isExisting) {
         const conf = settings[id];
+        const baseVendor = cloudVendors.find(v => v.name === conf.customName || id.startsWith(v.id)) || { id: '_custom', name: '自定义模型', icon: '✨', color: '#888' };
         openCloudConfig({
+          ...baseVendor,
           id: id,
-          name: conf.customName || '自定义模型',
-          icon: '➕',
-          color: '#888',
-          desc: conf.baseUrl || '',
-          url: conf.baseUrl || '',
+          isExisting: true
         });
+      } else {
+        const v = cloudVendors.find(x => x.id === id);
+        if (v) openCloudConfig({ ...v, isExisting: false });
       }
     });
   });
@@ -297,72 +327,23 @@ function openCloudConfig(vendor) {
 
     <div class="config-form-group">
       <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-        <label style="margin: 0; display: inline;">模型列表</label>
+        <label style="margin: 0; display: inline;">选择模型</label>
         <button class="btn btn-default" id="cfgFetchModels" style="border-radius: 10px; font-size: 12px; padding: 4px 14px;">🔄 获取模型</button>
       </div>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <select class="input select" id="cfgModelSelect" style="flex: 1;">
-          <option value="">-- 获取模型或手动输入 --</option>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <select class="input select" id="cfgModelSelect">
+          <option value="">-- 点击获取模型并在下拉列表中选择 --</option>
+          ${conf.defaultModel ? `<option value="${escapeHtml(conf.defaultModel)}" selected>${escapeHtml(conf.defaultModel)}</option>` : ''}
         </select>
-        <button class="btn btn-primary" id="cfgAddSelectedModel" style="border-radius: 10px; flex-shrink: 0; padding: 6px 14px;">添加</button>
-      </div>
-      <div class="cloud-model-list" id="cfgModelList" style="margin-top: 8px;">
-        ${models.map(m => `
-          <div class="cloud-model-tag">
-            <span class="model-tag-name">${escapeHtml(m)}</span>
-            <button class="model-tag-remove">&times;</button>
-          </div>
-        `).join('')}
+        <input type="text" class="input" id="cfgNewModel" placeholder="或者在此处手动输入模型名称" />
       </div>
       <div id="cfgFetchStatus" style="font-size: 12px; margin-top: 6px; min-height: 18px;"></div>
-    </div>
-
-    <div class="config-form-group">
-      <label>默认模型</label>
-      <select class="input select" id="cfgDefaultModel">
-        <option value="">-- 请选择 --</option>
-        ${models.map(m => `<option value="${m}" ${conf.defaultModel === m ? 'selected' : ''}>${m}</option>`).join('')}
-      </select>
-    </div>
-
-    <div class="config-form-group">
-      <div style="display: flex; gap: 8px;">
-        <input type="text" class="input" id="cfgNewModel" placeholder="手动输入模型 ID" style="flex: 1;" />
-        <button class="btn btn-default" id="cfgAddModelBtn" style="border-radius: 10px; flex-shrink: 0;">+ 添加</button>
-      </div>
     </div>
 
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
       <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 12px;">🗑 删除配置</button>
     </div>
   `;
-
-  // 模型列表删除
-  body.querySelectorAll('.model-tag-remove').forEach(btn => {
-    btn.addEventListener('click', () => { btn.closest('.cloud-model-tag').remove(); refreshModelSelect(); });
-  });
-
-  // 从下拉表选择并添加
-  body.querySelector('#cfgAddSelectedModel').addEventListener('click', () => {
-    const sel = body.querySelector('#cfgModelSelect');
-    const val = sel.value;
-    if (!val) { window.__toast?.error('请先选择一个模型'); return; }
-    addModelToList(val);
-    sel.value = '';
-  });
-
-  // 手动添加
-  body.querySelector('#cfgAddModelBtn').addEventListener('click', () => {
-    const input = body.querySelector('#cfgNewModel');
-    const name = input.value.trim();
-    if (!name) return;
-    addModelToList(name);
-    addModelToDropdown(name);
-    input.value = '';
-  });
-  body.querySelector('#cfgNewModel').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); body.querySelector('#cfgAddModelBtn').click(); }
-  });
 
   // 获取模型
   body.querySelector('#cfgFetchModels').addEventListener('click', () => fetchModelsFromApi());
@@ -383,7 +364,7 @@ function openCloudConfig(vendor) {
   const delBtn = document.getElementById('deleteCloudConfig');
   delBtn.addEventListener('click', async () => {
     try {
-      await window.openClaw.model.removeModel?.(vendor.id);
+      await api.model.removeModel?.(vendor.id);
       delete settings[vendor.id];
       modal.classList.remove('visible');
       renderCloudVendors();
@@ -396,91 +377,40 @@ function openCloudConfig(vendor) {
 
 async function saveCloudConfig(vendor) {
   const body = document.getElementById('cloudConfigBody');
-  const modelTags = body.querySelectorAll('.cloud-model-tag .model-tag-name');
-  const models = Array.from(modelTags).map(el => el.textContent.trim()).filter(Boolean);
-  const defaultModel = body.querySelector('#cfgDefaultModel').value || models[0] || '';
+  const selectedModel = body.querySelector('#cfgNewModel').value.trim() || body.querySelector('#cfgModelSelect').value;
+  const models = selectedModel ? [selectedModel] : [];
+  const defaultModel = selectedModel;
   const customName = body.querySelector('#cfgName').value.trim() || vendor.name;
   const apiKey = body.querySelector('#cfgApiKey').value.trim();
   const baseUrl = body.querySelector('#cfgBaseUrl').value.trim() || vendor.url;
 
   if (!apiKey && !baseUrl) { window.__toast?.error('请填写 API 地址或 API Key'); return; }
-  if (models.length === 0) { window.__toast?.error('请先获取或手动添加至少一个模型'); return; }
-  if (!defaultModel) { window.__toast?.error('请选择一个默认模型'); return; }
+  if (!selectedModel) { window.__toast?.error('请选择或手动输入一个模型'); return; }
 
-  // 确定 settings key：自定义模型用 stable key（不再每次生成新的）
-  let settingsKey = vendor.id;
-  if (vendor.id === '_custom') {
-    // 检查是否已有同名自定义模型
-    const existing = Object.keys(settings).find(k => k.startsWith('custom_') && settings[k].customName === customName);
-    settingsKey = existing || `custom_${Date.now()}`;
-  }
+  // 确定 settings key：生成独立的 key 支持同厂商多模型
+  let settingsKey = vendor.isExisting ? vendor.id : `${vendor.id}_${Date.now()}`;
 
   const config = { customName, apiKey, baseUrl, models, defaultModel, customLogo: currentLogoDataUrl || settings[settingsKey]?.customLogo || '' };
 
   try {
-    await window.openClaw.model.addModel({
+    await api.model.addModel({
       id: settingsKey,
       name: customName,
       type: 'cloud',
-      provider: 'Custom',
+      provider: vendor.isExisting ? (settings[vendor.id]?.provider || vendor.name) : (vendor.id === '_custom' ? 'Custom' : vendor.name),
       apiKey,
       baseUrl,
       modelName: defaultModel,
     });
     settings[settingsKey] = config;
-    // 持久化到存储（确保自定义模型不丢失）
-    try { await window.openClaw.settings.set(settingsKey, config); } catch(e) { console.warn('settings.set 失败:', e); }
+    // 持久化到存储
+    try { await api.settings.set(settingsKey, config); } catch(e) { console.warn('settings.set 失败:', e); }
     window.__toast?.success(`${customName} 配置已保存！`);
     document.getElementById('cloudConfigModal').classList.remove('visible');
     renderCloudVendors();
   } catch(e) {
     window.__toast?.error('保存失败: ' + e.message);
   }
-}
-
-// ==================== 模型列表辅助 ====================
-function addModelToList(name) {
-  const list = document.getElementById('cfgModelList');
-  if (!list) return;
-  // 去重
-  const existing = list.querySelectorAll('.model-tag-name');
-  for (const el of existing) { if (el.textContent.trim() === name) return; }
-  const tag = document.createElement('div');
-  tag.className = 'cloud-model-tag';
-  tag.style.cursor = 'pointer';
-  tag.innerHTML = `<span class="model-tag-name">${escapeHtml(name)}</span><button class="model-tag-remove">&times;</button>`;
-  // 点击选为默认模型
-  tag.addEventListener('click', (e) => {
-    if (e.target.classList.contains('model-tag-remove')) return;
-    const sel = document.getElementById('cfgDefaultModel');
-    if (sel) { sel.value = name; }
-    // 高亮当前选中
-    list.querySelectorAll('.cloud-model-tag').forEach(t => t.style.borderColor = 'var(--border-light)');
-    tag.style.borderColor = 'var(--primary)';
-  });
-  tag.querySelector('.model-tag-remove').addEventListener('click', (e) => { e.stopPropagation(); tag.remove(); refreshModelSelect(); });
-  list.appendChild(tag);
-  refreshModelSelect();
-}
-
-function addModelToDropdown(name) {
-  const sel = document.getElementById('cfgModelSelect');
-  if (!sel) return;
-  const opts = sel.querySelectorAll('option');
-  for (const o of opts) { if (o.value === name) return; }
-  const opt = document.createElement('option');
-  opt.value = name;
-  opt.textContent = name;
-  sel.appendChild(opt);
-}
-
-function refreshModelSelect() {
-  const list = document.getElementById('cfgModelList');
-  const sel = document.getElementById('cfgDefaultModel');
-  if (!list || !sel) return;
-  const current = sel.value;
-  const names = Array.from(list.querySelectorAll('.model-tag-name')).map(el => el.textContent.trim());
-  sel.innerHTML = '<option value="">-- 请选择 --</option>' + names.map(n => `<option value="${escapeHtml(n)}" ${n === current ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
 }
 
 // ==================== 从 API 拉取模型列表（通过后端代理） ====================
@@ -497,7 +427,7 @@ async function fetchModelsFromApi() {
   statusEl.innerHTML = '<span style="color:var(--text-muted);">正在通过后端请求模型列表...</span>';
 
   try {
-    const data = await window.openClaw.model.proxyFetchModels(baseUrl, apiKey);
+    const data = await api.model.proxyFetchModels(baseUrl, apiKey);
     let modelIds = [];
 
     // OpenAI / DeepSeek / 通义千问 格式: { data: [{ id: "..." }] }
@@ -522,7 +452,7 @@ async function fetchModelsFromApi() {
       return;
     }
 
-    // 填入下拉表 + 已选标签
+    // 填入下拉表
     const sel = document.getElementById('cfgModelSelect');
     if (sel) {
       sel.innerHTML = '<option value="">-- 请选择模型 --</option>';
@@ -533,9 +463,6 @@ async function fetchModelsFromApi() {
         sel.appendChild(opt);
       });
     }
-    const list = document.getElementById('cfgModelList');
-    list.innerHTML = '';
-    modelIds.forEach(id => addModelToList(id));
 
     statusEl.innerHTML = `<span style="color:var(--success);">✅ 成功获取 ${modelIds.length} 个模型</span>`;
     window.__toast?.success(`已获取 ${modelIds.length} 个模型`);
@@ -561,7 +488,7 @@ async function testConnection() {
   btn.textContent = '⏳ 测试中...';
 
   try {
-    const result = await window.openClaw.model.proxyTest(baseUrl, apiKey);
+    const result = await api.model.proxyTest(baseUrl, apiKey);
     if (result.ok) {
       window.__toast?.success(`✅ ${result.message}`);
     } else {
@@ -660,7 +587,7 @@ function renderLocalRuntimes() {
 async function detectAllRuntimes() {
   // Ollama 和 LM Studio 通过后端检测
   try {
-    localStatus = await window.openClaw.model.detectLocal();
+    localStatus = await api.model.detectLocal();
   } catch(e) {
     localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
   }
@@ -814,10 +741,10 @@ async function openLocalModelsModal(provider) {
   let models = [];
   try {
     if (isOllama) {
-      const res = await window.openClaw.model.getOllamaModels();
+      const res = await api.model.getOllamaModels();
       models = res.models || [];
     } else {
-      const res = await window.openClaw.model.getLMStudioModels();
+      const res = await api.model.getLMStudioModels();
       models = res.models || [];
     }
   } catch(e) {
@@ -896,7 +823,7 @@ async function openLocalModelsModal(provider) {
     let success = 0, fail = 0;
     for (const cb of checked) {
       try {
-        await window.openClaw.model.deleteLocalModel(provider, cb.dataset.id);
+        await api.model.deleteLocalModel(provider, cb.dataset.id);
         success++;
       } catch(e) { fail++; console.warn('删除失败:', cb.dataset.id, e); }
     }
@@ -910,7 +837,7 @@ async function openLocalModelsModal(provider) {
   body.querySelectorAll('.set-default-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       try {
-        await window.openClaw.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, true);
+        await api.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, true);
         activeModelId = btn.dataset.provider === 'ollama' ? btn.dataset.id : `lmstudio_${btn.dataset.id}`;
         window.__toast?.success(`已将 ${btn.dataset.name} 设为默认模型`);
         openLocalModelsModal(provider);
@@ -922,7 +849,7 @@ async function openLocalModelsModal(provider) {
   body.querySelectorAll('.use-model-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       try {
-        await window.openClaw.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, false);
+        await api.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, false);
         window.__toast?.success(`已添加模型 ${btn.dataset.name}`);
       } catch(e) { window.__toast?.error(e.message); }
     });

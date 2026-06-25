@@ -3,11 +3,13 @@
  * 模型配置已合并至模型市场
  */
 
+import { api } from '../utils/api.js';
+
 let settings = {};
 
 export async function render(container) {
   try {
-    settings = (await window.openClaw.settings.get()) || {};
+    settings = (await api.settings.get()) || {};
   } catch(e) {
     settings = {};
   }

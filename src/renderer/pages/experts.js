@@ -3,6 +3,9 @@
  * 提供各种预设的 AI 专家角色，每个角色绑定了特定的 System Prompt 和参数。
  */
 
+import { api } from '../utils/api.js';
+import { debounce } from '../utils/common.js';
+
 export async function render(container) {
   container.style.padding = '0';
   container.style.overflow = 'auto';
@@ -43,7 +46,7 @@ export async function render(container) {
   `;
 }
 
-const EXPERTS = [
+export const EXPERTS = [
   {
     id: 'expert-programmer',
     name: '资深全栈工程师',
@@ -223,7 +226,7 @@ export async function init(container) {
   let installedSkills = [];
 
   try {
-    installedSkills = await window.openClaw.skill.getSkills();
+    installedSkills = await api.skill.getSkills();
   } catch (err) {
     console.error('Failed to load installed skills:', err);
   }
@@ -246,10 +249,10 @@ export async function init(container) {
   renderExpertsGrid(currentCat, currentSearch, combinedExperts);
 
   // 搜索
-  document.getElementById('searchExpert').addEventListener('input', (e) => {
+  document.getElementById('searchExpert').addEventListener('input', debounce((e) => {
     currentSearch = e.target.value.toLowerCase();
     renderExpertsGrid(currentCat, currentSearch, combinedExperts);
-  });
+  }, 300));
 
   // 药丸标签分类切换
   const categories = document.getElementById('expertCategories');

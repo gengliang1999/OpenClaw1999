@@ -39,8 +39,9 @@ export async function render(container) {
 
 async function loadData() {
   try {
-    installedPlugins = await window.openClaw.plugin.getPlugins() || [];
-    marketPlugins = await window.openClaw.plugin.getMarketplace() || [
+    installedPlugins = await api.plugin.getPlugins() || [];
+    const res = await api.plugin.getMarketplace();
+    marketPlugins = (res && res.items) ? res.items : [
       { id: 'web-search', name: 'Web Search', description: '允许助手搜索互联网信息', version: '1.0.0', author: 'OpenClaw' },
       { id: 'local-fs', name: 'Local FileSystem', description: '允许助手读写本地文件', version: '1.1.0', author: 'OpenClaw' },
       { id: 'code-runner', name: 'Code Runner', description: '在沙盒中安全执行 Python/Node 代码', version: '2.0.0', author: 'OpenClaw' }
@@ -110,7 +111,7 @@ function renderList(tab) {
 window._installPlugin = async (id) => {
   try {
     if(window.__toast) window.__toast.info('正在安装...');
-    await window.openClaw.plugin.installPlugin(id);
+    await api.plugin.installPlugin(id);
     if(window.__toast) window.__toast.success('安装成功');
     await loadData();
     renderList('market');
@@ -121,7 +122,7 @@ window._installPlugin = async (id) => {
 
 window._uninstallPlugin = async (id) => {
   try {
-    await window.openClaw.plugin.removePlugin(id);
+    await api.plugin.removePlugin(id);
     if(window.__toast) window.__toast.success('已卸载');
     await loadData();
     renderList('installed');

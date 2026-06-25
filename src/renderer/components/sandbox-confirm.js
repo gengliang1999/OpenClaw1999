@@ -3,6 +3,8 @@
  * 用于在助手尝试执行系统命令或脚本前，拦截并请求用户授权
  */
 
+import { escapeHtml } from '../utils/common.js';
+
 export function showSandboxConfirm(command, details = '') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -135,12 +137,3 @@ export function showSandboxConfirm(command, details = '') {
   });
 }
 
-function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
-}

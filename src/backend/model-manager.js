@@ -461,8 +461,8 @@ class ModelManager extends EventEmitter {
         }
       }
     } catch (err) {
-      throw err;
       console.error('[Cloud Stream Error]', err);
+      throw err;
     }
 
     return fullContent;
@@ -589,8 +589,8 @@ class ModelManager extends EventEmitter {
         }
       }
     } catch (err) {
-      throw err;
       console.error('[Local Stream Error]', err);
+      throw err;
     }
 
     return fullContent;

@@ -93,12 +93,15 @@ function removeToast(toast) {
   }, 400); // Wait for transition
 }
 
-// 绑定全局以便其他非模块代码调用
-window.__toast = {
+/** Toast 快捷方法对象 */
+const toast = {
   success: (msg, d) => showToast(msg, 'success', d),
   error: (msg, d) => showToast(msg, 'error', d),
   warning: (msg, d) => showToast(msg, 'warning', d),
-  info: (msg, d) => showToast(msg, 'info', d)
+  info: (msg, d) => showToast(msg, 'info', d),
 };
 
-export default window.__toast;
+// 绑定全局以便非模块代码调用
+window.__toast = toast;
+
+export default toast;

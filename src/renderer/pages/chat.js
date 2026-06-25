@@ -2,6 +2,12 @@
  * 聊天页面 v3 — 全宽聊天界面，会话管理已移至主侧边栏
  */
 
+import { api } from '../utils/api.js';
+
+import { escapeHtml } from '../utils/common.js';
+import { parseMarkdown } from '../utils/markdown.js';
+import { EXPERTS } from './experts.js';
+
 let activeConvId = null;
 let isGenerating = false;
 let models = [];
@@ -10,6 +16,13 @@ let activeExpert = null;
 let tokenUsage = 0;
 let pendingAttachmentData = null;
 let pendingLoadConvId = null; // 从侧边栏点击时预设的会话 ID
+let reloadModelsCallback = null;
+
+export async function init(container) {
+  if (reloadModelsCallback) {
+    await reloadModelsCallback();
+  }
+}
 
 export async function render(container) {
   container.className = 'page';
@@ -26,26 +39,40 @@ export async function render(container) {
     <div style="display: flex; flex-direction: column; background: var(--bg-app); position: absolute; inset: 0;">
 
       <!-- 顶部 Header -->
-      <div style="height: 56px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-panel); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 10;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <h2 id="chatTitle" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.2px;">新对话</h2>
-          <div id="expertIndicator" style="display: none; align-items: center; gap: 6px; background: linear-gradient(135deg, rgba(108,99,255,0.12), rgba(88,86,214,0.12)); color: #7c6fff; padding: 3px 12px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(108,99,255,0.2); font-weight: 500;">
+      <div style="height: 56px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-panel); backdrop-filter: var(--blur-material); -webkit-backdrop-filter: var(--blur-material); z-index: 10;">
+        
+        <!-- 左侧区域 -->
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+          <h2 id="chatTitle" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.2px; color: var(--text-primary);">新对话</h2>
+          <div id="expertIndicator" style="display: none; align-items: center; gap: 6px; background: var(--primary-light); color: var(--primary); padding: 3px 12px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(0,122,255,0.1); font-weight: 500;">
             <span id="expertName"></span>
             <button id="clearExpertBtn" style="background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0.7;">&times;</button>
           </div>
         </div>
+
+        <!-- 居中区域：模型切换器 (ChatGPT风格) -->
+        <div style="flex: 1; display: flex; justify-content: center;">
+          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: var(--radius-md); padding: 6px 12px; font-weight: 600; font-size: 15px;">
+            <span id="activeModelLabel" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+
+        <!-- 右侧区域 (已将功能移至输入框下方) -->
+        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px;">
+        </div>
       </div>
 
       <!-- 聊天消息展示区 -->
-      <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 24px; padding-bottom: 220px; display: flex; flex-direction: column; gap: 24px;">
+      <div id="chatMessages" class="chat-messages-container">
         <!-- Messages -->
       </div>
 
-      <!-- 底部输入区 — 豆包风格整合 -->
-      <div class="doubao-input-wrapper">
-
+      <!-- 底部输入区 — 极简收纳风格 -->
+      <div class="doubao-input-wrapper" style="padding-bottom: 24px;">
+        <div id="mentionPopup" class="mention-popup" style="display: none; position: absolute; bottom: 100%; left: 16px; margin-bottom: 8px;"></div>
         <div class="doubao-input-container">
-          <!-- 引用预览 (嵌入容器内顶部) -->
+          <!-- 引用预览 -->
           <div id="quotePreview" class="quote-preview" style="display: none;">
             <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               <strong style="color: var(--primary);">引用：</strong>
@@ -55,80 +82,87 @@ export async function render(container) {
           </div>
 
           <!-- 截图预览 -->
-          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02);">
+          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02); border-radius: 12px 12px 0 0;">
             <div style="position: relative; display: inline-block;">
-              <img id="attachmentImg" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
-              <button id="removeAttachmentBtn" style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--danger, #ff4d4f); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">&times;</button>
+              <img id="attachmentImg" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);" />
+              <button id="removeAttachmentBtn" style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--danger); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm);">&times;</button>
             </div>
           </div>
 
-          <!-- 输入行 -->
+          <!-- 输入行：内部嵌入左右控制区 -->
           <div class="doubao-input-row">
-            <textarea id="chatInput" class="doubao-textarea" placeholder="输入消息...  Shift+Enter 换行" rows="1"></textarea>
-            <div style="display: flex; gap: 8px;">
-              <button id="optimizePromptBtn" class="doubao-send-btn" title="AI 提示词魔法优化 🪄" style="background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-light); box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
-              </button>
-              <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-              </button>
-            </div>
-          </div>
+            <textarea id="chatInput" class="doubao-textarea" placeholder="发送消息给 Assistant...  @呼叫专家  Shift+Enter 换行" rows="1"></textarea>
+            
+            <!-- 底部操作栏 -->
+            <div class="doubao-input-tools">
+              
+              <!-- 左侧：附件与设定 -->
+              <div style="display: flex; gap: 4px; position: relative;">
+                <button id="plusMenuBtn" class="btn-icon" title="附加操作">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                </button>
+                <!-- 隐藏的+号悬浮菜单 -->
+                <div id="plusMenu" class="popover-menu" style="display: none; bottom: 100%; left: 0; margin-bottom: 8px; width: 140px;">
+                  <button id="fileUploadBtn" class="popover-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    上传文件
+                  </button>
+                  <button id="readScreenBtn" class="popover-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 9h2"/><path d="M19 9h2"/></svg>
+                    截取屏幕
+                  </button>
+                </div>
 
-          <!-- 工具栏行：功能按钮整合到输入框内部 -->
-          <div class="doubao-toolbar-row">
-            <!-- 新建对话 -->
-            <button id="newChatBtn" class="doubao-toolbar-btn btn-color-blue" title="新建对话">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-              <span>新对话</span>
-            </button>
+                <!-- 思考深度 -->
+                <div class="btn-ghost" title="思考深度" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #00d9ff;"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
+                  <select id="depthSelect" style="background:transparent; border:none; color:inherit; outline:none; cursor:pointer;">
+                    <option value="auto">自动</option>
+                    <option value="low">浅度思考</option>
+                    <option value="medium">中度思考</option>
+                    <option value="high">深度思考</option>
+                    <option value="extreme">极度推理</option>
+                  </select>
+                </div>
 
-            <!-- 上传文件 -->
-            <button id="fileUploadBtn" class="doubao-toolbar-btn btn-color-orange" title="上传文件">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span>上传</span>
-            </button>
+                <!-- 清空上下文 -->
+                <button id="clearMemoryBtn" class="btn-ghost" title="清空上下文记忆" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px; color: #ff3b30;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  清空上下文
+                </button>
 
-            <!-- 模型选择 -->
-            <button id="modelModalBtn" class="doubao-toolbar-btn btn-color-purple" title="切换模型">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="m4.2 4.2 2.8 2.8"/><path d="m17 17 2.8 2.8"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="m4.2 19.8 2.8-2.8"/><path d="m17 7 2.8-2.8"/></svg>
-              <span id="activeModelLabel" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
-            </button>
+                <!-- 思考设定 -->
+                <button id="tuningModalBtn" class="btn-ghost" title="系统思考设定" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  高级设定
+                </button>
+                
+                <!-- 新建对话 -->
+                <button id="newChatBtn" class="btn-ghost" title="新建对话" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--primary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                  新对话
+                </button>
+              </div>
 
-            <!-- 思考深度 -->
-            <div class="doubao-toolbar-btn btn-color-cyan" title="思考深度" style="gap: 4px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
-              <select id="depthSelect" class="doubao-toolbar-select" style="background:transparent; border:none; color:inherit; outline:none; font-weight:500; cursor:pointer;">
-                <option value="auto">自动</option>
-                <option value="low">浅</option>
-                <option value="medium">中</option>
-                <option value="high">深</option>
-                <option value="extreme">极深</option>
-              </select>
-            </div>
+              <!-- 右侧：发送组 -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div id="tokenCircleBtn" class="doubao-token-ring" title="上下文占用 (点击压缩)" style="background: transparent;">
+                  <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                    <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-color)" stroke-width="2.5"></circle>
+                    <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
+                  </svg>
+                  <span style="position: absolute; display: flex; align-items: center; justify-content: center;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
+                  </span>
+                </div>
 
-            <!-- 清空上下文 -->
-            <button id="clearMemoryBtn" class="doubao-toolbar-btn btn-color-red" title="清空上下文记忆">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-              <span>清空</span>
-            </button>
-
-            <!-- 右侧：截图 + 上下文进度环 -->
-            <div class="doubao-toolbar-right" style="display: flex; align-items: center; gap: 6px;">
-              <!-- 截图 -->
-              <button id="readScreenBtn" class="doubao-toolbar-btn btn-color-green" title="截取屏幕">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 9h2"/><path d="M19 9h2"/></svg>
-                <span>截图</span>
-              </button>
-
-              <div id="tokenCircleBtn" class="doubao-token-ring" title="上下文占用 (点击压缩)">
-                <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(0,0,0,0.06)" stroke-width="2.5"></circle>
-                  <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
-                </svg>
-                <span style="position: absolute; display: flex; align-items: center; justify-content: center;">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
-                </span>
+                <button id="optimizePromptBtn" class="btn-ghost" title="AI 提示词魔法优化 🪄" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: #a259ff;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
+                  魔法优化
+                </button>
+                <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                </button>
               </div>
             </div>
           </div>
@@ -157,6 +191,50 @@ export async function render(container) {
           </div>
        </div>
     </div>
+
+    <!-- 思考设定 (Tuning Modal) -->
+    <div id="tuningModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+       <div style="background: var(--bg-app); width: 480px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+             <h3 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">🧠 思考设定 <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); background: var(--bg-hover); padding: 2px 8px; border-radius: 10px;">微调 AI 性格与思考方式</span></h3>
+             <button id="closeTuningModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
+          </div>
+          <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
+             
+             <!-- 系统设定 (System Prompt) -->
+             <div class="config-form-group">
+                <label style="font-weight: 600; font-size: 14px;">🎭 角色与背景设定 (System Prompt)</label>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">赋予 AI 特定的身份、语气和知识背景（例如：“你是一个暴躁的老板”或“你是一位专业的法律顾问”）。</div>
+                <textarea id="tuningSystemPrompt" class="input" style="height: 100px; resize: vertical;" placeholder="默认：你是一个乐于助人的智能助手。"></textarea>
+             </div>
+
+             <!-- 发散程度 (Temperature) -->
+             <div class="tuning-slider-container">
+                <div class="tuning-slider-header">
+                   <div class="tuning-slider-label">🌡️ 发散程度 (Temperature)</div>
+                   <div class="tuning-slider-value" id="tuningTempValue">1.0</div>
+                </div>
+                <div class="tuning-slider-desc" style="margin-bottom: 6px;">较小的值回答更精确严谨；较大的值回答更具创造力和想象力。</div>
+                <input type="range" id="tuningTemp" class="tuning-slider" min="0" max="2" step="0.1" value="1.0">
+             </div>
+
+             <!-- 记忆深度 (Max History) -->
+             <div class="tuning-slider-container">
+                <div class="tuning-slider-header">
+                   <div class="tuning-slider-label">📚 记忆深度 (Context Size)</div>
+                   <div class="tuning-slider-value" id="tuningHistoryValue">10 轮</div>
+                </div>
+                <div class="tuning-slider-desc" style="margin-bottom: 6px;">AI 单次对话能记住的上下文轮数。调大更聪明，但消耗更多算力。</div>
+                <input type="range" id="tuningHistory" class="tuning-slider" min="0" max="50" step="1" value="10">
+             </div>
+
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border-light); background: var(--bg-panel); display: flex; justify-content: flex-end; gap: 12px;">
+             <button id="resetTuningBtn" class="btn btn-default" style="border-radius: 10px;">恢复默认</button>
+             <button id="saveTuningBtn" class="btn btn-primary" style="border-radius: 10px; padding: 0 24px;">保存设定</button>
+          </div>
+       </div>
+    </div>
   `;
 
   // --- 基础事件 ---
@@ -169,12 +247,195 @@ export async function render(container) {
   });
 
   const chatInput = document.getElementById('chatInput');
-  chatInput.addEventListener('input', () => {
+
+  // --- Tuning Modal 逻辑 ---
+  const tuningModalBtn = document.getElementById('tuningModalBtn');
+  const tuningModal = document.getElementById('tuningModal');
+  const closeTuningModalBtn = document.getElementById('closeTuningModalBtn');
+  const tuningTemp = document.getElementById('tuningTemp');
+  const tuningTempValue = document.getElementById('tuningTempValue');
+  const tuningHistory = document.getElementById('tuningHistory');
+  const tuningHistoryValue = document.getElementById('tuningHistoryValue');
+  const tuningSystemPrompt = document.getElementById('tuningSystemPrompt');
+  const saveTuningBtn = document.getElementById('saveTuningBtn');
+  const resetTuningBtn = document.getElementById('resetTuningBtn');
+  const plusMenuBtn = document.getElementById('plusMenuBtn');
+  const plusMenu = document.getElementById('plusMenu');
+
+  if (plusMenuBtn && plusMenu) {
+    plusMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      plusMenu.style.display = plusMenu.style.display === 'none' ? 'flex' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!plusMenuBtn.contains(e.target) && !plusMenu.contains(e.target)) {
+        plusMenu.style.display = 'none';
+      }
+    });
+  }
+
+  // Hide popover if item is clicked
+  document.querySelectorAll('.popover-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (plusMenu) plusMenu.style.display = 'none';
+    });
+  });
+
+  // 初始化 sessionConfig
+  window.sessionConfig = window.sessionConfig || { temp: 1.0, maxHistory: 10, systemPrompt: '' };
+
+  const openTuningModal = () => {
+    tuningTemp.value = window.sessionConfig.temp;
+    tuningTempValue.textContent = parseFloat(window.sessionConfig.temp).toFixed(1);
+    tuningHistory.value = window.sessionConfig.maxHistory;
+    tuningHistoryValue.textContent = window.sessionConfig.maxHistory + ' 轮';
+    tuningSystemPrompt.value = window.sessionConfig.systemPrompt || '';
+    tuningModal.style.display = 'flex';
+  };
+
+  tuningModalBtn.addEventListener('click', openTuningModal);
+  closeTuningModalBtn.addEventListener('click', () => tuningModal.style.display = 'none');
+
+  tuningTemp.addEventListener('input', (e) => {
+    tuningTempValue.textContent = parseFloat(e.target.value).toFixed(1);
+  });
+  tuningHistory.addEventListener('input', (e) => {
+    tuningHistoryValue.textContent = e.target.value + ' 轮';
+  });
+
+  saveTuningBtn.addEventListener('click', () => {
+    window.sessionConfig.temp = parseFloat(tuningTemp.value);
+    window.sessionConfig.maxHistory = parseInt(tuningHistory.value);
+    window.sessionConfig.systemPrompt = tuningSystemPrompt.value.trim();
+    tuningModal.style.display = 'none';
+    if (window.__toast) window.__toast.success('🧠 思考设定已保存，将在下一次对话生效');
+  });
+
+  resetTuningBtn.addEventListener('click', () => {
+    tuningTemp.value = 1.0;
+    tuningTempValue.textContent = '1.0';
+    tuningHistory.value = 10;
+    tuningHistoryValue.textContent = '10 轮';
+    tuningSystemPrompt.value = '';
+  });
+
+  // --- Mention Popup (@呼叫专家) 逻辑 ---
+  let mentionActive = false;
+  let mentionQuery = '';
+  let selectedExpertIndex = 0;
+  let filteredExperts = [];
+  const mentionPopup = document.getElementById('mentionPopup');
+
+  const renderMentionPopup = () => {
+    if (!mentionActive) {
+      mentionPopup.style.display = 'none';
+      return;
+    }
+    
+    filteredExperts = EXPERTS.filter(exp => 
+      exp.name.toLowerCase().includes(mentionQuery.toLowerCase()) || 
+      (exp.description && exp.description.toLowerCase().includes(mentionQuery.toLowerCase()))
+    );
+
+    if (filteredExperts.length === 0) {
+      mentionPopup.style.display = 'none';
+      return;
+    }
+
+    selectedExpertIndex = Math.max(0, Math.min(selectedExpertIndex, filteredExperts.length - 1));
+
+    mentionPopup.innerHTML = filteredExperts.map((exp, idx) => `
+      <div class="mention-popup-item ${idx === selectedExpertIndex ? 'active' : ''}" data-idx="${idx}">
+        <div class="icon" style="background: ${exp.color}15;">${exp.icon}</div>
+        <div class="info">
+          <div class="name">${escapeHtml(exp.name)}</div>
+          <div class="desc">${escapeHtml(exp.description || '')}</div>
+        </div>
+      </div>
+    `).join('');
+    
+    mentionPopup.style.display = 'flex';
+
+    // 绑定点击事件
+    mentionPopup.querySelectorAll('.mention-popup-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const idx = parseInt(item.getAttribute('data-idx'));
+        selectExpert(filteredExperts[idx]);
+      });
+      item.addEventListener('mouseenter', () => {
+        selectedExpertIndex = parseInt(item.getAttribute('data-idx'));
+        renderMentionPopup();
+      });
+    });
+  };
+
+  const selectExpert = (expert) => {
+    // 替换输入框中的 @query 为空，然后聚焦
+    const val = chatInput.value;
+    const atIndex = val.lastIndexOf('@');
+    if (atIndex !== -1) {
+      chatInput.value = val.substring(0, atIndex) + val.substring(atIndex + mentionQuery.length + 1).trim();
+    }
+    mentionActive = false;
+    renderMentionPopup();
+    
+    // 激活专家
+    activeExpert = expert;
+    localStorage.setItem('activeExpert', JSON.stringify(expert));
+    updateExpertIndicator();
+    if (window.__toast) window.__toast.success(`已切换至专家模式：${expert.name}`);
+    
+    chatInput.focus();
+  };
+
+  chatInput.addEventListener('input', (e) => {
+    const val = chatInput.value;
+    const lastAtIndex = val.lastIndexOf('@');
+    
+    if (lastAtIndex !== -1) {
+      // 检查 @ 之后是否有空格，如果有空格则取消激活
+      const afterAt = val.substring(lastAtIndex + 1);
+      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
+        mentionActive = true;
+        mentionQuery = afterAt;
+        selectedExpertIndex = 0;
+        renderMentionPopup();
+      } else {
+        mentionActive = false;
+        renderMentionPopup();
+      }
+    } else {
+      mentionActive = false;
+      renderMentionPopup();
+    }
+
     chatInput.style.height = 'auto';
     chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
   });
 
   chatInput.addEventListener('keydown', (e) => {
+    if (mentionActive && filteredExperts.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedExpertIndex = (selectedExpertIndex + 1) % filteredExperts.length;
+        renderMentionPopup();
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedExpertIndex = (selectedExpertIndex - 1 + filteredExperts.length) % filteredExperts.length;
+        renderMentionPopup();
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        selectExpert(filteredExperts[selectedExpertIndex]);
+        return;
+      } else if (e.key === 'Escape') {
+        mentionActive = false;
+        renderMentionPopup();
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -190,23 +451,38 @@ export async function render(container) {
       return;
     }
     
-    // 使用高级框架包裹提示词，极大地提升各类大模型（尤其是开源/小参数模型）的理解与推理能力
-    const optimized = `请你作为一位资深的顶尖领域专家，仔细理解并深度解答我的以下需求。
-为了达到最佳效果，请严格遵循以下要求：
-1. 【结构清晰】请使用 Markdown 格式（标题、加粗、列表）将你的回答分点、分段组织。
-2. 【深度详尽】请尽量提供具体的例子、代码片段或数据来支持你的解答。
-3. 【多维思考】请主动考虑潜在的边缘情况、局限性以及替代方案，并在必要时给出最佳实践建议。
+    // 世界上最好的提示词优化框架 (动态 CO-STAR 结构 + CoT)
+    const optimized = `# 核心任务指令 (Task)
+请你扮演全球顶尖的**资深领域专家与架构师 (Role)**，请仔细阅读并深刻理解我的需求，运用你庞大的知识库与第一性原理来解答。
 
-【我的原始需求】：
+# 任务背景与目标 (Context & Objective)
+用户原始需求如下：
+\`\`\`text
 ${text}
+\`\`\`
+你的目标是：提供一个**极度精确、深刻且可直接落地的**解决方案或回答。
 
-请深思熟虑后，开始你的正式解答：`;
+# 思考过程 (Chain of Thought)
+在给出最终答案前，你必须进行系统性的深度思考，请在 \`<thought>\` 标签内展露你的推理过程：
+1. **需求拆解**：明确该任务的核心痛点与潜在隐藏需求。
+2. **多维评估**：思考 2-3 种不同的解决方案，并对比它们的优劣（例如性能、成本、易用性、长期可维护性）。
+3. **边缘情况**：考虑可能的极端情况、潜在风险及防御性措施。
+4. **确定最优解**：基于综合评估，选定最佳方案并构思结构。
+
+# 执行规则与约束 (Style, Tone & Constraints)
+- **专业与严谨**：拒绝废话、空洞的套话，用数据、代码或确凿的逻辑说话。
+- **结构化输出**：使用清晰的 Markdown 结构（多级标题、加粗重点、清晰的无序/有序列表）。
+- **实操导向**：如果是代码或技术问题，必须提供**完整、健壮、包含关键注释且无语法错误**的代码实现；如果是分析或文案，必须逻辑严密、论点清晰。
+- **视觉友好**：适当使用表格对比优劣，或用引用区块 (\`>\`) 强调核心警示信息。
+
+# 正式输出 (Response)
+请严格遵循上述框架，先输出思考过程，再输出你的正式回答：`;
     
     input.value = optimized;
     // 触发自适应高度调整
     input.dispatchEvent(new Event('input'));
     input.focus();
-    if (window.__toast) window.__toast.success('🪄 提示词已魔法优化！结构已增强');
+    if (window.__toast) window.__toast.success('✨ 提示词已注入 CO-STAR 与 Chain-of-Thought 灵魂！');
   });
 
   document.getElementById('sendBtn').addEventListener('click', sendMessage);
@@ -219,7 +495,7 @@ ${text}
     }
     try {
       if (window.__toast) window.__toast.info('正在压缩上下文...');
-      const history = await window.openClaw.chat.getHistory(activeConvId);
+      const history = await api.chat.getHistory(activeConvId);
       // 如果历史少于4条，不值得压缩
       if (!history || history.length < 4) {
         if (window.__toast) window.__toast.success('当前上下文已是最佳状态，无需压缩');
@@ -230,7 +506,7 @@ ${text}
       const toDeleteCount = Math.floor(history.length / 2);
       for (let i = 0; i < toDeleteCount; i++) {
          if (history[i].id) {
-            await window.openClaw.chat.deleteMessage(history[i].id).catch(e => console.error(e));
+            await api.chat.deleteMessage(history[i].id).catch(e => console.error(e));
          }
       }
       
@@ -248,7 +524,7 @@ ${text}
   document.getElementById('clearMemoryBtn').addEventListener('click', async () => {
     if (activeConvId) {
       try {
-        await window.openClaw.chat.clearHistory(activeConvId);
+        await api.chat.clearHistory(activeConvId);
         document.getElementById('chatMessages').innerHTML = `
           <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
             <div style="font-size: 48px;">💬</div>
@@ -361,6 +637,7 @@ ${text}
   };
 
   // 初始化加载
+  reloadModelsCallback = loadModels;
   await loadModels();
   updateExpertIndicator();
 
@@ -437,7 +714,7 @@ const cloudVendors = [
 
 async function loadModels() {
   try {
-    const res = await window.openClaw.model.getModels();
+    const res = await api.model.getModels();
     
     // 移除重复模型，保留最新/唯一的 ID
     const uniqueMap = new Map();
@@ -451,37 +728,60 @@ async function loadModels() {
     const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
     
     // 渲染云端模型（展示为厂商，如果配了多个模型则默认选择第一个）
+    const matchedIds = new Set();
     const renderedCloud = cloudVendors.map(vendor => {
       // 检查是否已配置该厂商的模型
-      const matchedModels = cloudModelsConfigured.filter(m => 
-         (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) || 
-         (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
-         m.id.toLowerCase().includes(vendor.id.toLowerCase())
-      );
+      const matchedModels = cloudModelsConfigured.filter(m => {
+         const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) || 
+                       (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+                       m.id.toLowerCase().includes(vendor.id.toLowerCase());
+         if (match) matchedIds.add(m.id);
+         return match;
+      });
       
       const isConfigured = matchedModels.length > 0;
       const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
+      const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
       
       return `
         <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
            <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
              <span>${vendor.icon}</span> ${vendor.name}
            </div>
-           <div style="font-size: 11px; color: ${isConfigured ? 'var(--success)' : 'var(--text-muted)'};">${isConfigured ? '✓ 已配置' : '去配置 &rarr;'}</div>
+           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✓ 已配置' : '去配置 &rarr;'}</span>
+             ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
+           </div>
         </div>
       `;
     }).join('');
+
+    const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
+    const renderedCustomCloud = customCloudModels.map(m => `
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+           <span>🔗</span> ${m.name || m.id}
+         </div>
+         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+           <span style="color: var(--success);">✓ 已配置</span>
+           <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
+         </div>
+      </div>
+    `).join('');
 
     const renderLocalCard = (m) => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>💻</span> ${m.name}
          </div>
-         <div style="font-size: 11px; color: var(--text-muted);">${m.id}</div>
+         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+           <span style="color: var(--success);">✓ 已本地化</span>
+           <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
+         </div>
       </div>
     `;
 
-    document.getElementById('cloudModelsGrid').innerHTML = renderedCloud;
+    document.getElementById('cloudModelsGrid').innerHTML = renderedCloud + renderedCustomCloud;
     document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
     
     // 绑定弹窗内模型点击
@@ -511,8 +811,8 @@ async function loadModels() {
           }
           
           // 通知后端更新 activeModelId
-          if (window.openClaw.model && window.openClaw.model.setActiveModel) {
-            await window.openClaw.model.setActiveModel(id).catch(e=>console.error(e));
+          if (api.model && api.model.setActiveModel) {
+            await api.model.setActiveModel(id).catch(e=>console.error(e));
           }
 
           document.getElementById('modelSelectionModal').style.display = 'none';
@@ -520,7 +820,7 @@ async function loadModels() {
        });
     });
 
-    const activeRes = await window.openClaw.model.getActiveModel();
+    const activeRes = await api.model.getActiveModel();
     if (activeRes && activeRes.id) {
       activeModelId = activeRes.id;
     } else if (models.length > 0) {
@@ -541,7 +841,7 @@ async function loadModels() {
 async function createNewChat() {
   if (isGenerating) return;
   try {
-    const res = await window.openClaw.chat.createConversation('新对话');
+    const res = await api.chat.createConversation('新对话');
     activeConvId = res.id;
     await window.refreshSidebarConversations?.();
     document.getElementById('chatMessages').innerHTML = `
@@ -560,9 +860,9 @@ async function createNewChat() {
 
 async function loadHistory(convId) {
   try {
-    const msgs = await window.openClaw.chat.getHistory(convId);
+    const msgs = await api.chat.getHistory(convId);
     renderMessages(msgs || []);
-    const list = await window.openClaw.chat.getConversations();
+    const list = await api.chat.getConversations();
     const c = list.find(x => x.id === convId);
     if (c) document.getElementById('chatTitle').textContent = c.title || '新对话';
     tokenUsage = Math.min((msgs || []).length * 8, 100);
@@ -677,7 +977,7 @@ function appendMessage(role, id = null) {
 
 async function sendMessage() {
   if (isGenerating) {
-    window.openClaw.chat.abortStream();
+    api.chat.abortStream();
     isGenerating = false;
     const btn = document.getElementById('sendBtn');
     btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
@@ -745,10 +1045,19 @@ async function sendMessage() {
     
     const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
     
-    await window.openClaw.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, (parsed) => {
+    await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, (parsed) => {
       if (parsed.type === 'error') {
-        fullResponse += `\n\n> ❌ **错误**: ${parsed.message}`;
-        aiBox.innerHTML = parseMarkdown(fullResponse);
+        let errorMsg = parsed.message || '未知错误';
+        if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key') || errorMsg.toLowerCase().includes('auth')) {
+          errorMsg = '当前选择的模型 API Key 未配置或不正确，请在左侧「模型市场」重新配置。';
+        } else if (errorMsg.includes('ECONNREFUSED') || errorMsg.toLowerCase().includes('fetch')) {
+          errorMsg = '网络连接失败，或者您配置的本地模型未启动。';
+        } else if (errorMsg.includes('500') || errorMsg.includes('JSON')) {
+          errorMsg = '服务端发生了异常，请检查该模型是否可用。';
+        }
+        fullResponse += `\n\n> ❌ **无法回复**: ${errorMsg}`;
+        let displayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
+        aiBox.innerHTML = parseMarkdown(displayResponse);
         scrollToBottom();
         return;
       }
@@ -757,7 +1066,19 @@ async function sendMessage() {
       }
       if (parsed.content) {
         fullResponse += parsed.content;
-        aiBox.innerHTML = parseMarkdown(fullResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
+        
+        // 隐藏已完整闭合的和正在流式生成的记忆标签
+        let displayResponse = fullResponse
+          .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
+          .replace(/\[SAVE_MEMORY:[\s\S]*$/, '');
+          
+        // 如果代码块未闭合，补全它以防 UI 错乱
+        const codeBlockCount = (displayResponse.match(/```/g) || []).length;
+        if (codeBlockCount % 2 !== 0) {
+          displayResponse += '\n```';
+        }
+
+        aiBox.innerHTML = parseMarkdown(displayResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
         scrollToBottom();
       }
     });
@@ -765,14 +1086,19 @@ async function sendMessage() {
     if (err.name === 'AbortError') {
       fullResponse += '\n\n*(已中断)*';
     } else {
-      fullResponse += '\n\n**[发生错误]** ' + err.message;
-      if (window.__toast) window.__toast.error('发送失败: ' + err.message);
+      let errorMsg = err.message || '未知错误';
+      if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key')) {
+        errorMsg = 'API Key 似乎未配置，请前往设置检查。';
+      }
+      fullResponse += '\n\n**[请求失败]** ' + errorMsg;
+      if (window.__toast) window.__toast.error('发送失败: ' + errorMsg);
     }
   } finally {
     isGenerating = false;
     sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
     sendBtn.classList.remove('is-stop');
-    aiBox.innerHTML = parseMarkdown(fullResponse);
+    let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
+    aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
     
     // 为用户消息和 AI 消息动态添加快捷操作栏
     const addActions = (box, text) => {
@@ -802,26 +1128,4 @@ function scrollToBottom() {
   container.scrollTop = container.scrollHeight;
 }
 
-function parseMarkdown(md) {
-  if (!md) return '';
-  let html = escapeHtml(md);
-  
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background: var(--bg-active); padding:12px; border-radius:8px; overflow-x:auto; margin: 8px 0;"><code style="font-family:Consolas,monospace; font-size:13px;">$2</code></pre>');
-  html = html.replace(/`([^`]+)`/g, '<code style="background:var(--bg-active); padding:2px 4px; border-radius:4px; font-family:Consolas,monospace; font-size:0.9em;">$1</code>');
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  html = html.replace(/&gt; (.*?)(?:\n|$)/g, '<blockquote style="border-left: 3px solid var(--primary); color: var(--text-muted); margin: 4px 0; padding-left: 8px;">$1</blockquote>');
-  html = html.replace(/\n/g, '<br/>');
 
-  return html;
-}
-
-function escapeHtml(unsafe) {
-  if (!unsafe) return '';
-  return unsafe
-       .replace(/&/g, "&amp;")
-       .replace(/</g, "&lt;")
-       .replace(/>/g, "&gt;")
-       .replace(/"/g, "&quot;")
-       .replace(/'/g, "&#039;");
-}

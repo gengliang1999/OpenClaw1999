@@ -39,8 +39,9 @@ export async function render(container) {
 
 async function loadData() {
   try {
-    installedSkills = await window.openClaw.skill.getSkills() || [];
-    marketSkills = await window.openClaw.skill.getMarketplace() || [
+    installedSkills = await api.skill.getSkills() || [];
+    const res = await api.skill.getMarketplace();
+    marketSkills = (res && res.items) ? res.items : [
       { id: 'skill-coder', name: '全栈编程助手', description: '精通多语言编程，自动生成代码和定位 Bug。', author: 'OpenClaw', icon: '💻' },
       { id: 'skill-search', name: '深度搜索者', description: '接入搜索引擎，自动抓取多网页信息进行总结。', author: 'OpenClaw', icon: '🔍' },
       { id: 'skill-security', name: '网络安全顾问', description: '精通渗透测试与安全加固，分析代码漏洞并提供修复方案。', author: 'OpenClaw', icon: '🛡️' },
@@ -115,7 +116,7 @@ function renderList(tab) {
 window._installSkill = async (id) => {
   try {
     if(window.__toast) window.__toast.info('正在学习新技能...');
-    await window.openClaw.skill.installSkill(id);
+    await api.skill.installSkill(id);
     if(window.__toast) window.__toast.success('学习成功');
     await loadData();
     renderList('market');
@@ -126,7 +127,7 @@ window._installSkill = async (id) => {
 
 window._uninstallSkill = async (id) => {
   try {
-    await window.openClaw.skill.removeSkill(id);
+    await api.skill.removeSkill(id);
     if(window.__toast) window.__toast.success('已遗忘技能');
     await loadData();
     renderList('installed');

@@ -224,26 +224,39 @@ class SandboxExecutor {
    * 实际执行命令
    * @private
    */
-  _runCommand(command, options = {}) {
+    _runCommand(command, options = {}) {
     return new Promise((resolve, reject) => {
-      const timeout = options.timeout || 30000; // 默认 30 秒超时
+      const timeoutMs = options.timeout || 30000; // 默认 30 秒超时
       const cwd = options.cwd || process.cwd();
       
       // 使用 PowerShell 执行命令
       const proc = spawn('powershell.exe', ['-NoProfile', '-Command', command], {
         cwd,
         windowsHide: true,
-        timeout,
         env: { ...process.env },
       });
 
       let stdout = '';
       let stderr = '';
+      let isTimedOut = false;
+
+      const timer = setTimeout(() => {
+        isTimedOut = true;
+        proc.kill('SIGKILL');
+        if (this.logs.length > 0) {
+          this.logs[this.logs.length - 1].result = 'error';
+          this._saveLogs();
+        }
+        reject(new Error(`沙盒防卡死机制触发：命令执行超时 (${timeoutMs}ms)`));
+      }, timeoutMs);
 
       proc.stdout.on('data', (data) => { stdout += data.toString(); });
       proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
       proc.on('close', (exitCode) => {
+        clearTimeout(timer);
+        if (isTimedOut) return;
+        
         // 更新最后一条日志的结果
         if (this.logs.length > 0) {
           this.logs[this.logs.length - 1].result = exitCode === 0 ? 'success' : 'error';
@@ -259,6 +272,9 @@ class SandboxExecutor {
       });
 
       proc.on('error', (err) => {
+        clearTimeout(timer);
+        if (isTimedOut) return;
+        
         if (this.logs.length > 0) {
           this.logs[this.logs.length - 1].result = 'error';
           this._saveLogs();
