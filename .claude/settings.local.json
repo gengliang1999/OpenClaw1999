@@ -37,7 +37,17 @@
       "Bash(echo \"exit: $?\")",
       "Bash(grep -v \"page-sidebar\\\\|page-main\\\\|page-content\\\\|page-\\\\|\\\\/\\\\*\")",
       "Bash(netstat -ano)",
-      "Bash(taskkill *)"
+      "Bash(taskkill *)",
+      "Bash(mkdir -p \"D:/Code/OpenClawAssistant_Source/.claude/skills\")",
+      "Bash(mv product-manager.md 产品经理.md)",
+      "Bash(mv architect.md 架构师.md)",
+      "Bash(mv software-engineer.md 软件工程师.md)",
+      "Bash(mv test-engineer.md 测试工程师.md)",
+      "Bash(mv frontend-engineer.md 前端工程师.md)"
+    ],
+    "additionalDirectories": [
+      "D:\\Code\\OpenClawAssistant_Source\\.claude",
+      "D:\\Code\\OpenClawAssistant_Source\\.claude\\skills"
     ]
   }
 }
