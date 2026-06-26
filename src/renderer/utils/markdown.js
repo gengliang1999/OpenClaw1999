@@ -24,6 +24,11 @@ export function parseMarkdown(md) {
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   // 引用
   html = html.replace(/&gt; (.*?)(?:\n|$)/g, '<blockquote style="border-left: 3px solid var(--primary); color: var(--text-muted); margin: 4px 0; padding-left: 8px;">$1</blockquote>');
+  // 思考过程块 <think> 或 <thought>
+  html = html.replace(/&lt;(?:think|thought)&gt;([\s\S]*?)&lt;\/(?:think|thought)&gt;/gi, function(match, content) {
+    return `<details style="margin: 8px 0; padding: 12px; background: var(--bg-active); border-radius: 8px; border-left: 3px solid #a259ff; cursor: pointer;"><summary style="color: #a259ff; font-weight: 600; font-size: 13px; user-select: none;">🤔 AI 思考过程</summary><div style="margin-top: 8px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap;">${content}</div></details>`;
+  });
+
   // 换行
   html = html.replace(/\n/g, '<br/>');
 

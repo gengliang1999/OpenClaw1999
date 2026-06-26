@@ -323,6 +323,42 @@ module.exports = function(dependencies) {
     }
   });
 
+  /** 流式重写提示词 */
+  router.post('/prompt-optimize', async (req, res) => {
+    try {
+      const { message, modelId } = req.body;
+      if (!message) return res.status(400).json({ message: '消息不能为空' });
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      const systemPrompt = `你现在是全球顶尖的 Prompt 工程师。用户的原始需求可能非常简短或粗糙，你的任务是将其“扩写”为一段极其专业、详细、逻辑严密且具有专家级框架（如角色设定、任务目标、思维链要求、约束条件）的高级提示词。
+规则：
+1. 只输出最终优化好的提示词，绝不要在开头或结尾输出“好的，这是优化后的提示词”等任何废话。
+2. 输出的内容必须直接是对 AI 说的话（即可以直接被用作发送给其他 AI 的指令）。
+3. 提示词结构必须专业，推荐使用 Markdown（如 # 角色, # 任务, # 约束）。`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `请优化以下原始需求：\n${message}` }
+      ];
+
+      const abortController = new AbortController();
+
+      await modelManager.chatStream(messages, { modelId, temperature: 0.5, signal: abortController.signal }, (chunk) => {
+        res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+      });
+
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error('[流式提示词优化] 错误:', error);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+      res.end();
+    }
+  });
+
   
   return router;
 };

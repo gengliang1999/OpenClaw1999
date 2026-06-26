@@ -8,13 +8,13 @@ import { api } from './utils/api.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
-  { path: 'chat',    label: '新建对话', shortLabel: '新建', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', module: './pages/chat.js' },
+  { path: 'chat', label: '新建对话', shortLabel: '新建', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>', module: './pages/chat.js' },
   { path: 'experts', label: '专家中心', shortLabel: '专家', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>', module: './pages/experts.js' },
-  { path: 'memory',  label: '核心记忆', shortLabel: '记忆', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', module: './pages/memory.js' },
-  { path: 'skills',  label: '技能库',   shortLabel: '技能', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', module: './pages/skills.js' },
+  { path: 'memory', label: '核心记忆', shortLabel: '记忆', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', module: './pages/memory.js' },
+  { path: 'skills', label: '技能库', shortLabel: '技能', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', module: './pages/skills.js' },
   { path: 'plugins', label: '应用市场', shortLabel: '插件', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>', module: './pages/plugins.js' },
-  { path: 'market',  label: '模型市场', shortLabel: '模型', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', module: './pages/market.js' },
-  { path: 'settings',label: '设置',     shortLabel: '设置', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', module: './pages/settings.js' },
+  { path: 'market', label: '模型市场', shortLabel: '模型', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', module: './pages/market.js' },
+  { path: 'settings', label: '设置', shortLabel: '设置', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', module: './pages/settings.js' },
 ];
 
 // 页面模块缓存
@@ -45,13 +45,13 @@ function bindGlobalShortcuts() {
         modelSelectionModal.style.display = 'none';
         return;
       }
-      
+
       const attachmentPreview = document.getElementById('attachmentPreview');
       if (attachmentPreview && attachmentPreview.style.display === 'flex') {
         document.getElementById('removeAttachmentBtn')?.click();
         return;
       }
-      
+
       const quotePreview = document.getElementById('quotePreview');
       if (quotePreview && quotePreview.style.display === 'flex') {
         document.getElementById('closeQuoteBtn')?.click();
@@ -64,26 +64,26 @@ function bindGlobalShortcuts() {
         cloudConfigModal.classList.remove('visible');
         return;
       }
-      
+
       const installGuideModal = document.getElementById('installGuideModal');
       if (installGuideModal && installGuideModal.style.display === 'flex') {
         installGuideModal.style.display = 'none';
         return;
       }
-      
+
       const localModelsModal = document.getElementById('localModelsModal');
       if (localModelsModal && localModelsModal.style.display === 'flex') {
         localModelsModal.style.display = 'none';
         return;
       }
-      
+
       // 全局上下文菜单
       const contextMenus = document.querySelectorAll('.conv-context-menu');
       if (contextMenus.length > 0) {
         contextMenus.forEach(m => m.remove());
         return;
       }
-      
+
       // 重命名输入框取消
       const renameInputs = document.querySelectorAll('.rename-input-container');
       if (renameInputs.length > 0) {
@@ -312,7 +312,7 @@ async function loadSidebarConversations(query = '') {
   let conversations = [];
   try {
     conversations = await api.chat.getConversations() || [];
-  } catch(e) { conversations = []; }
+  } catch (e) { conversations = []; }
 
   // 按搜索关键词过滤
   if (query) {
@@ -351,7 +351,8 @@ async function loadSidebarConversations(query = '') {
       <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.title || '新对话')}</span>
       ${batchMode ? '' : '<span class="sidebar-conv-more" data-conv-id="' + c.id + '" style="flex-shrink:0; opacity:0; cursor:pointer; font-size:16px; color:var(--text-muted); padding:0 4px; transition:opacity 0.15s; letter-spacing:1px;" title="更多">⋯</span>'}
     </div>
-  `;}).join('');
+  `;
+  }).join('');
 
   // 批量模式事件
   if (batchMode) {
@@ -379,7 +380,7 @@ async function loadSidebarConversations(query = '') {
       const ok = await showModal({ title: '批量删除', content: `确定将选中的 ${batchSelected.size} 个会话移入垃圾篓吗？`, confirmText: '删除', danger: true });
       if (!ok) return;
       for (const id of batchSelected) {
-        try { await api.chat.moveToTrash(id); } catch(e) {}
+        try { await api.chat.moveToTrash(id); } catch (e) { }
         if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(id);
       }
       window.__toast?.success(`已将 ${batchSelected.size} 个会话移入垃圾篓`);
@@ -549,7 +550,7 @@ async function renameConversationUI(convId) {
     const convs = await api.chat.getConversations();
     const conv = convs.find(c => c.id === convId);
     if (conv) input.value = conv.title || '';
-  } catch(e) {}
+  } catch (e) { }
   input.focus();
   input.select();
 
@@ -564,7 +565,7 @@ async function renameConversationUI(convId) {
         await api.chat.renameConversation(convId, newTitle);
         window.__toast?.success('已重命名');
         loadSidebarConversations(sidebarConvSearchQuery);
-      } catch(e) { window.__toast?.error('重命名失败: ' + e.message); }
+      } catch (e) { window.__toast?.error('重命名失败: ' + e.message); }
       close();
     };
     input.onkeydown = (e) => { if (e.key === 'Enter') document.getElementById('renameConfirm').click(); };
@@ -667,7 +668,7 @@ async function doExport(convId, format) {
         break;
     }
     window.__toast?.success('导出成功');
-  } catch(e) {
+  } catch (e) {
     console.error('导出失败:', e);
     window.__toast?.error('导出失败: ' + e.message);
   }
@@ -927,7 +928,7 @@ async function deleteConversationUI(convId) {
     loadSidebarConversations(sidebarConvSearchQuery);
     if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(convId);
     updateTrashBadge();
-  } catch(e) {
+  } catch (e) {
     window.__toast?.error('删除失败: ' + e.message);
   }
 }
@@ -940,7 +941,7 @@ async function updateTrashBadge() {
     const res = await api.chat.getTrashCount();
     const btn = document.getElementById('sidebarTrashBtn');
     if (btn) btn.style.display = (res && res.count > 0) ? 'block' : 'none';
-  } catch(e) {}
+  } catch (e) { }
 }
 
 /**
@@ -950,7 +951,7 @@ async function showTrashPanel() {
   let trashItems = [];
   try {
     trashItems = await api.chat.getTrash() || [];
-  } catch(e) {}
+  } catch (e) { }
 
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
@@ -997,7 +998,7 @@ async function showTrashPanel() {
       window.__toast?.success('垃圾篓已清空');
       close();
       updateTrashBadge();
-    } catch(e) { window.__toast?.error('操作失败: ' + e.message); }
+    } catch (e) { window.__toast?.error('操作失败: ' + e.message); }
   });
 
   box.querySelectorAll('[data-action="restore"]').forEach(btn => {
@@ -1008,7 +1009,7 @@ async function showTrashPanel() {
         close();
         loadSidebarConversations(sidebarConvSearchQuery);
         updateTrashBadge();
-      } catch(e) { window.__toast?.error('恢复失败: ' + e.message); }
+      } catch (e) { window.__toast?.error('恢复失败: ' + e.message); }
     });
   });
 
@@ -1023,7 +1024,7 @@ async function showTrashPanel() {
         if (typeof window.__onConvDeleted === 'function') window.__onConvDeleted(btn.dataset.id);
         close();
         updateTrashBadge();
-      } catch(e) { window.__toast?.error('删除失败: ' + e.message); }
+      } catch (e) { window.__toast?.error('删除失败: ' + e.message); }
     });
   });
 }
@@ -1037,7 +1038,7 @@ export function refreshSidebarConversations() {
 
 function escapeHtml(s) {
   if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /**
@@ -1086,7 +1087,7 @@ function bindRouteEvents() {
     resizer.addEventListener('mousedown', (e) => {
       // 避免左键以外点击
       if (e.button !== 0) return;
-      
+
       isResizing = true;
       resizer.classList.add('active');
       sidebar.style.transition = 'none'; // 拖动时禁用动画以防卡顿
@@ -1097,10 +1098,10 @@ function bindRouteEvents() {
     document.addEventListener('mousemove', (e) => {
       if (!isResizing) return;
       let newWidth = e.clientX;
-      
+
       if (sidebar.classList.contains('collapsed')) {
-        // 如果处于收缩状态，向右拖动超过 150 像素则展开
-        if (newWidth > 150) {
+        // 如果处于收缩状态，向右拖动超过 80 像素则展开
+        if (newWidth > 80) {
           sidebar.classList.remove('collapsed');
           localStorage.removeItem('sidebarCollapsed');
         } else {
@@ -1115,10 +1116,10 @@ function bindRouteEvents() {
           return;
         }
       }
-      
+
       // 设定最小和最大拖动范围
-      if (newWidth < 180) newWidth = 180;
-      if (newWidth > 600) newWidth = 600;
+      if (newWidth < 150) newWidth = 150;
+      if (newWidth > 220) newWidth = 220;
       sidebar.style.width = newWidth + 'px';
     });
 
@@ -1252,10 +1253,10 @@ window.refreshSidebarConversations = refreshSidebarConversations;
 // ==================== 全局 Modal 交互优化 ====================
 // 支持 ESC 按键和点击背景关闭所有弹窗
 const globalModalIds = [
-  'modelSelectionModal', 
-  'tuningModal', 
-  'installGuideModal', 
-  'localModelsModal', 
+  'modelSelectionModal',
+  'tuningModal',
+  'installGuideModal',
+  'localModelsModal',
   'cloudConfigModal'
 ];
 

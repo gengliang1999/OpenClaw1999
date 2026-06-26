@@ -109,6 +109,48 @@ export const api = {
     permanentDelete: (trashId) => apiRequest(`/chat/trash/${trashId}`, { method: 'DELETE' }),
     emptyTrash: () => apiRequest('/chat/trash', { method: 'DELETE' }),
     clearHistory: (conversationId) => apiRequest(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`, { method: 'DELETE' }),
+    optimizePromptStream: (message, modelId, onData) => {
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+
+      const promise = (async () => {
+        const response = await fetch(`${API_BASE}/chat/prompt-optimize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, modelId }),
+          signal,
+        });
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({ message: '请求失败' }));
+          throw new Error(errBody.message || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+              if (!dataStr) continue;
+              try {
+                const parsed = JSON.parse(dataStr);
+                onData(parsed);
+              } catch (e) {
+                console.error('SSE JSON 解析错误:', e, dataStr);
+              }
+            }
+          }
+        }
+      })();
+      return { promise, abort: () => abortController.abort() };
+    }
   },
   // ===== 模型相关 =====
   model: {

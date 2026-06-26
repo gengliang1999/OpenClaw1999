@@ -129,7 +129,7 @@ body {
 
 /* 侧边栏(macOS 访达风格) */
 .sidebar {
-  width: max-content; /* Width adapted to content and adequate white space */
+  width: 200px; /* 默认固定宽度，保持修长美观 */
   min-width: 90px;
   height: 100%;
   background: var(--bg-panel); /* Darken background */
@@ -1941,7 +1941,7 @@ input, textarea, [contenteditable] {
 }
 
 .doubao-textarea {
-  flex: 1;
+  width: 100%;
   border: none;
   background: transparent;
   outline: none;
@@ -1953,6 +1953,8 @@ input, textarea, [contenteditable] {
   font-family: inherit;
   line-height: 1.6;
   padding: 4px 0;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .doubao-textarea::placeholder {

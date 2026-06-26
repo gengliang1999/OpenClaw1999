@@ -146,18 +146,19 @@ export async function render(container) {
 
               <!-- 右侧：发送组 -->
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div id="tokenCircleBtn" class="doubao-token-ring" title="上下文占用 (点击压缩)" style="background: transparent;">
-                  <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
-                    <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-color)" stroke-width="2.5"></circle>
-                    <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: all 0.4s ease;"></circle>
-                  </svg>
-                  <span style="position: absolute; display: flex; align-items: center; justify-content: center;">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-muted);"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
-                  </span>
-                </div>
+                <button id="tokenCircleBtn" class="btn-ghost" title="上下文压缩" style="display: flex; align-items: center; gap: 6px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: var(--text-secondary); height: 32px;">
+                  <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
+                    <svg viewBox="0 0 36 36" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
+                      <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--primary)" stroke-width="4" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: stroke-dashoffset 0.4s ease;"></circle>
+                    </svg>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: inherit; z-index: 1;"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
+                  </div>
+                  压缩
+                </button>
 
-                <button id="optimizePromptBtn" class="btn-ghost" title="AI 提示词魔法优化 🪄" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: #a259ff;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
+                <button id="optimizePromptBtn" class="btn-ghost" title="提示词优化" style="display: flex; align-items: center; gap: 5px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: #a259ff; height: 32px; background: rgba(162, 89, 255, 0.08);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
                   魔法优化
                 </button>
                 <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
@@ -443,46 +444,55 @@ export async function render(container) {
   });
 
   // 提示词魔法优化按钮
-  document.getElementById('optimizePromptBtn').addEventListener('click', () => {
+  document.getElementById('optimizePromptBtn').addEventListener('click', async () => {
     const input = document.getElementById('chatInput');
+    const btn = document.getElementById('optimizePromptBtn');
     let text = input.value.trim();
     if (!text) {
-      if (window.__toast) window.__toast.info('请先输入需要优化的原始提示词');
+      if (window.__toast) window.__toast.info('请先输入需要优化的原始需求');
       return;
     }
     
-    // 世界上最好的提示词优化框架 (动态 CO-STAR 结构 + CoT)
-    const optimized = `# 核心任务指令 (Task)
-请你扮演全球顶尖的**资深领域专家与架构师 (Role)**，请仔细阅读并深刻理解我的需求，运用你庞大的知识库与第一性原理来解答。
-
-# 任务背景与目标 (Context & Objective)
-用户原始需求如下：
-\`\`\`text
-${text}
-\`\`\`
-你的目标是：提供一个**极度精确、深刻且可直接落地的**解决方案或回答。
-
-# 思考过程 (Chain of Thought)
-在给出最终答案前，你必须进行系统性的深度思考，请在 \`<thought>\` 标签内展露你的推理过程：
-1. **需求拆解**：明确该任务的核心痛点与潜在隐藏需求。
-2. **多维评估**：思考 2-3 种不同的解决方案，并对比它们的优劣（例如性能、成本、易用性、长期可维护性）。
-3. **边缘情况**：考虑可能的极端情况、潜在风险及防御性措施。
-4. **确定最优解**：基于综合评估，选定最佳方案并构思结构。
-
-# 执行规则与约束 (Style, Tone & Constraints)
-- **专业与严谨**：拒绝废话、空洞的套话，用数据、代码或确凿的逻辑说话。
-- **结构化输出**：使用清晰的 Markdown 结构（多级标题、加粗重点、清晰的无序/有序列表）。
-- **实操导向**：如果是代码或技术问题，必须提供**完整、健壮、包含关键注释且无语法错误**的代码实现；如果是分析或文案，必须逻辑严密、论点清晰。
-- **视觉友好**：适当使用表格对比优劣，或用引用区块 (\`>\`) 强调核心警示信息。
-
-# 正式输出 (Response)
-请严格遵循上述框架，先输出思考过程，再输出你的正式回答：`;
+    // 禁用按钮并显示施法中状态
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<svg style="animation: spin 1s linear infinite;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> <span style="font-size: 13px">魔法注入中...</span>`;
+    btn.disabled = true;
+    input.value = ''; // 清空输入框准备流式写入
     
-    input.value = optimized;
-    // 触发自适应高度调整
-    input.dispatchEvent(new Event('input'));
-    input.focus();
-    if (window.__toast) window.__toast.success('✨ 提示词已注入 CO-STAR 与 Chain-of-Thought 灵魂！');
+    // 检查是否存在 spin 动画，如果没有则动态注入
+    if (!document.getElementById('spinKeyframe')) {
+      const style = document.createElement('style');
+      style.id = 'spinKeyframe';
+      style.innerHTML = `@keyframes spin { 100% { transform: rotate(360deg); } }`;
+      document.head.appendChild(style);
+    }
+    
+    try {
+      await new Promise((resolve, reject) => {
+        const { promise } = api.chat.optimizePromptStream(text, activeModelId, (parsed) => {
+          if (parsed.type === 'chunk') {
+            input.value += parsed.content;
+            input.dispatchEvent(new Event('input')); // 触发自适应高度调整
+            input.scrollTop = input.scrollHeight; // 滚动到底部
+          } else if (parsed.type === 'error') {
+            reject(new Error(parsed.message));
+          } else if (parsed.type === 'done') {
+            resolve();
+          }
+        });
+        
+        promise.catch(reject);
+      });
+      
+      input.focus();
+      if (window.__toast) window.__toast.success('✨ 提示词已注入大模型灵魂！');
+    } catch (err) {
+      if (window.__toast) window.__toast.error('优化失败: ' + err.message);
+      input.value = text; // 失败则回退为原文本
+    } finally {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
   });
 
   document.getElementById('sendBtn').addEventListener('click', sendMessage);
