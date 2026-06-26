@@ -211,7 +211,7 @@ export default toast;
  * 沙盒执行代码确认框
  * 用于在助手尝试执行系统命令或脚本前，拦截并请求用户授权
  */
-import { escapeHtml } from '../utils.js';
+import { escapeHtml } from './utils.js';
 export function showSandboxConfirm(command, details = '') {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
@@ -327,6 +327,103 @@ export function showSandboxConfirm(command, details = '') {
         requestAnimationFrame(() => {
             overlay.style.opacity = '1';
             modal.style.transform = 'translateY(0) scale(1)';
+        });
+    });
+}
+export function showPrompt(message, defaultValue = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.background = 'rgba(0, 0, 0, 0.5)';
+        overlay.style.backdropFilter = 'blur(6px)';
+        overlay.style.zIndex = '100001';
+        overlay.style.display = 'flex';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.opacity = '0';
+        overlay.style.transition = 'opacity 0.2s ease';
+        const modal = document.createElement('div');
+        modal.className = 'modal-box';
+        modal.style.background = 'var(--bg-card, #ffffff)';
+        modal.style.borderRadius = '16px';
+        modal.style.boxShadow = '0 20px 40px rgba(0, 0, 0, 0.2)';
+        modal.style.width = '90%';
+        modal.style.maxWidth = '420px';
+        modal.style.padding = '24px';
+        modal.style.transform = 'translateY(20px) scale(0.95)';
+        modal.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        modal.style.color = 'var(--text-main, #333)';
+        const msgEl = document.createElement('p');
+        msgEl.textContent = message;
+        msgEl.style.margin = '0 0 16px 0';
+        msgEl.style.fontSize = '16px';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = defaultValue;
+        input.style.width = '100%';
+        input.style.padding = '12px';
+        input.style.borderRadius = '8px';
+        input.style.border = '1px solid var(--border-light, #ddd)';
+        input.style.background = 'var(--bg-input, #f9f9f9)';
+        input.style.color = 'var(--text-main, #333)';
+        input.style.fontSize = '14px';
+        input.style.outline = 'none';
+        input.style.marginBottom = '24px';
+        input.style.boxSizing = 'border-box';
+        input.onfocus = () => input.style.borderColor = 'var(--theme-primary, #6c63ff)';
+        input.onblur = () => input.style.borderColor = 'var(--border-light, #ddd)';
+        const footer = document.createElement('div');
+        footer.style.display = 'flex';
+        footer.style.justifyContent = 'flex-end';
+        footer.style.gap = '12px';
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = 'ȡ��';
+        btnCancel.className = 'btn';
+        btnCancel.style.padding = '8px 16px';
+        btnCancel.style.borderRadius = '8px';
+        btnCancel.style.border = '1px solid var(--border-light, #ddd)';
+        btnCancel.style.background = 'transparent';
+        btnCancel.style.color = 'var(--text-main, #333)';
+        btnCancel.style.cursor = 'pointer';
+        const btnConfirm = document.createElement('button');
+        btnConfirm.textContent = 'ȷ��';
+        btnConfirm.className = 'btn btn-primary';
+        btnConfirm.style.padding = '8px 16px';
+        btnConfirm.style.borderRadius = '8px';
+        btnConfirm.style.border = 'none';
+        btnConfirm.style.background = 'var(--theme-primary, #6c63ff)';
+        btnConfirm.style.color = '#fff';
+        btnConfirm.style.cursor = 'pointer';
+        const close = (result) => {
+            overlay.style.opacity = '0';
+            modal.style.transform = 'translateY(20px) scale(0.95)';
+            setTimeout(() => document.body.removeChild(overlay), 300);
+            resolve(result);
+        };
+        btnCancel.onclick = () => close(null);
+        btnConfirm.onclick = () => close(input.value);
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter')
+                close(input.value);
+            if (e.key === 'Escape')
+                close(null);
+        };
+        footer.appendChild(btnCancel);
+        footer.appendChild(btnConfirm);
+        modal.appendChild(msgEl);
+        modal.appendChild(input);
+        modal.appendChild(footer);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+            modal.style.transform = 'translateY(0) scale(1)';
+            input.focus();
         });
     });
 }

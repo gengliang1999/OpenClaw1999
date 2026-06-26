@@ -31,7 +31,7 @@ export async function render(container) {
       <h2 style="margin: 0; font-size: 24px; font-weight: 600;">⚙️ 通用设置</h2>
     </div>
     
-    <div class="page-content" style="padding-top: 24px;">
+    <div class="page-content" style="padding-top: 24px; flex: 1; overflow-y: auto; overflow-x: hidden;">
       <div style="max-width: 640px; display: flex; flex-direction: column; gap: 24px;">
 
         <!-- 存储与路径设置 -->

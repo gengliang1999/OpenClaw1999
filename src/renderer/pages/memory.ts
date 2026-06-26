@@ -6,6 +6,7 @@
 
 import { api } from '../utils.js';
 import { escapeHtml, debounce } from '../utils.js';
+import { showPrompt } from '../components.js';
 
 let memories = [];
 let currentPage = 1;
@@ -63,7 +64,7 @@ export async function render(container) {
     loadData();
   });
 
-  (document.getElementById('addMemoryBtn') as any).addEventListener('click', () => {
+  (document.getElementById('addMemoryBtn') as any).addEventListener('click', async () => {
     const content = prompt('请输入要让助手强制记住的事实或偏好：');
     if (content && content.trim()) {
       addMemory(content.trim());

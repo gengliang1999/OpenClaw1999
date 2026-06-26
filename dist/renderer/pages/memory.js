@@ -56,7 +56,7 @@ export async function render(container) {
         currentPage++;
         loadData();
     });
-    document.getElementById('addMemoryBtn').addEventListener('click', () => {
+    document.getElementById('addMemoryBtn').addEventListener('click', async () => {
         const content = prompt('请输入要让助手强制记住的事实或偏好：');
         if (content && content.trim()) {
             addMemory(content.trim());

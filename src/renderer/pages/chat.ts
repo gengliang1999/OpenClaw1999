@@ -31,7 +31,7 @@ export async function render(container) {
 
   const expertData = localStorage.getItem('activeExpert');
   if (expertData) {
-    try { activeExpert = JSON.parse(expertData); } catch(e) {}
+    try { activeExpert = JSON.parse(expertData); } catch (e) { }
   } else {
     activeExpert = null;
   }
@@ -53,7 +53,7 @@ export async function render(container) {
 
         <!-- 居中区域：模型切换器 (ChatGPT风格) -->
         <div style="flex: 1; display: flex; justify-content: center;">
-          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: var(--radius-md); padding: 6px 12px; font-weight: 600; font-size: 15px;">
+          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; padding: 6px 16px; font-weight: 600; font-size: 14px; background: rgba(120, 120, 150, 0.1); border: 1px solid rgba(120, 120, 150, 0.2); backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(120, 120, 150, 0.2)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(120, 120, 150, 0.1)'; this.style.transform='translateY(0)';">
             <span id="activeModelLabel" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
           </button>
@@ -333,9 +333,9 @@ export async function render(container) {
       mentionPopup.style.display = 'none';
       return;
     }
-    
-    filteredExperts = EXPERTS.filter(exp => 
-      exp.name.toLowerCase().includes(mentionQuery.toLowerCase()) || 
+
+    filteredExperts = EXPERTS.filter(exp =>
+      exp.name.toLowerCase().includes(mentionQuery.toLowerCase()) ||
       (exp.description && exp.description.toLowerCase().includes(mentionQuery.toLowerCase()))
     );
 
@@ -355,7 +355,7 @@ export async function render(container) {
         </div>
       </div>
     `).join('');
-    
+
     mentionPopup.style.display = 'flex';
 
     // 绑定点击事件
@@ -380,20 +380,20 @@ export async function render(container) {
     }
     mentionActive = false;
     renderMentionPopup();
-    
+
     // 激活专家
     activeExpert = expert;
     localStorage.setItem('activeExpert', JSON.stringify(expert));
     updateExpertIndicator();
     if (window.__toast) window.__toast.success(`已切换至专家模式：${expert.name}`);
-    
+
     chatInput.focus();
   };
 
   chatInput.addEventListener('input', (e) => {
     const val = chatInput.value;
     const lastAtIndex = val.lastIndexOf('@');
-    
+
     if (lastAtIndex !== -1) {
       // 检查 @ 之后是否有空格，如果有空格则取消激活
       const afterAt = val.substring(lastAtIndex + 1);
@@ -453,13 +453,13 @@ export async function render(container) {
       if (window.__toast) window.__toast.info('请先输入需要优化的原始需求');
       return;
     }
-    
+
     // 禁用按钮并显示施法中状态
     const originalHtml = btn.innerHTML;
     btn.innerHTML = `<svg style="animation: spin 1s linear infinite;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> <span style="font-size: 13px">魔法注入中...</span>`;
     btn.disabled = true;
     input.value = ''; // 清空输入框准备流式写入
-    
+
     // 检查是否存在 spin 动画，如果没有则动态注入
     if (!(document.getElementById('spinKeyframe') as any)) {
       const style = (document.createElement('style') as any);
@@ -467,7 +467,7 @@ export async function render(container) {
       style.innerHTML = `@keyframes spin { 100% { transform: rotate(360deg); } }`;
       document.head.appendChild(style);
     }
-    
+
     try {
       await new Promise((resolve, reject) => {
         const { promise } = api.chat.optimizePromptStream(text, activeModelId, (parsed) => {
@@ -481,10 +481,10 @@ export async function render(container) {
             resolve();
           }
         });
-        
+
         promise.catch(reject);
       });
-      
+
       input.focus();
       if (window.__toast) window.__toast.success('✨ 提示词已注入大模型灵魂！');
     } catch (err) {
@@ -512,20 +512,20 @@ export async function render(container) {
         if (window.__toast) window.__toast.success('当前上下文已是最佳状态，无需压缩');
         return;
       }
-      
+
       // 删除前一半的消息 (保留最新的)
       const toDeleteCount = Math.floor(history.length / 2);
       for (let i = 0; i < toDeleteCount; i++) {
-         if (history[i].id) {
-            await api.chat.deleteMessage(history[i].id).catch(e => console.error(e));
-         }
+        if (history[i].id) {
+          await api.chat.deleteMessage(history[i].id).catch(e => console.error(e));
+        }
       }
-      
+
       // 更新前端 token 模拟使用量
       tokenUsage = Math.max(0, tokenUsage - Math.floor(tokenUsage * 0.5));
       updateTokenUsage();
       if (window.__toast) window.__toast.success(`上下文压缩完成！已清理 ${toDeleteCount} 条早期记忆`);
-    } catch(e) {
+    } catch (e) {
       if (window.__toast) window.__toast.error('上下文压缩失败');
       console.error(e);
     }
@@ -545,7 +545,7 @@ export async function render(container) {
         tokenUsage = 0;
         updateTokenUsage();
         if (window.__toast) window.__toast.success('上下文记忆已彻底清空');
-      } catch(e) {
+      } catch (e) {
         if (window.__toast) window.__toast.error('清空上下文失败');
       }
     }
@@ -563,9 +563,9 @@ export async function render(container) {
       if (window.__toast) window.__toast.info('请在屏幕上框选截图区域...');
       // 隐藏窗口以便截图
       await window.openClaw.system.hide();
-      
+
       const dataUrl = await window.openClaw.system.captureScreenArea();
-      
+
       // 截图完成后重新显示窗口
       await window.openClaw.system.show();
 
@@ -613,13 +613,13 @@ export async function render(container) {
 
   // 模型 Modal 逻辑
   (document.getElementById('modelModalBtn') as any).addEventListener('click', () => {
-     (document.getElementById('modelSelectionModal') as any).style.display = 'flex';
+    (document.getElementById('modelSelectionModal') as any).style.display = 'flex';
   });
   (document.getElementById('closeModelModalBtn') as any).addEventListener('click', () => {
-     (document.getElementById('modelSelectionModal') as any).style.display = 'none';
+    (document.getElementById('modelSelectionModal') as any).style.display = 'none';
   });
   (document.getElementById('modelSelectionModal') as any).addEventListener('click', (e) => {
-     if((e.target as any).id === 'modelSelectionModal') (e.target as any).style.display = 'none';
+    if ((e.target as any).id === 'modelSelectionModal') (e.target as any).style.display = 'none';
   });
 
   // 清理旧模态框并移到 body（绕过 .page 的 CSS animation transform 导致 fixed 定位失效）
@@ -700,7 +700,7 @@ function updateTokenUsage() {
   const percentage = Math.min(tokenUsage, 100);
   const offset = 94 - (percentage * 94 / 100);
   fill.style.strokeDashoffset = offset;
-  
+
   if (tokenUsage < 50) fill.style.stroke = 'var(--success)';
   else if (tokenUsage < 80) fill.style.stroke = 'var(--warning)';
   else fill.style.stroke = 'var(--danger)';
@@ -726,41 +726,46 @@ const cloudVendors = [
 async function loadModels() {
   try {
     const res = await api.model.getModels();
-    
-    // 移除重复模型，保留最新/唯一的 ID
+
+    // 移除重复模型，保留最后一个唯一 ID
     const uniqueMap = new Map();
     (res || []).forEach(m => uniqueMap.set(m.id, m));
     models = Array.from(uniqueMap.values());
-    
+
     // 判断本地模型的更严谨逻辑
     const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
-    
+
     const localModels = models.filter(m => isLocal(m));
     const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
-    
-    // 渲染云端模型（展示为厂商，如果配了多个模型则默认选择第一个）
+
+    // 渲染云端模型（按厂商列表展示，保留 icon/logo）
     const matchedIds = new Set();
     const renderedCloud = cloudVendors.map(vendor => {
       // 检查是否已配置该厂商的模型
       const matchedModels = cloudModelsConfigured.filter(m => {
-         const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) || 
-                       (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
-                       m.id.toLowerCase().includes(vendor.id.toLowerCase());
-         if (match) matchedIds.add(m.id);
-         return match;
+        const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
+          (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+          m.id.toLowerCase().includes(vendor.id.toLowerCase());
+        return match;
       });
-      
+
+      matchedModels.forEach(m => matchedIds.add(m.id));
       const isConfigured = matchedModels.length > 0;
       const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
       const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
-      
+
+      // 状态灯：已配置且可连通的厂商显示绿色呼吸灯
+      const statusLight = isConfigured
+        ? `<span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>`
+        : '';
+
       return `
         <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
            <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}
+             <span>${vendor.icon}</span> ${vendor.name}${statusLight}
            </div>
            <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✓ 已配置' : '去配置 &rarr;'}</span>
+             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✅ 已配置' : '去配置&rarr;'}</span>
              ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
            </div>
         </div>
@@ -772,63 +777,63 @@ async function loadModels() {
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>🔗</span> ${m.name || m.id}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✓ 已配置</span>
+           <span style="color: var(--success);">✅ 已配置</span>
            <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
          </div>
       </div>
     `).join('');
 
-    const renderLocalCard = (m) => `
+    (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloud + renderedCustomCloud;
+    (document.getElementById('localModelsGrid') as any).innerHTML = localModels.length > 0 ? localModels.map(m => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>💻</span> ${m.name}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✓ 已本地化</span>
+           <span style="color: var(--success);">✅ 已本地化</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
-    `;
+    `).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
 
-    (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloud + renderedCustomCloud;
-    (document.getElementById('localModelsGrid') as any).innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
-    
     // 绑定弹窗内模型点击
     document.querySelectorAll('.model-select-card').forEach(card => {
-       card.addEventListener('click', async () => {
-          const isConfigured = card.dataset.configured === 'true';
-          const vendorId = card.dataset.vendor;
-          const id = card.dataset.id;
-          
-          if (!isConfigured && vendorId) {
-            // 未配置，跳转至模型市场配置
-            (document.getElementById('modelSelectionModal') as any).style.display = 'none';
-            if (window.navigateTo) {
-              window.navigateTo('market', { openConfig: vendorId });
-            }
-            return;
-          }
+      card.addEventListener('click', async () => {
+        const isConfigured = card.dataset.configured === 'true';
+        const vendorId = card.dataset.vendor;
 
-          activeModelId = id;
-          const modelObj = models.find(x => x.id === activeModelId);
-          if(modelObj) {
-            (document.getElementById('activeModelLabel') as any).textContent = modelObj.name;
-          } else {
-            // 如果是按厂商展示的，我们通过 DOM 更新显示名字
-            const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
-            (document.getElementById('activeModelLabel') as any).textContent = nameEl;
-          }
-          
-          // 通知后端更新 activeModelId
-          if (api.model && api.model.setActiveModel) {
-            await api.model.setActiveModel(id).catch(e=>console.error(e));
-          }
-
+        if (!isConfigured && vendorId) {
+          // 未配置，跳转至模型市场配置
           (document.getElementById('modelSelectionModal') as any).style.display = 'none';
-          if(window.__toast) window.__toast.success(`已切换为: ${modelObj?.name || id}`);
-       });
+          if (window.navigateTo) {
+            window.navigateTo('market', { openConfig: vendorId });
+          }
+          return;
+        }
+
+        const id = card.getAttribute('data-id');
+        activeModelId = id;
+        const modelObj = models.find(x => x.id === activeModelId);
+        if (modelObj) {
+          (document.getElementById('activeModelLabel') as any).textContent = modelObj.name;
+        } else {
+          // 如果是按厂商展示的，我们通过 DOM 更新显示名字
+          const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
+          (document.getElementById('activeModelLabel') as any).textContent = nameEl;
+        }
+
+        // 通知后端更新 activeModelId
+        if (api.model && api.model.setActiveModel) {
+          await api.model.setActiveModel(id).catch(e => console.error(e));
+        }
+
+        (document.getElementById('modelSelectionModal') as any).style.display = 'none';
+        if (window.__toast) window.__toast.success(`已切换为: ${modelObj?.name || id}`);
+      });
     });
 
     const activeRes = await api.model.getActiveModel();
@@ -837,17 +842,18 @@ async function loadModels() {
     } else if (models.length > 0) {
       activeModelId = models[0].id;
     }
-    
+
     const initialModel = models.find(x => x.id === activeModelId);
-    if(initialModel) {
-       (document.getElementById('activeModelLabel') as any).textContent = initialModel.name;
+    if (initialModel) {
+      (document.getElementById('activeModelLabel') as any).textContent = initialModel.name;
     } else if (activeModelId) {
-       (document.getElementById('activeModelLabel') as any).textContent = activeModelId;
+      (document.getElementById('activeModelLabel') as any).textContent = activeModelId;
     }
   } catch (e) {
     console.error('Failed to load models:', e);
   }
 }
+
 
 async function createNewChat() {
   if (isGenerating) return;
@@ -929,7 +935,7 @@ function renderMessages(messages) {
     } else {
       textContent = m.content || '';
     }
-    
+
     let renderedHtml = m.role === 'user' ? escapeHtml(textContent).replace(/\n/g, '<br/>') : parseMarkdown(textContent);
     renderedHtml += attachmentHtml;
 
@@ -951,7 +957,7 @@ function renderMessages(messages) {
       </div>
     </div>
   `}).join('');
-  
+
   scrollToBottom();
 }
 
@@ -999,13 +1005,13 @@ async function sendMessage() {
   const input = (document.getElementById('chatInput') as any);
   let text = input.value.trim();
   if (!text && !pendingAttachmentData) return;
-  
+
   const quotePreview = (document.getElementById('quotePreview') as any);
   if (quotePreview.style.display === 'flex') {
-     const quoteText = (document.getElementById('quoteText') as any).textContent;
-     text = `> ${quoteText}\n\n${text}`;
-     quotePreview.style.display = 'none';
-     (document.getElementById('quoteText') as any).textContent = '';
+    const quoteText = (document.getElementById('quoteText') as any).textContent;
+    text = `> ${quoteText}\n\n${text}`;
+    quotePreview.style.display = 'none';
+    (document.getElementById('quoteText') as any).textContent = '';
   }
 
   if (!activeConvId) {
@@ -1034,7 +1040,7 @@ async function sendMessage() {
 
   const aiBox = appendMessage('ai');
   let fullResponse = '';
-  
+
   tokenUsage += 5;
   updateTokenUsage();
 
@@ -1042,20 +1048,20 @@ async function sendMessage() {
     let temp = 0.7;
     let extraPrompt = '';
     const depth = (document.getElementById('depthSelect') as any).value;
-    
+
     if (depth === 'low') {
-       temp = 0.8;
-       extraPrompt = '\n\n【系统提示：请尽可能简明扼要、直接了当地回答。】';
+      temp = 0.8;
+      extraPrompt = '\n\n【系统提示：请尽可能简明扼要、直接了当地回答。】';
     } else if (depth === 'high') {
-       temp = 0.3;
-       extraPrompt = '\n\n【系统提示：请进行深思熟虑。一步一步地拆解问题，考虑各种边界情况和深层逻辑，提供详尽且富有洞察力的回答。】';
+      temp = 0.3;
+      extraPrompt = '\n\n【系统提示：请进行深思熟虑。一步一步地拆解问题，考虑各种边界情况和深层逻辑，提供详尽且富有洞察力的回答。】';
     } else if (depth === 'extreme') {
-       temp = 0.1;
-       extraPrompt = '\n\n【系统提示：启用深度推理模式。你必须极其彻底地思考此问题，展开所有可能的推理链条，检查每一个假设，并且以长篇幅的深度分析来回复。】';
+      temp = 0.1;
+      extraPrompt = '\n\n【系统提示：启用深度推理模式。你必须极其彻底地思考此问题，展开所有可能的推理链条，检查每一个假设，并且以长篇幅的深度分析来回复。】';
     }
-    
+
     const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
-    
+
     await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, (parsed) => {
       if (parsed.type === 'error') {
         let errorMsg = parsed.message || '未知错误';
@@ -1077,12 +1083,12 @@ async function sendMessage() {
       }
       if (parsed.content) {
         fullResponse += parsed.content;
-        
+
         // 隐藏已完整闭合的和正在流式生成的记忆标签
         let displayResponse = fullResponse
           .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
           .replace(/\[SAVE_MEMORY:[\s\S]*$/, '');
-          
+
         // 如果代码块未闭合，补全它以防 UI 错乱
         const codeBlockCount = (displayResponse.match(/```/g) || []).length;
         if (codeBlockCount % 2 !== 0) {
@@ -1110,18 +1116,18 @@ async function sendMessage() {
     sendBtn.classList.remove('is-stop');
     let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
     aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
-    
+
     // 为用户消息和 AI 消息动态添加快捷操作栏
     const addActions = (box, text) => {
-       const actionsHtml = `
+      const actionsHtml = `
          <div class="message-actions" style="margin-top: 4px;">
             <button class="action-btn" onclick="window.handleQuote(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">引用</button>
             <button class="action-btn" onclick="window.handleCopy(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">复制</button>
          </div>
        `;
-       const actionsDiv = (document.createElement('div') as any);
-       actionsDiv.innerHTML = actionsHtml;
-       box.parentElement.appendChild(actionsDiv.firstElementChild);
+      const actionsDiv = (document.createElement('div') as any);
+      actionsDiv.innerHTML = actionsHtml;
+      box.parentElement.appendChild(actionsDiv.firstElementChild);
     };
     if (aiBox && aiBox.parentElement) {
       addActions(aiBox, fullResponse);
@@ -1129,7 +1135,7 @@ async function sendMessage() {
     if (userBox && userBox.parentElement) {
       addActions(userBox, text);
     }
-    
+
     window.refreshSidebarConversations?.();
   }
 }

@@ -25,9 +25,9 @@ class MemoryStore {
    */
   async init() {
     if (this._initialized) return;
-    
+
     const SQL = await initSqlJs();
-    
+
     // 确保数据目录存在
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
@@ -120,7 +120,7 @@ class MemoryStore {
   addMemory(content, category = '通用', tags = []) {
     const id = uuidv4();
     const now = new Date().toISOString();
-    
+
     this.db.run(
       'INSERT INTO memories (id, content, category, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [id, content, category, JSON.stringify(tags), now, now]
@@ -155,22 +155,22 @@ class MemoryStore {
     let countSql = 'SELECT COUNT(*) as count FROM memories';
     let querySql = 'SELECT * FROM memories';
     const params = [];
-    
+
     if (category && category !== '全部') {
       countSql += ' WHERE category = ?';
       querySql += ' WHERE category = ?';
       params.push(category);
     }
-    
+
     querySql += ' ORDER BY updated_at DESC LIMIT ? OFFSET ?';
-    
+
     const countResult = this.db.exec(countSql, params);
     const total = countResult.length > 0 ? countResult[0].values[0][0] : 0;
-    
+
     const allParams = [...params, pageSize, (page - 1) * pageSize];
     const results = this.db.exec(querySql, allParams);
     const items = this._parseResults(results, 'memories');
-    
+
     return { items, total, page, pageSize };
   }
 
@@ -193,7 +193,7 @@ class MemoryStore {
   createConversation(title = '新对话') {
     const id = uuidv4();
     const now = new Date().toISOString();
-    
+
     this.db.run(
       'INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)',
       [id, title, now, now]
@@ -285,7 +285,7 @@ class MemoryStore {
     );
 
     let messages = [];
-    try { messages = JSON.parse(item.messages_json || '[]'); } catch(e) {}
+    try { messages = JSON.parse(item.messages_json || '[]'); } catch (e) { }
     for (const msg of messages) {
       this.db.run(
         'INSERT OR REPLACE INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
@@ -350,20 +350,20 @@ class MemoryStore {
   saveMessage(conversationId, role, content) {
     const id = uuidv4();
     const now = new Date().toISOString();
-    
+
     const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
 
     this.db.run(
       'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, conversationId, role, contentStr, now]
     );
-    
+
     // 更新对话的更新时间
     this.db.run(
       'UPDATE conversations SET updated_at = ? WHERE id = ?',
       [now, conversationId]
     );
-    
+
     // 如果是第一条用户消息，自动更新对话标题
     const msgCount = this.db.exec(
       'SELECT COUNT(*) FROM messages WHERE conversation_id = ?',
@@ -373,7 +373,7 @@ class MemoryStore {
       const title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
       this.db.run('UPDATE conversations SET title = ? WHERE id = ?', [title, conversationId]);
     }
-    
+
     this._save();
     return { id, conversation_id: conversationId, role, content, created_at: now };
   }

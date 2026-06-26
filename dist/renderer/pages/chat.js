@@ -50,7 +50,7 @@ export async function render(container) {
 
         <!-- 居中区域：模型切换器 (ChatGPT风格) -->
         <div style="flex: 1; display: flex; justify-content: center;">
-          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: var(--radius-md); padding: 6px 12px; font-weight: 600; font-size: 15px;">
+          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; padding: 6px 16px; font-weight: 600; font-size: 14px; background: rgba(120, 120, 150, 0.1); border: 1px solid rgba(120, 120, 150, 0.2); backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(120, 120, 150, 0.2)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(120, 120, 150, 0.1)'; this.style.transform='translateY(0)';">
             <span id="activeModelLabel" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
           </button>
@@ -709,89 +709,52 @@ const cloudVendors = [
 async function loadModels() {
     try {
         const res = await api.model.getModels();
-        // 移除重复模型，保留最新/唯一的 ID
+        // 移除重复模型，保留最后一个唯一 ID
         const uniqueMap = new Map();
         (res || []).forEach(m => uniqueMap.set(m.id, m));
         models = Array.from(uniqueMap.values());
-        // 判断本地模型的更严谨逻辑
         const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
         const localModels = models.filter(m => isLocal(m));
         const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
-        // 渲染云端模型（展示为厂商，如果配了多个模型则默认选择第一个）
-        const matchedIds = new Set();
-        const renderedCloud = cloudVendors.map(vendor => {
-            // 检查是否已配置该厂商的模型
-            const matchedModels = cloudModelsConfigured.filter(m => {
-                const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
-                    (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
-                    m.id.toLowerCase().includes(vendor.id.toLowerCase());
-                if (match)
-                    matchedIds.add(m.id);
-                return match;
-            });
-            const isConfigured = matchedModels.length > 0;
-            const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
-            const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
-            return `
-        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}
-           </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✓ 已配置' : '去配置 &rarr;'}</span>
-             ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
-           </div>
-        </div>
-      `;
-        }).join('');
-        const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
-        const renderedCustomCloud = customCloudModels.map(m => `
+        // 渲染云端模型（直接展示所有可用模型）
+        const renderedCloud = cloudModelsConfigured.map(m => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-           <span>🔗</span> ${m.name || m.id}
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
+           <span style="display: flex; align-items: center; gap: 6px;">
+             <span>☁️</span> ${m.name || m.id}
+           </span>
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: var(--success, #00c853); border-radius: 50%; box-shadow: 0 0 8px var(--success, #00c853);" title="模型就绪"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✓ 已配置</span>
+           <span>厂商: ${m.provider || '未知'}</span>
            <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
          </div>
       </div>
     `).join('');
         const renderLocalCard = (m) => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-           <span>💻</span> ${m.name}
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
+           <span style="display: flex; align-items: center; gap: 6px;">
+             <span>💻</span> ${m.name || m.id}
+           </span>
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: var(--success, #00c853); border-radius: 50%; box-shadow: 0 0 8px var(--success, #00c853);" title="模型就绪"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✓ 已本地化</span>
+           <span>厂商: ${m.provider || '本地引擎'}</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
     `;
-        document.getElementById('cloudModelsGrid').innerHTML = renderedCloud + renderedCustomCloud;
-        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
+        document.getElementById('cloudModelsGrid').innerHTML = renderedCloud.length > 0 ? renderedCloud : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置可用云端模型</div>';
+        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置可用本地模型</div>';
         // 绑定弹窗内模型点击
         document.querySelectorAll('.model-select-card').forEach(card => {
             card.addEventListener('click', async () => {
-                const isConfigured = card.dataset.configured === 'true';
-                const vendorId = card.dataset.vendor;
-                const id = card.dataset.id;
-                if (!isConfigured && vendorId) {
-                    // 未配置，跳转至模型市场配置
-                    document.getElementById('modelSelectionModal').style.display = 'none';
-                    if (window.navigateTo) {
-                        window.navigateTo('market', { openConfig: vendorId });
-                    }
-                    return;
-                }
+                const id = card.getAttribute('data-id');
                 activeModelId = id;
                 const modelObj = models.find(x => x.id === activeModelId);
                 if (modelObj) {
-                    document.getElementById('activeModelLabel').textContent = modelObj.name;
-                }
-                else {
-                    // 如果是按厂商展示的，我们通过 DOM 更新显示名字
-                    const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
-                    document.getElementById('activeModelLabel').textContent = nameEl;
+                    document.getElementById('activeModelLabel').textContent = modelObj.name || id;
                 }
                 // 通知后端更新 activeModelId
                 if (api.model && api.model.setActiveModel) {
@@ -811,7 +774,7 @@ async function loadModels() {
         }
         const initialModel = models.find(x => x.id === activeModelId);
         if (initialModel) {
-            document.getElementById('activeModelLabel').textContent = initialModel.name;
+            document.getElementById('activeModelLabel').textContent = initialModel.name || initialModel.id;
         }
         else if (activeModelId) {
             document.getElementById('activeModelLabel').textContent = activeModelId;

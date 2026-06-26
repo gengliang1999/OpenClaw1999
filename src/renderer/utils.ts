@@ -6,7 +6,7 @@ export const api = {
     let fetchOpts: any = { method: options.method || 'GET', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } };
     if (options.signal) fetchOpts.signal = options.signal;
     if (options.body && options.method !== 'GET') fetchOpts.body = JSON.stringify(options.body);
-    const res = await fetch(url, fetchOpts);
+    const res = await fetch(`http://127.0.0.1:3721/api${url}`, fetchOpts);
     if (!res.ok) throw new Error(await res.text());
     if (options.stream) return res.body;
     return res.json();
@@ -14,7 +14,144 @@ export const api = {
   post: async (url: string, data: any, options: any = {}) => api.get(url, { ...options, method: 'POST', body: data }),
   put: async (url: string, data: any, options: any = {}) => api.get(url, { ...options, method: 'PUT', body: data }),
   delete: async (url: string, options: any = {}) => api.get(url, { ...options, method: 'DELETE' }),
+
+  // ===== ������� =====
+  chat: {
+    sendMessage: (conversationId, message, modelId) => 
+      api.post('/chat', { conversationId, message, modelId }),
+    sendMessageStream: (conversationId, message, attachment, modelId, systemPrompt, temperature, onData) => {
+      let currentChatController = new AbortController();
+      const signal = currentChatController.signal;
+
+      return (async () => {
+        const response = await fetch('http://127.0.0.1:3721/api/chat/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId, message, attachment, modelId, systemPrompt, temperature }),
+          signal,
+        });
+
+        if (!response.ok) {
+          const errBody = await response.json().catch(() => ({ message: '����ʧ��' }));
+          throw new Error(errBody.message || `HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') return;
+              try {
+                const parsed = JSON.parse(data);
+                if (onData) onData(parsed);
+              } catch (e) {}
+            }
+          }
+        }
+      })();
+    },
+    abortStream: () => {},
+    deleteMessage: (messageId) => api.delete(`/chat/message/${messageId}`),
+    getHistory: (conversationId) => api.get(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
+    getConversations: () => api.get('/chat/conversations'),
+    createConversation: (title) => api.post('/chat/conversations', { title }),
+    deleteConversation: (conversationId) => api.delete(`/chat/conversations/${conversationId}`),
+    renameConversation: (conversationId, title) => api.put(`/chat/conversations/${conversationId}`, { title }),
+    exportConversation: (conversationId) => api.get(`/chat/conversations/${conversationId}/export`),
+    moveToTrash: (conversationId) => api.post(`/chat/conversations/${conversationId}/trash`, {}),
+    getTrash: () => api.get('/chat/trash'),
+    getTrashCount: () => api.get('/chat/trash/count'),
+    restoreFromTrash: (trashId) => api.post(`/chat/trash/${trashId}/restore`, {}),
+    permanentDelete: (trashId) => api.delete(`/chat/trash/${trashId}`),
+    emptyTrash: () => api.delete('/chat/trash'),
+    clearHistory: (conversationId) => api.delete(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
+  },
+  // ===== ģ����� =====
+  model: {
+    getModels: () => api.get('/models'),
+    setActiveModel: (modelId) => api.put('/models/active', { modelId }),
+    getActiveModel: () => api.get('/models/active'),
+    addModel: (config) => api.post('/models', config),
+    removeModel: (modelId) => api.delete(`/models/${modelId}`),
+    getMarketplace: () => api.get('/models/marketplace'),
+    syncLocalModels: () => api.post('/models/sync', {}),
+    preloadModel: (modelId) => api.post('/models/preload', { modelId }),
+    pullModel: (modelId) => api.post('/models/pull', { modelId }, { stream: true }),
+    detectLocal: () => api.get('/models/local-detect'),
+    getOllamaModels: () => api.get('/models/ollama/list'),
+    getLMStudioModels: () => api.get('/models/lmstudio/list'),
+    addLocalModel: (provider, modelId, modelName, setDefault) => api.post('/models/local/add', { provider, modelId, modelName, setDefault }),
+    proxyFetchModels: (baseUrl, apiKey) => api.post('/models/proxy-fetch', { baseUrl, apiKey }),
+    proxyTest: (baseUrl, apiKey) => api.post('/models/proxy-test', { baseUrl, apiKey }),
+    deleteLocalModel: (provider, modelId) => api.delete(`/models/local/${provider}/${encodeURIComponent(modelId)}`),
+  },
+  // ===== ������� =====
+  memory: {
+    getMemories: (page, pageSize, category) => {
+      const params = new URLSearchParams();
+      if (page) params.set('page', page);
+      if (pageSize) params.set('pageSize', pageSize);
+      if (category) params.set('category', category);
+      return api.get(`/memory?${params.toString()}`);
+    },
+    addMemory: (content, category, tags) => api.post('/memory', { content, category, tags }),
+    deleteMemory: (id) => api.delete(`/memory/${id}`),
+    searchMemory: (query, limit) => api.get(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
+  },
+  // ===== �Զ������ =====
+  automation: {
+    captureScreen: () => api.post('/automation/screenshot', {}),
+  },
+  // ===== ɳ����� =====
+  sandbox: {
+    executeCommand: (command, options) => api.post('/sandbox/execute', { command, ...options }),
+    getPermissions: () => api.get('/sandbox/permissions'),
+    grantPermission: (pattern, permanent) => api.post('/sandbox/permissions', { pattern, permanent }),
+    revokePermission: (id) => api.delete(`/sandbox/permissions/${id}`),
+    getLogs: (page, pageSize) => api.get(`/sandbox/logs?page=${page || 1}&pageSize=${pageSize || 50}`),
+  },
+  // ===== ������� =====
+  skill: {
+    getSkills: () => api.get('/skills'),
+    installSkill: (skillId) => api.post('/skills/install', { skillId }),
+    removeSkill: (skillId) => api.delete(`/skills/${skillId}`),
+    getMarketplace: (type, search) => {
+      const params = new URLSearchParams();
+      if (type) params.set('type', type);
+      if (search) params.set('search', search);
+      return api.get(`/skills/marketplace?${params.toString()}`);
+    },
+  },
+  // ===== ������ =====
+  plugin: {
+    getPlugins: () => api.get('/plugins'),
+    installPlugin: (pluginId) => api.post('/plugins/install', { pluginId }),
+    removePlugin: (pluginId) => api.delete(`/plugins/${pluginId}`),
+    getMarketplace: () => api.get('/plugins/marketplace'),
+    updatePluginConfig: (pluginId, config) => api.put(`/plugins/${pluginId}/config`, { config }),
+    connectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/connect`, {}),
+    disconnectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/disconnect`, {}),
+  },
+  // ===== ������� =====
+  settings: {
+    get: (key) => api.get(`/settings/${key}`),
+    set: (key, value) => api.put(`/settings/${key}`, { value }),
+    getAll: () => api.get('/settings'),
+    updateAll: (settings) => api.put('/settings', settings),
+  }
 };
+
 
 // ================== common.ts ==================
 /**
@@ -90,7 +227,6 @@ export function debounce(func, wait) {
  * 支持：代码块、行内代码、粗体、斜体、引用、换行
  */
 
-import { escapeHtml } from './common.js';
 
 /**
  * 将 Markdown 文本转换为 HTML

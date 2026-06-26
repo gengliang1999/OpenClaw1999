@@ -4,7 +4,7 @@
  * 负责创建主窗口、启动本地 API 服务器、注册 IPC 通信处理器
  */
 
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu } = require('electron');
 const path = require('path');
 
 // 本地 API 服务器
