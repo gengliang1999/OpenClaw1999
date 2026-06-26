@@ -4,8 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const systemInfo = require('./system-info');
 const { MODEL_MARKETPLACE } = require('./registry');
-const systemInfo = require('./system-info');
-const { MODEL_MARKETPLACE } = require('./registry');
 
 // ================== chat.ts ==================
 
