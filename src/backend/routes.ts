@@ -4,9 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const systemInfo = require('./system-info');
 const { MODEL_MARKETPLACE } = require('./registry');
+const systemInfo = require('./system-info');
+const { MODEL_MARKETPLACE } = require('./registry');
 
 // ================== chat.ts ==================
-const express = require('express');
 
 module.exports.createChatRouter = function(dependencies) {
   const router = express.Router();
@@ -373,7 +374,6 @@ module.exports.createChatRouter = function(dependencies) {
 
 
 // ================== memory.ts ==================
-const express = require('express');
 
 module.exports.createMemoryRouter = function(dependencies) {
   const router = express.Router();
@@ -453,11 +453,6 @@ module.exports.createMemoryRouter = function(dependencies) {
 
 
 // ================== models.ts ==================
-const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const systemInfo = require('../system-info');
-const { MODEL_MARKETPLACE } = require('../registry');
 
 module.exports.createModelsRouter = function(dependencies) {
   const router = express.Router();
