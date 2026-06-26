@@ -3,7 +3,7 @@
  * 模型大市场 (Model Marketplace) - 国内源极速拉取重构版
  * 采用全屏三级钻取视图交互：Provider -> Series -> Version
  */
-import { api } from '../utils/api.js';
+import { api } from '../utils.js';
 let marketData = [];
 let currentProvider = null;
 let currentSeries = null;

@@ -4,8 +4,8 @@
  * 瀑布流/卡片式的“记忆胶囊”页面
  */
 
-import { api } from '../utils/api.js';
-import { escapeHtml, debounce } from '../utils/common.js';
+import { api } from '../utils.js';
+import { escapeHtml, debounce } from '../utils.js';
 
 let memories = [];
 let currentPage = 1;

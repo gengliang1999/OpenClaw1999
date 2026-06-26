@@ -4,8 +4,8 @@
  * 负责：Hash 路由管理、侧边栏导航、页面切换动画、全局通知
  */
 
-import toast from './components/toast.js';
-import { api } from './utils/api.js';
+import toast from './components.js';
+import { api } from './utils.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
@@ -377,7 +377,7 @@ async function loadSidebarConversations(query = '') {
     });
     (document.getElementById('batchDeleteBtn') as any)?.addEventListener('click', async () => {
       if (batchSelected.size === 0) { window.__toast?.info('请先选择要删除的会话'); return; }
-      const { showModal } = await import('./components/modal.js');
+      const { showModal } = await import('./components.js');
       const ok = await showModal({ title: '批量删除', content: `确定将选中的 ${batchSelected.size} 个会话移入垃圾篓吗？`, confirmText: '删除', danger: true });
       if (!ok) return;
       for (const id of batchSelected) {
@@ -527,7 +527,7 @@ function closeConvContextMenu() {
  * 重命名会话 UI
  */
 async function renameConversationUI(convId) {
-  const { showModal } = await import('./components/modal.js');
+  const { showModal } = await import('./components.js');
   // 创建带输入框的 modal
   const overlay = (document.createElement('div') as any);
   overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
@@ -920,7 +920,7 @@ function formatDate(dateStr) {
  * 删除会话 UI（移入垃圾篓）
  */
 async function deleteConversationUI(convId) {
-  const { showModal } = await import('./components/modal.js');
+  const { showModal } = await import('./components.js');
   const ok = await showModal({ title: '删除对话', content: '确定将此对话移入垃圾篓吗？', confirmText: '删除', danger: true });
   if (!ok) return;
   try {
@@ -991,7 +991,7 @@ async function showTrashPanel() {
   overlay.onclick = (e) => { if ((e.target as any) === overlay) close(); };
 
   (document.getElementById('emptyTrashBtn') as any)?.addEventListener('click', async () => {
-    const { showModal } = await import('./components/modal.js');
+    const { showModal } = await import('./components.js');
     const ok = await showModal({ title: '清空垃圾篓', content: '确定永久删除所有垃圾篓中的对话吗？此操作不可撤销。', confirmText: '清空', danger: true });
     if (!ok) return;
     try {
@@ -1016,7 +1016,7 @@ async function showTrashPanel() {
 
   box.querySelectorAll('[data-action="permanent"]').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const { showModal } = await import('./components/modal.js');
+      const { showModal } = await import('./components.js');
       const ok = await showModal({ title: '永久删除', content: '确定永久删除此对话吗？此操作不可撤销。', confirmText: '永久删除', danger: true });
       if (!ok) return;
       try {

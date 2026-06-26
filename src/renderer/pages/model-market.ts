@@ -4,7 +4,7 @@
  * 采用全屏三级钻取视图交互：Provider -> Series -> Version
  */
 
-import { api } from '../utils/api.js';
+import { api } from '../utils.js';
 
 let marketData = [];
 let currentProvider = null;

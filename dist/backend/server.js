@@ -15,9 +15,9 @@ const { SandboxExecutor } = require('./sandbox');
 const { PermissionManager } = require('./permission-manager');
 const { AutomationController } = require('./automation');
 const systemInfo = require('./system-info');
-const { SKILL_MARKET, AUTO_INSTALL_SKILLS } = require('./data/skill-market');
-const { OPENHUB_REGISTRY } = require('./data/plugin-registry');
-const { MODEL_MARKETPLACE } = require('./data/model-marketplace');
+const { SKILL_MARKET, AUTO_INSTALL_SKILLS } = require('./registry');
+const { OPENHUB_REGISTRY } = require('./registry');
+const { MODEL_MARKETPLACE } = require('./registry');
 /**
  * 创建并启动 API 服务器
  * @param {number} port - 监听端口
@@ -114,13 +114,16 @@ async function createServer(port = 3721, rendererPath) {
         }
     });
     // ========== 聊天 API ==========
-    const chatRouter = require('./routes/chat')({ memoryStore, modelManager, sandbox });
+    const { createChatRouter } = require('./routes');
+    const chatRouter = createChatRouter({ memoryStore, modelManager, sandbox });
     app.use('/api/chat', chatRouter);
     // ========== 模型 API ==========
-    const modelsRouter = require('./routes/models')({ modelManager, dataDir });
+    const { createModelsRouter } = require('./routes');
+    const modelsRouter = createModelsRouter({ modelManager, dataDir });
     app.use('/api/models', modelsRouter);
     // ========== 记忆 API ==========
-    const memoryRouter = require('./routes/memory')({ memoryStore });
+    const { createMemoryRouter } = require('./routes');
+    const memoryRouter = createMemoryRouter({ memoryStore });
     app.use('/api/memory', memoryRouter);
     // ========== 自动化 API ==========
     /** 截屏并返回文件路径 */

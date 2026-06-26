@@ -2,9 +2,9 @@
 /**
  * 聊天页面 v3 — 全宽聊天界面，会话管理已移至主侧边栏
  */
-import { api } from '../utils/api.js';
-import { escapeHtml } from '../utils/common.js';
-import { parseMarkdown } from '../utils/markdown.js';
+import { api } from '../utils.js';
+import { escapeHtml } from '../utils.js';
+import { parseMarkdown } from '../utils.js';
 import { EXPERTS } from './experts.js';
 let activeConvId = null;
 let isGenerating = false;

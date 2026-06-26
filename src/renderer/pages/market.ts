@@ -5,7 +5,7 @@
  * 下方：本地运行时检测 + 模型大市场（可滚动）
  */
 
-import { api } from '../utils/api.js';
+import { api } from '../utils.js';
 
 let settings = {};
 let localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };

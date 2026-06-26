@@ -2,7 +2,7 @@
  * 设置页面 - 通用偏好
  * 模型配置已合并至模型市场
  */
-import { api } from '../utils/api.js';
+import { api } from '../utils.js';
 let settings = {};
 let globalConfig = {};
 export async function render(container) {

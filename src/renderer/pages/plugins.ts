@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { api } from '../utils/api';
+import { api } from '../utils';
 /**
  * 插件管理页面
  * 查看已安装的插件和插件市场

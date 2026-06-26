@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { api } from '../utils/api';
+import { api } from '../utils';
 /**
  * 技能管理页面
  * 技能是包含特定的 Prompt 和执行逻辑的高级插件

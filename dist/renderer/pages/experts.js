@@ -3,8 +3,8 @@
  * 专家角色中心 (Expert Center)
  * 提供各种预设的 AI 专家角色，每个角色绑定了特定的 System Prompt 和参数。
  */
-import { api } from '../utils/api.js';
-import { debounce } from '../utils/common.js';
+import { api } from '../utils.js';
+import { debounce } from '../utils.js';
 export async function render(container) {
     container.style.padding = '0';
     container.style.overflow = 'auto';
