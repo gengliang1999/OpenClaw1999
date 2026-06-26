@@ -2,12 +2,13 @@
   "name": "openclawassistant",
   "version": "1.0.0",
   "description": "OpenClaw 智能助手 - 你的全能 AI 伙伴",
-  "main": "src/main/main.js",
+  "main": "dist/main/main.js",
   "scripts": {
-    "start": "electron . --remote-debugging-port=9222",
-    "dev": "electron . --dev",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
+    "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" dist/",
+    "start": "npm run build:ts && electron . --remote-debugging-port=9222",
+    "dev": "npm run build:ts && electron . --dev",
+    "build": "npm run build:ts && electron-builder",
+    "build:win": "npm run build:ts && electron-builder --win",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",
     "test": "echo \"Error: no test specified\" && exit 1"

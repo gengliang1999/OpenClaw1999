@@ -1,0 +1,134 @@
+// @ts-nocheck
+/**
+ * 模型市场数据
+ * 国内镜像源 GGUF 模型下载列表，用于本地模型一键安装
+ */
+
+const MODEL_MARKETPLACE = [
+  {
+    provider: 'Alibaba',
+    logo: '🅰️',
+    description: '阿里巴巴通义千问系列，中文能力极佳。',
+    series: [
+      {
+        name: 'Qwen 2.5',
+        description: '最新一代 Qwen 模型，代码与数学能力大幅提升。',
+        versions: [
+          { id: 'qwen2.5:7b', name: '7B Instruct', sizeGB: 4.7, paramsBillion: 7, ggufUrl: 'https://modelscope.cn/api/v1/models/qwen/Qwen2.5-7B-Instruct-GGUF/repo?Revision=master&FilePath=qwen2.5-7b-instruct-q4_k_m.gguf' },
+          { id: 'qwen2.5:14b', name: '14B Instruct', sizeGB: 8.5, paramsBillion: 14, ggufUrl: 'https://modelscope.cn/api/v1/models/qwen/Qwen2.5-14B-Instruct-GGUF/repo?Revision=master&FilePath=qwen2.5-14b-instruct-q4_k_m.gguf' },
+          { id: 'qwen2.5:32b', name: '32B Instruct', sizeGB: 19.2, paramsBillion: 32, ggufUrl: 'https://modelscope.cn/api/v1/models/qwen/Qwen2.5-32B-Instruct-GGUF/repo?Revision=master&FilePath=qwen2.5-32b-instruct-q4_k_m.gguf' }
+        ]
+      },
+      {
+        name: 'Qwen 2.5 Coder',
+        description: '专为代码生成优化的模型系列。',
+        versions: [
+          { id: 'qwen2.5-coder:7b', name: '7B Coder', sizeGB: 4.7, paramsBillion: 7, ggufUrl: 'https://modelscope.cn/api/v1/models/qwen/Qwen2.5-Coder-7B-Instruct-GGUF/repo?Revision=master&FilePath=qwen2.5-coder-7b-instruct-q4_k_m.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'DeepSeek',
+    logo: '🐋',
+    description: '深度求索，开源代码模型霸主。',
+    series: [
+      {
+        name: 'DeepSeek Coder V2',
+        description: '当前最强开源代码模型，MoE 架构。',
+        versions: [
+          { id: 'deepseek-coder-v2:16b', name: '16B Lite', sizeGB: 8.9, paramsBillion: 16, ggufUrl: 'https://modelscope.cn/api/v1/models/deepseek-ai/DeepSeek-Coder-V2-Lite-Instruct-GGUF/repo?Revision=main&FilePath=DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'Baichuan',
+    logo: '🌊',
+    description: '百川智能，在中文常识与文本生成上表现卓越。',
+    series: [
+      {
+        name: 'Baichuan 2',
+        description: '新一代开源大语言模型，医疗/法律等专业领域极强。',
+        versions: [
+          { id: 'baichuan2:7b', name: '7B Chat', sizeGB: 4.6, paramsBillion: 7, ggufUrl: 'https://modelscope.cn/api/v1/models/baichuan-inc/Baichuan2-7B-Chat-GGUF/repo?Revision=master&FilePath=baichuan2-7b-chat-q4_k_m.gguf' },
+          { id: 'baichuan2:13b', name: '13B Chat', sizeGB: 8.1, paramsBillion: 13, ggufUrl: 'https://modelscope.cn/api/v1/models/baichuan-inc/Baichuan2-13B-Chat-GGUF/repo?Revision=master&FilePath=baichuan2-13b-chat-q4_k_m.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: '01.AI',
+    logo: '⚡',
+    description: '零一万物，李开复博士创办，拥有极强的双语与代码表现。',
+    series: [
+      {
+        name: 'Yi 1.5',
+        description: '大幅提升代码生成与数学逻辑能力。',
+        versions: [
+          { id: 'yi1.5:9b', name: '9B Chat', sizeGB: 5.6, paramsBillion: 9, ggufUrl: 'https://modelscope.cn/api/v1/models/01ai/Yi-1.5-9B-Chat-GGUF/repo?Revision=master&FilePath=Yi-1.5-9B-Chat-Q4_K_M.gguf' },
+          { id: 'yi1.5:34b', name: '34B Chat', sizeGB: 20.1, paramsBillion: 34, ggufUrl: 'https://modelscope.cn/api/v1/models/01ai/Yi-1.5-34B-Chat-GGUF/repo?Revision=master&FilePath=Yi-1.5-34B-Chat-Q4_K_M.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'InternLM',
+    logo: '🎓',
+    description: '上海人工智能实验室 (书生·浦语系列)。',
+    series: [
+      {
+        name: 'InternLM 2.5',
+        description: '长文本与复杂推理能力登顶开源榜单前列。',
+        versions: [
+          { id: 'internlm2.5:7b', name: '7B Chat', sizeGB: 4.7, paramsBillion: 7, ggufUrl: 'https://modelscope.cn/api/v1/models/Shanghai_AI_Laboratory/internlm2_5-7b-chat-gguf/repo?Revision=main&FilePath=internlm2_5-7b-chat-q4_k_m.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'SenseTime',
+    logo: '👁️',
+    description: '商汤科技 SenseNova 日日新大模型。',
+    series: [
+      {
+        name: 'SenseNova 5.0',
+        description: '极高的人文对话与知识推理表现。',
+        versions: [
+          { id: 'sensenova5:8b', name: '8B Instruct', sizeGB: 5.1, paramsBillion: 8, ggufUrl: 'https://modelscope.cn/api/v1/models/sensetime/SenseNova-5.0-8B-Instruct-GGUF/repo?Revision=main&FilePath=sensenova-5.0-8b-instruct-q4_k_m.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'Meta',
+    logo: '♾️',
+    description: 'Llama 系列，全球最强开源基座。',
+    series: [
+      {
+        name: 'Llama 3.1',
+        description: '128K 上下文，多语言支持大幅增强。',
+        versions: [
+          { id: 'llama3.1:8b', name: '8B Instruct', sizeGB: 4.7, paramsBillion: 8, ggufUrl: 'https://hf-mirror.com/lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf' },
+          { id: 'llama3.1:70b', name: '70B Instruct', sizeGB: 39.5, paramsBillion: 70, ggufUrl: 'https://hf-mirror.com/lmstudio-community/Meta-Llama-3.1-70B-Instruct-GGUF/resolve/main/Meta-Llama-3.1-70B-Instruct-Q4_K_M.gguf' }
+        ]
+      }
+    ]
+  },
+  {
+    provider: 'Google',
+    logo: '🔍',
+    description: 'Gemma 系列，基于 Gemini 架构。',
+    series: [
+      {
+        name: 'Gemma 2',
+        description: '性能与效率的最佳平衡。',
+        versions: [
+          { id: 'gemma2:9b', name: '9B Instruct', sizeGB: 5.4, paramsBillion: 9, ggufUrl: 'https://modelscope.cn/api/v1/models/LLM-Research/gemma-2-9b-it-GGUF/repo?Revision=master&FilePath=gemma-2-9b-it-Q4_K_M.gguf' }
+        ]
+      }
+    ]
+  }
+];
+
+module.exports = { MODEL_MARKETPLACE };
