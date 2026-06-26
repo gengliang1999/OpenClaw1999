@@ -45,21 +45,84 @@ async function createServer(port = 3721, rendererPath) {
   }
 
   const isMac = process.platform === 'darwin';
-  const dataDir = path.join(
+  const baseDataDir = path.join(
     process.env.APPDATA || (isMac ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config')),
     'OpenClawAssistant'
   );
 
+  if (!fs.existsSync(baseDataDir)) {
+    fs.mkdirSync(baseDataDir, { recursive: true });
+  }
+
+  let dataDir = baseDataDir;
+  let downloadDir = baseDataDir;
+
+  const globalConfigPath = path.join(baseDataDir, 'global-config.json');
+  if (fs.existsSync(globalConfigPath)) {
+    try {
+      const globalConfig = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+      if (globalConfig.customDataDir && fs.existsSync(globalConfig.customDataDir)) {
+        dataDir = globalConfig.customDataDir;
+      }
+      if (globalConfig.customDownloadDir) {
+        downloadDir = globalConfig.customDownloadDir;
+        if (!fs.existsSync(downloadDir)) {
+          fs.mkdirSync(downloadDir, { recursive: true });
+        }
+      }
+    } catch (e) {
+      console.error('[API 服务器] 全局配置 global-config.json 读取失败', e);
+    }
+  }
+
+  // 全局挂载基础配置
+  app.locals.baseDataDir = baseDataDir;
+  app.locals.globalConfigPath = globalConfigPath;
+  app.locals.dataDir = dataDir;
+  app.locals.downloadDir = downloadDir;
+
   // 初始化各模块
   const modelManager = new ModelManager(dataDir);
   const memoryStore = new MemoryStore(dataDir);
-  const sandbox = new SandboxExecutor(dataDir);
+  const sandbox = new SandboxExecutor(downloadDir); // 沙盒使用 downloadDir
   const permissionManager = new PermissionManager(dataDir);
   const automation = new AutomationController(sandbox);
 
   // 初始化数据库
   await memoryStore.init();
   console.log('[API 服务器] 所有模块初始化完成');
+
+  // ========== 系统与全局配置 API ==========
+  app.get('/api/system/global-config', (req, res) => {
+    try {
+      let config = {};
+      if (fs.existsSync(app.locals.globalConfigPath)) {
+        config = JSON.parse(fs.readFileSync(app.locals.globalConfigPath, 'utf8'));
+      }
+      res.json({
+        customDataDir: config.customDataDir || app.locals.baseDataDir,
+        customDownloadDir: config.customDownloadDir || app.locals.baseDataDir
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/system/global-config', (req, res) => {
+    try {
+      const { customDataDir, customDownloadDir } = req.body;
+      let config = {};
+      if (fs.existsSync(app.locals.globalConfigPath)) {
+        config = JSON.parse(fs.readFileSync(app.locals.globalConfigPath, 'utf8'));
+      }
+      if (customDataDir !== undefined) config.customDataDir = customDataDir;
+      if (customDownloadDir !== undefined) config.customDownloadDir = customDownloadDir;
+      fs.writeFileSync(app.locals.globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
+      res.json({ success: true, message: '全局配置已保存，重启生效', config });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 
   // ========== 聊天 API ==========
   const chatRouter = require('./routes/chat')({ memoryStore, modelManager, sandbox });
