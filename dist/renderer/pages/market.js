@@ -96,10 +96,15 @@ export async function render(container, params = {}) {
           <button id="closeCloudConfig" style="background: none; border: none; font-size: 28px; cursor: pointer; color: var(--text-muted); line-height: 1;">&times;</button>
         </div>
         <div class="cloud-config-body" id="cloudConfigBody"></div>
-        <div class="cloud-config-footer">
-          <button class="btn btn-default" id="cancelCloudConfig" style="border-radius: 10px;">取消</button>
-          <button class="btn btn-ghost" id="testConnectionBtn" style="border-radius: 10px;">🔗 测试连接</button>
-          <button class="btn btn-primary" id="saveCloudConfig" style="border-radius: 10px; font-weight: 600; padding: 0 28px;">保存配置</button>
+        <div class="cloud-config-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div>
+            <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 13px; padding: 6px 16px;">🗑 删除配置</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-default" id="cancelCloudConfig" style="border-radius: 10px;">取消</button>
+            <button class="btn btn-ghost" id="testConnectionBtn" style="border-radius: 10px;">🔗 测试连接</button>
+            <button class="btn btn-primary" id="saveCloudConfig" style="border-radius: 10px; font-weight: 600; padding: 0 28px;">保存配置</button>
+          </div>
         </div>
       </div>
     </div>
@@ -328,10 +333,6 @@ function openCloudConfig(vendor) {
       </div>
       <div id="cfgFetchStatus" style="font-size: 12px; margin-top: 6px; min-height: 18px;"></div>
     </div>
-
-    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-light); text-align: right;">
-      <button class="btn btn-danger" id="deleteCloudConfig" style="border-radius: 10px; font-size: 12px;">🗑 删除配置</button>
-    </div>
   `;
     // 获取模型
     body.querySelector('#cfgFetchModels').addEventListener('click', () => fetchModelsFromApi());
@@ -347,7 +348,10 @@ function openCloudConfig(vendor) {
     newTestBtn.addEventListener('click', () => testConnection());
     // 删除配置
     const delBtn = document.getElementById('deleteCloudConfig');
-    delBtn.addEventListener('click', async () => {
+    const newDelBtn = delBtn.cloneNode(true);
+    delBtn.parentNode.replaceChild(newDelBtn, delBtn);
+    newDelBtn.style.display = conf.apiKey ? 'inline-block' : 'none';
+    newDelBtn.addEventListener('click', async () => {
         try {
             await api.model.removeModel?.(vendor.id);
             delete settings[vendor.id];

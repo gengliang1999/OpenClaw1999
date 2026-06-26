@@ -31,8 +31,11 @@ function createMainWindow() {
       webSecurity: true,
       allowRunningInsecureContent: false,
     },
-    show: true,
+    show: false,
+    autoHideMenuBar: true,
   });
+
+  mainWindow.setMenu(null);
 
   // 通过本地 HTTP 服务器加载页面（解决 file:// 协议下 ES Module CORS 问题）
   mainWindow.loadURL('http://127.0.0.1:3721');
@@ -230,6 +233,7 @@ function registerIpcHandlers() {
 
 // 应用准备就绪
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   registerIpcHandlers();
   await startApiServer();
   createMainWindow();

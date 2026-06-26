@@ -47,6 +47,7 @@ async function createServer(port = 3721, rendererPath) {
     }
     let dataDir = baseDataDir;
     let downloadDir = baseDataDir;
+    let logDir = path.join(baseDataDir, 'logs');
     const globalConfigPath = path.join(baseDataDir, 'global-config.json');
     if (fs.existsSync(globalConfigPath)) {
         try {
@@ -60,6 +61,12 @@ async function createServer(port = 3721, rendererPath) {
                     fs.mkdirSync(downloadDir, { recursive: true });
                 }
             }
+            if (globalConfig.customLogDir) {
+                logDir = globalConfig.customLogDir;
+            }
+            if (!fs.existsSync(logDir)) {
+                fs.mkdirSync(logDir, { recursive: true });
+            }
         }
         catch (e) {
             console.error('[API 服务器] 全局配置 global-config.json 读取失败', e);
@@ -70,6 +77,25 @@ async function createServer(port = 3721, rendererPath) {
     app.locals.globalConfigPath = globalConfigPath;
     app.locals.dataDir = dataDir;
     app.locals.downloadDir = downloadDir;
+    app.locals.logDir = logDir;
+    // 初始化文件日志
+    const logFilePath = path.join(logDir, 'openclaw.log');
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+    console.log = function (...args) {
+        originalConsoleLog(...args);
+        try {
+            fs.appendFileSync(logFilePath, `[INFO] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8');
+        }
+        catch (e) { }
+    };
+    console.error = function (...args) {
+        originalConsoleError(...args);
+        try {
+            fs.appendFileSync(logFilePath, `[ERROR] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8');
+        }
+        catch (e) { }
+    };
     // 初始化各模块
     const modelManager = new ModelManager(dataDir);
     const memoryStore = new MemoryStore(dataDir);
@@ -88,7 +114,8 @@ async function createServer(port = 3721, rendererPath) {
             }
             res.json({
                 customDataDir: config.customDataDir || app.locals.baseDataDir,
-                customDownloadDir: config.customDownloadDir || app.locals.baseDataDir
+                customDownloadDir: config.customDownloadDir || app.locals.baseDataDir,
+                customLogDir: config.customLogDir || app.locals.baseDataDir
             });
         }
         catch (e) {
@@ -97,7 +124,7 @@ async function createServer(port = 3721, rendererPath) {
     });
     app.post('/api/system/global-config', (req, res) => {
         try {
-            const { customDataDir, customDownloadDir } = req.body;
+            const { customDataDir, customDownloadDir, customLogDir } = req.body;
             let config = {};
             if (fs.existsSync(app.locals.globalConfigPath)) {
                 config = JSON.parse(fs.readFileSync(app.locals.globalConfigPath, 'utf8'));
@@ -106,6 +133,8 @@ async function createServer(port = 3721, rendererPath) {
                 config.customDataDir = customDataDir;
             if (customDownloadDir !== undefined)
                 config.customDownloadDir = customDownloadDir;
+            if (customLogDir !== undefined)
+                config.customLogDir = customLogDir;
             fs.writeFileSync(app.locals.globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
             res.json({ success: true, message: '全局配置已保存，重启生效', config });
         }

@@ -52,6 +52,13 @@ export async function render(container) {
                 </div>
                 <button class="btn btn-secondary" id="changeDownloadDirBtn" style="border-radius: 8px;">更改目录</button>
               </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 500; font-size: 15px;">日志文件保存地址</div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px; word-break: break-all;">当前: ${globalConfig.customLogDir || '默认'}</div>
+                </div>
+                <button class="btn btn-secondary" id="changeLogDirBtn" style="border-radius: 8px;">更改目录</button>
+              </div>
               <div style="font-size: 12px; color: var(--warning); background: rgba(255,165,0,0.1); padding: 12px; border-radius: 8px;">
                 ⚠️ 提示：更改用户数据地址后，原有的聊天记录不会自动迁移。重启软件后生效。
               </div>
@@ -155,6 +162,7 @@ export async function render(container) {
   // 绑定事件
   const changeDataDirBtn = (document.getElementById('changeDataDirBtn') as any);
   const changeDownloadDirBtn = (document.getElementById('changeDownloadDirBtn') as any);
+  const changeLogDirBtn = (document.getElementById('changeLogDirBtn') as any);
 
   if (changeDataDirBtn) {
     changeDataDirBtn.addEventListener('click', async () => {
@@ -207,6 +215,32 @@ export async function render(container) {
         }
       } catch (e) {
         console.error('Failed to change download dir', e);
+      }
+    });
+  }
+
+  if (changeLogDirBtn) {
+    changeLogDirBtn.addEventListener('click', async () => {
+      try {
+        const result = await window.openClaw.system.selectDirectory();
+        if (result && !result.canceled && result.filePaths.length > 0) {
+          const newPath = result.filePaths[0];
+          await fetch('/api/system/global-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customLogDir: newPath })
+          });
+          if (window.__toast) window.__toast.success('配置已保存，应用即将重启生效...');
+          setTimeout(async () => {
+            if (window.openClaw && window.openClaw.system && window.openClaw.system.restart) {
+              await window.openClaw.system.restart();
+            } else {
+              window.location.reload();
+            }
+          }, 1500);
+        }
+      } catch (e) {
+        console.error('Failed to change log dir', e);
       }
     });
   }

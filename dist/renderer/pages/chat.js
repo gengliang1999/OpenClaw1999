@@ -170,22 +170,22 @@ export async function render(container) {
     </div>
 
     <!-- 模型选择 Modal 弹窗 -->
-    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-       <div style="background: var(--bg-app); width: 600px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
-          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel);">
-             <h3 style="margin: 0; font-size: 18px;">切换模型</h3>
-             <button id="closeModelModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
+    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+       <div style="background: var(--bg-app); width: 660px; max-width: 92%; border-radius: 24px; box-shadow: 0 32px 64px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+          <div style="padding: 20px 28px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,217,255,0.05));">
+             <h3 style="margin: 0; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px;">切换模型</h3>
+             <button id="closeModelModalBtn" style="background: rgba(128,128,128,0.15); border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)'; this.style.color='#ff3b30';" onmouseout="this.style.background='rgba(128,128,128,0.15)'; this.style.color='var(--text-muted)';">&times;</button>
           </div>
-          <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
+          <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 24px; max-height: 65vh; overflow-y: auto;">
              <!-- 云端模型 -->
              <div>
-                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color: #6c63ff;">☁️</span> 云端模型</h4>
-                <div id="cloudModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #6c63ff, #af52de);"></span> 云端模型</h4>
+                <div id="cloudModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
              </div>
              <!-- 本地模型 -->
              <div>
-                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color: #00d9ff;">💻</span> 本地模型</h4>
-                <div id="localModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #00d9ff, #00c853);"></span> 本地模型</h4>
+                <div id="localModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
              </div>
           </div>
        </div>
@@ -713,48 +713,89 @@ async function loadModels() {
         const uniqueMap = new Map();
         (res || []).forEach(m => uniqueMap.set(m.id, m));
         models = Array.from(uniqueMap.values());
+        // 判断本地模型的更严谨逻辑
         const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
         const localModels = models.filter(m => isLocal(m));
         const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
-        // 渲染云端模型（直接展示所有可用模型）
-        const renderedCloud = cloudModelsConfigured.map(m => `
+        // 渲染云端模型（按厂商列表展示，保留 icon/logo）
+        const matchedIds = new Set();
+        const renderedCloud = cloudVendors.map(vendor => {
+            // 检查是否已配置该厂商的模型
+            const matchedModels = cloudModelsConfigured.filter(m => {
+                const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
+                    (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+                    m.id.toLowerCase().includes(vendor.id.toLowerCase());
+                return match;
+            });
+            matchedModels.forEach(m => matchedIds.add(m.id));
+            const isConfigured = matchedModels.length > 0;
+            const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
+            const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
+            // 状态灯：已配置且可连通的厂商显示绿色呼吸灯
+            const statusLight = isConfigured
+                ? `<span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>`
+                : '';
+            return `
+        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${vendor.name}${statusLight}
+           </div>
+           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✅ 已配置' : '去配置&rarr;'}</span>
+             ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
+           </div>
+        </div>
+      `;
+        }).join('');
+        const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
+        const renderedCustomCloud = customCloudModels.map(m => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
-           <span style="display: flex; align-items: center; gap: 6px;">
-             <span>☁️</span> ${m.name || m.id}
-           </span>
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: var(--success, #00c853); border-radius: 50%; box-shadow: 0 0 8px var(--success, #00c853);" title="模型就绪"></span>
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+           <span>🔗</span> ${m.name || m.id}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span>厂商: ${m.provider || '未知'}</span>
+           <span style="color: var(--success);">✅ 已配置</span>
            <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
          </div>
       </div>
     `).join('');
-        const renderLocalCard = (m) => `
+        document.getElementById('cloudModelsGrid').innerHTML = renderedCloud + renderedCustomCloud;
+        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(m => `
       <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
-           <span style="display: flex; align-items: center; gap: 6px;">
-             <span>💻</span> ${m.name || m.id}
-           </span>
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: var(--success, #00c853); border-radius: 50%; box-shadow: 0 0 8px var(--success, #00c853);" title="模型就绪"></span>
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+           <span>💻</span> ${m.name}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span>厂商: ${m.provider || '本地引擎'}</span>
+           <span style="color: var(--success);">✅ 已本地化</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
-    `;
-        document.getElementById('cloudModelsGrid').innerHTML = renderedCloud.length > 0 ? renderedCloud : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置可用云端模型</div>';
-        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(renderLocalCard).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置可用本地模型</div>';
+    `).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
         // 绑定弹窗内模型点击
         document.querySelectorAll('.model-select-card').forEach(card => {
             card.addEventListener('click', async () => {
+                const isConfigured = card.dataset.configured === 'true';
+                const vendorId = card.dataset.vendor;
+                if (!isConfigured && vendorId) {
+                    // 未配置，跳转至模型市场配置
+                    document.getElementById('modelSelectionModal').style.display = 'none';
+                    if (window.navigateTo) {
+                        window.navigateTo('market', { openConfig: vendorId });
+                    }
+                    return;
+                }
                 const id = card.getAttribute('data-id');
                 activeModelId = id;
                 const modelObj = models.find(x => x.id === activeModelId);
                 if (modelObj) {
-                    document.getElementById('activeModelLabel').textContent = modelObj.name || id;
+                    document.getElementById('activeModelLabel').textContent = modelObj.name;
+                }
+                else {
+                    // 如果是按厂商展示的，我们通过 DOM 更新显示名字
+                    const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
+                    document.getElementById('activeModelLabel').textContent = nameEl;
                 }
                 // 通知后端更新 activeModelId
                 if (api.model && api.model.setActiveModel) {
@@ -774,7 +815,7 @@ async function loadModels() {
         }
         const initialModel = models.find(x => x.id === activeModelId);
         if (initialModel) {
-            document.getElementById('activeModelLabel').textContent = initialModel.name || initialModel.id;
+            document.getElementById('activeModelLabel').textContent = initialModel.name;
         }
         else if (activeModelId) {
             document.getElementById('activeModelLabel').textContent = activeModelId;

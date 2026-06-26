@@ -173,22 +173,22 @@ export async function render(container) {
     </div>
 
     <!-- 模型选择 Modal 弹窗 -->
-    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-       <div style="background: var(--bg-app); width: 600px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.2); display: flex; flex-direction: column; overflow: hidden;">
-          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: var(--bg-panel);">
-             <h3 style="margin: 0; font-size: 18px;">切换模型</h3>
-             <button id="closeModelModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
+    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+       <div style="background: var(--bg-app); width: 660px; max-width: 92%; border-radius: 24px; box-shadow: 0 32px 64px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+          <div style="padding: 20px 28px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,217,255,0.05));">
+             <h3 style="margin: 0; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px;">切换模型</h3>
+             <button id="closeModelModalBtn" style="background: rgba(128,128,128,0.15); border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)'; this.style.color='#ff3b30';" onmouseout="this.style.background='rgba(128,128,128,0.15)'; this.style.color='var(--text-muted)';">&times;</button>
           </div>
-          <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
+          <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 24px; max-height: 65vh; overflow-y: auto;">
              <!-- 云端模型 -->
              <div>
-                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color: #6c63ff;">☁️</span> 云端模型</h4>
-                <div id="cloudModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #6c63ff, #af52de);"></span> 云端模型</h4>
+                <div id="cloudModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
              </div>
              <!-- 本地模型 -->
              <div>
-                <h4 style="margin: 0 0 12px 0; font-size: 14px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><span style="color: #00d9ff;">💻</span> 本地模型</h4>
-                <div id="localModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;"></div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #00d9ff, #00c853);"></span> 本地模型</h4>
+                <div id="localModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
              </div>
           </div>
        </div>
