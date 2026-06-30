@@ -669,7 +669,8 @@ export async function render(container) {
         fileInput.click();
     });
     // 模型 Modal 逻辑
-    document.getElementById('modelModalBtn').addEventListener('click', () => {
+    document.getElementById('modelModalBtn').addEventListener('click', async () => {
+        await loadModels();
         document.getElementById('modelSelectionModal').style.display = 'flex';
     });
     document.getElementById('closeModelModalBtn').addEventListener('click', () => {
@@ -874,72 +875,83 @@ const cloudVendors = [
 ];
 async function loadModels() {
     try {
+        // 触发后端探测本地与云端模型的最新状态
+        if (api.model && api.model.syncLocalModels) {
+            await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
+        }
         const res = await api.model.getModels();
         // 移除重复模型，保留最后一个唯一 ID
         const uniqueMap = new Map();
         (res || []).forEach(m => uniqueMap.set(m.id, m));
         models = Array.from(uniqueMap.values());
+        const activeRes = await api.model.getActiveModel();
+        if (activeRes && activeRes.id) {
+            activeModelId = activeRes.id;
+        }
+        else if (models.length > 0) {
+            activeModelId = models[0].id;
+        }
         // 判断本地模型的更严谨逻辑
         const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
         const localModels = models.filter(m => isLocal(m));
         const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
-        // 渲染云端模型（按厂商列表展示，保留 icon/logo）
-        const matchedIds = new Set();
-        const renderedCloud = cloudVendors.map(vendor => {
-            // 检查是否已配置该厂商的模型
-            const matchedModels = cloudModelsConfigured.filter(m => {
-                const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
-                    (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
-                    m.id.toLowerCase().includes(vendor.id.toLowerCase());
-                return match;
-            });
-            matchedModels.forEach(m => matchedIds.add(m.id));
-            const isConfigured = matchedModels.length > 0;
-            const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
-            const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
-            // 状态灯：已配置且可连通的厂商显示绿色呼吸灯
-            const statusLight = isConfigured
-                ? `<span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>`
-                : '';
+        // 已配置的云端模型独立渲染
+        const renderedConfiguredCloud = cloudModelsConfigured.map(m => {
+            const vendor = cloudVendors.find(v => (m.provider && m.provider.toLowerCase() === v.name.toLowerCase()) ||
+                (m.provider && m.provider.toLowerCase() === v.id.toLowerCase()) ||
+                m.id.toLowerCase().includes(v.id.toLowerCase())) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗' };
+            const isActive = m.id === activeModelId;
+            const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+            const statusTextContent = isActive ? '✅ 正在使用' : '✅ 已配置';
+            const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
             return `
-        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
            <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}${statusLight}
+             <span>${vendor.icon}</span> ${m.name || m.id}
+             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
            </div>
            <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✅ 已配置' : '去配置&rarr;'}</span>
-             ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
+             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
+             <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
            </div>
         </div>
       `;
-        }).join('');
-        const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
-        const renderedCustomCloud = customCloudModels.map(m => `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-           <span>🔗</span> ${m.name || m.id}
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
-         </div>
-         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✅ 已配置</span>
-           <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
-         </div>
-      </div>
-    `).join('');
-        document.getElementById('cloudModelsGrid').innerHTML = renderedCloud + renderedCustomCloud;
+        });
+        // 未配置的厂商（占位卡片）
+        const renderedUnconfiguredCloud = cloudVendors
+            .filter(vendor => !cloudModelsConfigured.some(m => (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
+            (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+            m.id.toLowerCase().includes(vendor.id.toLowerCase())))
+            .map(vendor => {
+            return `
+        <div class="model-select-card" data-id="${vendor.id}" data-vendor="${vendor.id}" data-configured="false" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${vendor.name}
+           </div>
+           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+             <span style="color: inherit;">去配置&rarr;</span>
+           </div>
+        </div>
+        `;
+        });
+        const renderedCloudHtml = [...renderedConfiguredCloud, ...renderedUnconfiguredCloud].join('');
+        document.getElementById('cloudModelsGrid').innerHTML = renderedCloudHtml;
         document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(m => {
             const isCold = m.isCold === true;
             const icon = isCold ? '⏾' : '💻';
             const statusColor = isCold ? '#9ca3af' : '#00c853';
-            const statusText = isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)';
+            const isActive = m.id === activeModelId;
+            const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+            const statusTextContent = isActive ? '✅ 正在使用' : (isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)');
+            const statusColorClass = isActive ? 'var(--primary)' : statusColor;
             return `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>${icon}</span> ${m.name}
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${statusText}"></span>
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${isCold ? 'Cold' : 'Hot'}"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: ${statusColor}; font-weight: 500;">${statusText}</span>
+           <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : '500'};">${statusTextContent}</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
@@ -988,13 +1000,6 @@ async function loadModels() {
                     window.__toast.success(`已切换为: ${modelObj?.name || id}`);
             });
         });
-        const activeRes = await api.model.getActiveModel();
-        if (activeRes && activeRes.id) {
-            activeModelId = activeRes.id;
-        }
-        else if (models.length > 0) {
-            activeModelId = models[0].id;
-        }
         const initialModel = models.find(x => x.id === activeModelId);
         if (initialModel) {
             document.getElementById('activeModelLabel').textContent = initialModel.name;

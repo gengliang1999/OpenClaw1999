@@ -884,6 +884,10 @@ const cloudVendors = [
 
 async function loadModels() {
   try {
+    // 触发后端探测本地与云端模型的最新状态
+    if (api.model && api.model.syncLocalModels) {
+      await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
+    }
     const res = await api.model.getModels();
 
     // 移除重复模型，保留最后一个唯一 ID
@@ -904,66 +908,55 @@ async function loadModels() {
     const localModels = models.filter(m => isLocal(m));
     const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
 
-    // 渲染云端模型（按厂商列表展示，保留 icon/logo）
-    const matchedIds = new Set();
-    const renderedCloud = cloudVendors.map(vendor => {
-      // 检查是否已配置该厂商的模型
-      const matchedModels = cloudModelsConfigured.filter(m => {
-        const match = (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
-          (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
-          m.id.toLowerCase().includes(vendor.id.toLowerCase());
-        return match;
-      });
+    // 已配置的云端模型独立渲染
+    const renderedConfiguredCloud = cloudModelsConfigured.map(m => {
+      const vendor = cloudVendors.find(v => 
+        (m.provider && m.provider.toLowerCase() === v.name.toLowerCase()) ||
+        (m.provider && m.provider.toLowerCase() === v.id.toLowerCase()) ||
+        m.id.toLowerCase().includes(v.id.toLowerCase())
+      ) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗' };
 
-      matchedModels.forEach(m => matchedIds.add(m.id));
-      const isConfigured = matchedModels.length > 0;
-      const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
-      const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
-
-      const isActive = targetModelId === activeModelId;
-      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
-      const statusTextContent = isActive ? '✅ 正在使用' : (isConfigured ? '✅ 已配置' : '去配置&rarr;');
-      const statusColorClass = isActive ? 'var(--primary)' : (isConfigured ? 'var(--success)' : 'inherit');
-
-      // 状态灯：已配置且可连通的厂商显示绿色呼吸灯
-      const statusLight = isConfigured
-        ? `<span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>`
-        : '';
-
-      return `
-        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
-           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}${statusLight}
-           </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
-             ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
-           </div>
-        </div>
-      `;
-    }).join('');
-
-    const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
-    const renderedCustomCloud = customCloudModels.map(m => {
       const isActive = m.id === activeModelId;
       const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
       const statusTextContent = isActive ? '✅ 正在使用' : '✅ 已配置';
       const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
-      return `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
-         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-           <span>🔗</span> ${m.name || m.id}
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
-         </div>
-         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
-           <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
-         </div>
-      </div>
-      `;
-    }).join('');
 
-    (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloud + renderedCustomCloud;
+      return `
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
+           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${m.name || m.id}
+             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
+           </div>
+           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
+             <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
+           </div>
+        </div>
+      `;
+    });
+
+    // 未配置的厂商（占位卡片）
+    const renderedUnconfiguredCloud = cloudVendors
+      .filter(vendor => !cloudModelsConfigured.some(m => 
+        (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
+        (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+        m.id.toLowerCase().includes(vendor.id.toLowerCase())
+      ))
+      .map(vendor => {
+        return `
+        <div class="model-select-card" data-id="${vendor.id}" data-vendor="${vendor.id}" data-configured="false" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${vendor.name}
+           </div>
+           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+             <span style="color: inherit;">去配置&rarr;</span>
+           </div>
+        </div>
+        `;
+      });
+
+    const renderedCloudHtml = [...renderedConfiguredCloud, ...renderedUnconfiguredCloud].join('');
+    (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloudHtml;
     (document.getElementById('localModelsGrid') as any).innerHTML = localModels.length > 0 ? localModels.map(m => {
       const isCold = m.isCold === true;
       const icon = isCold ? '⏾' : '💻';
