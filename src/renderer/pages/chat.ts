@@ -1339,7 +1339,13 @@ async function sendMessage() {
       return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
     });
     
-    aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
+    // 如果没有返回任何实质性内容（例如第一帧由于网络不通就报错了），
+    // 或者完全为空，不要强制用空字符串重置 DOM，保留现存的报错或加载动画
+    if (finalDisplayResponse.trim() !== '') {
+      aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
+    } else if (fullResponse.trim() !== '') {
+      aiBox.innerHTML = parseMarkdown(fullResponse);
+    }
 
     // 为用户消息和 AI 消息动态添加快捷操作栏
     const addActions = (box, text) => {
