@@ -857,24 +857,20 @@ function updateTokenUsage() {
     else
         fill.style.stroke = 'var(--danger)';
 }
-const cloudVendors = [
-    { id: 'openai', name: 'OpenAI', icon: '🌌', color: '#10a37f' },
-    { id: 'anthropic', name: 'Anthropic', icon: '🧠', color: '#d97757' },
-    { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4' },
-    { id: 'groq', name: 'Groq', icon: '⚡', color: '#f55036' },
-    { id: 'mistral', name: 'Mistral AI', icon: '🌀', color: '#ff7000' },
-    { id: 'deepseek', name: 'DeepSeek', icon: '🐳', color: '#4d6bfe' },
-    { id: 'qwen', name: '通义千问', icon: '☁️', color: '#615ced' },
-    { id: 'zhipu', name: '智谱 AI', icon: '🔮', color: '#3269ff' },
-    { id: 'moonshot', name: '月之暗面 (Kimi)', icon: '🌙', color: '#000' },
-    { id: 'baidu', name: '百度文心', icon: '🐻', color: '#2932e1' },
-    { id: 'bytedance', name: '豆包 (字节)', icon: '🫘', color: '#fe2c55' },
-    { id: 'minimax', name: 'MiniMax', icon: '🔵', color: '#1677ff' },
-    { id: 'iflytek', name: '讯飞星火', icon: '🔥', color: '#ff6a00' },
-    { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853' }
-];
+let cloudVendors = [];
 async function loadModels() {
     try {
+        if (cloudVendors.length === 0) {
+            try {
+                const res = await fetch('./assets/data/cloud-vendors.json');
+                if (res.ok) {
+                    cloudVendors = await res.json();
+                }
+            }
+            catch (e) {
+                console.warn('Failed to fetch cloud-vendors in chat.ts', e);
+            }
+        }
         // 触发后端探测本地与云端模型的最新状态
         if (api.model && api.model.syncLocalModels) {
             await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
@@ -906,13 +902,12 @@ async function loadModels() {
             const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
             return `
         <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
-           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${m.name || m.id}
-             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
+           <div style="font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px;">
+             <span>${vendor.icon}</span> ${m.name || m.id} <span style="color: var(--primary); font-size: 14px;">- ${m.modelName || '未知模型'}</span>
+             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: auto;" title="已连通"></span>
            </div>
            <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
              <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
-             <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
            </div>
         </div>
       `;

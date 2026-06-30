@@ -383,7 +383,13 @@ app.whenReady().then(async () => {
   protocol.handle('claw', (request) => {
     const url = request.url;
     const parsedPath = url.replace('claw://app/', '');
-    const filePath = path.join(__dirname, '..', 'renderer', parsedPath || 'index.html');
+    // assets/ 前缀的资源存放在 dist/assets/ 而非 dist/renderer/assets/
+    let filePath: string;
+    if (parsedPath.startsWith('assets/')) {
+      filePath = path.join(__dirname, '..', parsedPath);
+    } else {
+      filePath = path.join(__dirname, '..', 'renderer', parsedPath || 'index.html');
+    }
     const { net } = require('electron');
     const pathToFile = path.normalize(filePath);
     return net.fetch(`file://${pathToFile}`);

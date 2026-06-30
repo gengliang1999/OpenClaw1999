@@ -298,7 +298,7 @@ class ModelManager extends EventEmitter {
         }
       }
     } catch (e) {
-      console.log('[模型管理器] Ollama 未运行或连接失败');
+      console.debug('[模型管理器] Ollama 未运行或连接失败');
     }
 
     // 2. 通用 OpenAI 兼容接口同步探针
@@ -333,7 +333,7 @@ class ModelManager extends EventEmitter {
           }
         }
       } catch (e) {
-        console.log(`[模型管理器] ${engine.provider} 未运行或连接失败`);
+        console.debug(`[模型管理器] ${engine.provider} 未运行或连接失败`);
       }
     }
 

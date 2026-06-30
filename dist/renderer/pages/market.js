@@ -2,30 +2,23 @@
 /**
  * 模型市场 (Model Market) v3
  * 上方：云端模型服务（国内外主流厂商 + 详细配置）
- * 下方：本地运行时检测 + 模型大市场（可滚动）
+ * 上方：本地运行时检测 + 模型大市场（可滚动）
  */
 import { api } from '../utils.js';
 let settings = {};
 let localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
 let activeModelId = '';
-// 国内外主流云端模型厂商（模型列表通过 API 拉取）
-const cloudVendors = [
-    { id: 'openai', name: 'OpenAI', icon: '🌌', color: '#10a37f', desc: 'GPT-4o、GPT-4-Turbo、o1 系列旗舰模型', url: 'https://api.openai.com/v1' },
-    { id: 'anthropic', name: 'Anthropic', icon: '🧠', color: '#d97757', desc: 'Claude 4 Opus/Sonnet 等强力推理模型', url: 'https://api.anthropic.com/v1' },
-    { id: 'gemini', name: 'Google Gemini', icon: '✨', color: '#4285f4', desc: 'Gemini 2.0/1.5 Pro 多模态系列', url: 'https://generativelanguage.googleapis.com/v1beta' },
-    { id: 'groq', name: 'Groq', icon: '⚡', color: '#f55036', desc: '超高速推理，LPU 加速芯片', url: 'https://api.groq.com/openai/v1' },
-    { id: 'mistral', name: 'Mistral AI', icon: '🌀', color: '#ff7000', desc: 'Mistral Large/Medium 系列，欧洲领先', url: 'https://api.mistral.ai/v1' },
-    { id: 'deepseek', name: 'DeepSeek', icon: '🐳', color: '#4d6bfe', desc: '深度求索，高性价比代码与推理模型', url: 'https://api.deepseek.com/v1' },
-    { id: 'qwen', name: '通义千问', icon: '☁️', color: '#615ced', desc: '阿里云 Qwen 全系列，QwQ 推理模型', url: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
-    { id: 'zhipu', name: '智谱 AI', icon: '🔮', color: '#3269ff', desc: 'GLM-4 / GLM-4V 多模态系列', url: 'https://open.bigmodel.cn/api/paas/v4' },
-    { id: 'moonshot', name: '月之暗面 (Kimi)', icon: '🌙', color: '#000', desc: 'Kimi 长文本理解，128K 上下文', url: 'https://api.moonshot.cn/v1' },
-    { id: 'baidu', name: '百度文心', icon: '🐻', color: '#2932e1', desc: '文心大模型 4.5 系列，中文能力突出', url: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop' },
-    { id: 'bytedance', name: '豆包 (字节)', icon: '🫘', color: '#fe2c55', desc: '字节跳动豆包大模型，Doubao 系列', url: 'https://ark.cn-beijing.volces.com/api/v3' },
-    { id: 'minimax', name: 'MiniMax', icon: '🔵', color: '#1677ff', desc: 'MiniMax abab 系列，擅长角色扮演', url: 'https://api.minimax.chat/v1' },
-    { id: 'iflytek', name: '讯飞星火', icon: '🔥', color: '#ff6a00', desc: '科大讯飞星火大模型，语音+文本', url: 'https://spark-api-open.xf-yun.com/v1' },
-    { id: 'yi', name: '零一万物', icon: '🌱', color: '#00c853', desc: 'Yi 系列模型，高性价比', url: 'https://api.lingyiwanwu.com/v1' },
-];
+let cloudVendors = [];
 export async function render(container, params = {}) {
+    try {
+        const res = await fetch('./assets/data/cloud-vendors.json');
+        if (res.ok) {
+            cloudVendors = await res.json();
+        }
+    }
+    catch (e) {
+        console.error('加载云端数据失败:', e);
+    }
     try {
         settings = (await api.settings.getAll()) || {};
     }
@@ -425,6 +418,11 @@ async function fetchModelsFromApi() {
     statusEl.innerHTML = '<span style="color:var(--text-muted);">正在通过后端请求模型列表...</span>';
     try {
         const data = await api.model.proxyFetchModels(baseUrl, apiKey);
+        // 先检查后端代理是否成功
+        if (data.success === false) {
+            statusEl.innerHTML = `<span style="color:var(--danger);">❌ ${data.error || '请求失败'}</span>`;
+            return;
+        }
         let modelIds = [];
         // OpenAI / DeepSeek / 通义千问 格式: { data: [{ id: "..." }] }
         if (Array.isArray(data.data)) {
@@ -483,11 +481,11 @@ async function testConnection() {
     btn.textContent = '⏳ 测试中...';
     try {
         const result = await api.model.proxyTest(baseUrl, apiKey);
-        if (result.ok) {
+        if (result.success) {
             window.__toast?.success(`✅ ${result.message}`);
         }
         else {
-            window.__toast?.error(`❌ ${result.message}`);
+            window.__toast?.error(`❌ ${result.error || result.message || '连接失败'}`);
         }
     }
     catch (e) {
