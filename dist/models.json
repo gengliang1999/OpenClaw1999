@@ -1,0 +1,27 @@
+{
+  "models": [
+    {
+      "id": "openai-gpt4",
+      "name": "GPT-4",
+      "type": "cloud",
+      "provider": "OpenAI",
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "modelName": "gpt-4",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    },
+    {
+      "id": "openai-gpt35",
+      "name": "GPT-3.5 Turbo",
+      "type": "cloud",
+      "provider": "OpenAI",
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "modelName": "gpt-3.5-turbo",
+      "maxTokens": 4096,
+      "temperature": 0.7
+    }
+  ],
+  "activeModelId": "openai-gpt4"
+}

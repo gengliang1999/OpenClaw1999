@@ -80,9 +80,18 @@ function createMainWindow() {
     mainWindow = null;
   });
 
-  // 阻止新窗口打开，改用系统浏览器
+  // 阻止新窗口打开，改用系统浏览器（强制实施 URL 安全强拦截）
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell.openExternal(url);
+      } else {
+        console.warn(`[安全拦截] 拦截到新窗口打开非安全协议链接: ${url}`);
+      }
+    } catch (e) {
+      console.warn(`[安全拦截] 非法的新窗口 URL: ${url}`);
+    }
     return { action: 'deny' };
   });
 
