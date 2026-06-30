@@ -892,7 +892,7 @@ async function loadModels() {
             activeModelId = models[0].id;
         }
         // 判断本地模型的更严谨逻辑
-        const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
+        const isLocal = (m) => m.type === 'local' || ['LM Studio', 'Ollama', 'Llama.cpp', 'GPT4All', 'Jan'].includes(m.provider) || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
         const localModels = models.filter(m => isLocal(m));
         const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
         // 已配置的云端模型独立渲染

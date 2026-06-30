@@ -246,79 +246,101 @@ class ModelManager extends EventEmitter {
         this._saveConfig();
     }
     /**
-     * 同步第三方本地模型 (Ollama & LM Studio)
+     * 同步第三方本地模型 (Ollama, LM Studio, Llama.cpp, Jan, GPT4All)
      * @returns {Promise<number>} 同步成功的模型数量
      */
     async syncThirdPartyLocalModels() {
         let syncedCount = 0;
-        // 1. 同步 Ollama (默认端口 11434)
+        const thirdPartyProviders = ['Ollama', 'LM Studio', 'Llama.cpp', 'GPT4All', 'Jan'];
+        // 强制清理历史缓存，防止残留
+        this.models = this.models.filter(m => !thirdPartyProviders.includes(m.provider));
+        // 1. 同步 Ollama
         try {
             const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+            let activeModels = [];
+            try {
+                const psRes = await fetch('http://127.0.0.1:11434/api/ps', { signal: AbortSignal.timeout(1000) });
+                if (psRes.ok) {
+                    const psData = await psRes.json();
+                    activeModels = psData.models || [];
+                }
+            }
+            catch (e) { }
             if (ollamaRes.ok) {
                 const data = await ollamaRes.json();
                 const models = data.models || [];
                 for (const m of models) {
-                    const exists = this.models.some(localM => localM.id === m.name && localM.provider === 'Ollama');
-                    if (!exists) {
-                        this.models.push({
-                            id: m.name,
-                            name: `[Ollama] ${m.name}`,
-                            type: 'local',
-                            provider: 'Ollama',
-                            sizeGB: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) : 0,
-                            isCold: false
-                        });
-                        syncedCount++;
-                    }
+                    const isCold = !activeModels.some((am) => am.name === m.name);
+                    this.models.push({
+                        id: `ollama_${m.name}`,
+                        name: `[Ollama] ${m.name}`,
+                        type: 'local',
+                        provider: 'Ollama',
+                        modelName: m.name,
+                        baseUrl: 'http://127.0.0.1:11434',
+                        sizeGB: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) : 0,
+                        isCold: isCold
+                    });
+                    syncedCount++;
                 }
             }
         }
         catch (e) {
             console.log('[模型管理器] Ollama 未运行或连接失败');
         }
-        // 2. 同步 LM Studio 活跃模型 (Hot)
-        let hotLMModels = [];
-        try {
-            const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(2000) });
-            if (lmRes.ok) {
-                const data = await lmRes.json();
-                hotLMModels = data.data || [];
+        // 2. 通用 OpenAI 兼容接口同步探针
+        const openaiCompatibleEngines = [
+            { provider: 'LM Studio', url: 'http://127.0.0.1:1234/v1/models', baseUrl: 'http://127.0.0.1:1234/v1' },
+            { provider: 'Llama.cpp', url: 'http://127.0.0.1:8080/v1/models', baseUrl: 'http://127.0.0.1:8080/v1' },
+            { provider: 'GPT4All', url: 'http://127.0.0.1:4891/v1/models', baseUrl: 'http://127.0.0.1:4891/v1' },
+            { provider: 'Jan', url: 'http://127.0.0.1:1337/v1/models', baseUrl: 'http://127.0.0.1:1337/v1' }
+        ];
+        for (const engine of openaiCompatibleEngines) {
+            let hotModels = [];
+            try {
+                const res = await fetch(engine.url, { signal: AbortSignal.timeout(1500) });
+                if (res.ok) {
+                    const data = await res.json();
+                    hotModels = data.data || [];
+                    for (const m of hotModels) {
+                        this.models.push({
+                            id: `${engine.provider.toLowerCase().replace(/[^a-z0-9]/g, '')}_${m.id}`,
+                            name: `[${engine.provider}] ${m.id.split('/').pop()}`,
+                            type: 'cloud', // 复用 cloud 管道以使用兼容 OpenAI 的请求格式
+                            provider: engine.provider,
+                            apiKey: 'local-engine',
+                            baseUrl: engine.baseUrl,
+                            modelName: m.id,
+                            maxTokens: 4096,
+                            temperature: 0.7,
+                            isCold: false
+                        });
+                        syncedCount++;
+                    }
+                }
+            }
+            catch (e) {
+                console.log(`[模型管理器] ${engine.provider} 未运行或连接失败`);
             }
         }
-        catch (e) {
-            console.log('[模型管理器] LM Studio 未运行或连接失败');
-        }
-        // 2.1 同步 LM Studio 物理库存 (补齐 Cold Storage 模型)
+        // 2.1 补充 LM Studio 物理库存 (Cold Storage)
         const physicalLMModels = this.scanLMStudioPhysicalModels();
-        // 合并 Hot 与 Cold
-        const allLMModels = [...hotLMModels];
         for (const pm of physicalLMModels) {
-            if (!allLMModels.some(m => m.id === pm.id)) {
-                allLMModels.push(pm);
-            }
-        }
-        for (const m of allLMModels) {
-            const isCold = !hotLMModels.some(hm => hm.id === m.id);
-            const exists = this.models.some(localM => localM.id === m.id && localM.provider === 'LM Studio');
+            const exists = this.models.some(m => m.provider === 'LM Studio' && m.modelName === pm.id);
             if (!exists) {
                 this.models.push({
-                    id: m.id,
-                    name: `[LM Studio] ${m.id.split('/').pop()}`,
+                    id: `lmstudio_${pm.id}`,
+                    name: `[LM Studio] ${pm.id.split('/').pop()}`,
                     type: 'cloud',
                     provider: 'LM Studio',
                     apiKey: 'lm-studio',
                     baseUrl: 'http://127.0.0.1:1234/v1',
-                    modelName: m.id,
+                    modelName: pm.id,
                     maxTokens: 4096,
                     temperature: 0.7,
-                    isCold: isCold
+                    isCold: true
                 });
                 syncedCount++;
-            }
-            else {
-                const existingModel = this.models.find(localM => localM.id === m.id && localM.provider === 'LM Studio');
-                if (existingModel)
-                    existingModel.isCold = isCold;
             }
         }
         if (syncedCount > 0) {
