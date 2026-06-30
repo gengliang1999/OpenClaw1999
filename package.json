@@ -4,7 +4,7 @@
   "description": "OpenClaw 智能助手 - 你的全能 AI 伙伴",
   "main": "dist/main/main.js",
   "scripts": {
-    "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" dist/",
+    "build:ts": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && copyfiles -u 1 \"src/renderer/**/*.html\" \"src/renderer/**/*.css\" \"src/renderer/**/*.js\" dist/",
     "start": "chcp 65001>nul && electron . --remote-debugging-port=9222",
     "dev": "chcp 65001>nul && npm run build:ts && electron . --dev",
     "build": "chcp 65001>nul && npm run build:ts && electron-builder",
@@ -26,10 +26,10 @@
     "appId": "com.openclaw.assistant",
     "productName": "OpenClaw智能助手",
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "files": [
-      "src/**/*",
+      "dist/**/*",
       "node_modules/**/*",
       "package.json"
     ],

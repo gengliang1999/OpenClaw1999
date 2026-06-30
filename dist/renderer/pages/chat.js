@@ -15,6 +15,7 @@ let tokenUsage = 0;
 let pendingAttachmentData = null;
 let pendingLoadConvId = null; // 从侧边栏点击时预设的会话 ID
 let reloadModelsCallback = null;
+let isAgentModeEnabled = false;
 export async function init(container) {
     if (reloadModelsCallback) {
         await reloadModelsCallback();
@@ -80,10 +81,19 @@ export async function render(container) {
           </div>
 
           <!-- 截图预览 -->
-          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02); border-radius: 12px 12px 0 0;">
+          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02); border-radius: 12px 12px 0 0;">
             <div style="position: relative; display: inline-block;">
               <img id="attachmentImg" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);" />
               <button id="removeAttachmentBtn" style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--danger); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm);">&times;</button>
+            </div>
+            <!-- OCR 提取控制 -->
+            <div style="display: flex; gap: 8px;">
+              <button id="ocrTextBtn" class="btn-ghost" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--primary); background: rgba(0, 122, 255, 0.08); border: 1px solid rgba(0, 122, 255, 0.15); display: flex; align-items: center; gap: 4px; cursor: pointer;" onmouseover="this.style.background='rgba(0,122,255,0.15)';" onmouseout="this.style.background='rgba(0,122,255,0.08)';">
+                🤖 提取文字 (OCR)
+              </button>
+              <button id="ocrTableBtn" class="btn-ghost" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #00c853; background: rgba(0, 200, 83, 0.08); border: 1px solid rgba(0, 200, 83, 0.15); display: flex; align-items: center; gap: 4px; cursor: pointer;" onmouseover="this.style.background='rgba(0,200,83,0.15)';" onmouseout="this.style.background='rgba(0,200,83,0.08)';">
+                📊 提取表格
+              </button>
             </div>
           </div>
 
@@ -133,6 +143,12 @@ export async function render(container) {
                 <button id="tuningModalBtn" class="btn-ghost" title="系统思考设定" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                   高级设定
+                </button>
+                
+                <!-- 代理模式 (Agent Tool Calling) 开关 -->
+                <button id="agentModeBtn" class="btn-ghost" title="让 AI 在后台自动调用本地读取工具与系统组件" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--text-secondary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  智能代理: <span id="agentModeStatus">关</span>
                 </button>
                 
                 <!-- 新建对话 -->
@@ -232,11 +248,47 @@ export async function render(container) {
              <button id="resetTuningBtn" class="btn btn-default" style="border-radius: 10px;">恢复默认</button>
              <button id="saveTuningBtn" class="btn btn-primary" style="border-radius: 10px; padding: 0 24px;">保存设定</button>
           </div>
-       </div>
+        </div>
+     </div>
+
+    <!-- OCR 识别结果浮窗 -->
+    <div id="ocrResultModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+      <div style="background: var(--bg-app); width: 500px; max-width: 90%; border-radius: 16px; box-shadow: 0 24px 48px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(0,200,83,0.05), rgba(0,122,255,0.05));">
+          <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🤖 AI OCR 提取识别结果</h4>
+          <button id="closeOcrModalBtn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding: 20px; flex: 1; overflow-y: auto;">
+          <textarea id="ocrResultText" style="width: 100%; height: 160px; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; background: rgba(0,0,0,0.02); color: var(--text-primary); resize: none; outline: none; box-sizing: border-box; line-height: 1.5;"></textarea>
+        </div>
+        <div style="padding: 12px 20px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px; background: rgba(0,0,0,0.01);">
+          <button id="copyOcrBtn" class="btn btn-default" style="border-radius: 8px; font-size: 13px; padding: 6px 14px; cursor: pointer;">复制到剪贴板</button>
+          <button id="insertOcrBtn" class="btn btn-primary" style="border-radius: 8px; font-size: 13px; padding: 6px 14px; border: none; cursor: pointer;">插入到输入框</button>
+        </div>
+      </div>
     </div>
   `;
     // --- 基础事件 ---
     document.getElementById('newChatBtn').addEventListener('click', createNewChat);
+    document.getElementById('agentModeBtn').addEventListener('click', () => {
+        isAgentModeEnabled = !isAgentModeEnabled;
+        const btn = document.getElementById('agentModeBtn');
+        const statusText = document.getElementById('agentModeStatus');
+        if (isAgentModeEnabled) {
+            btn.style.color = '#ff9800';
+            btn.style.background = 'rgba(255, 152, 0, 0.1)';
+            statusText.textContent = '开';
+            if (window.__toast)
+                window.__toast.success('⚡ 智能代理模式已开启');
+        }
+        else {
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.background = 'transparent';
+            statusText.textContent = '关';
+            if (window.__toast)
+                window.__toast.info('⚡ 智能代理模式已关闭');
+        }
+    });
     document.getElementById('clearExpertBtn').addEventListener('click', () => {
         localStorage.removeItem('activeExpert');
         activeExpert = null;
@@ -544,16 +596,39 @@ export async function render(container) {
                 window.__toast.info('请在屏幕上框选截图区域...');
             // 隐藏窗口以便截图
             await window.openClaw.system.hide();
-            const dataUrl = await window.openClaw.system.captureScreenArea();
+            const resultObj = await window.openClaw.system.captureScreenArea();
             // 截图完成后重新显示窗口
             await window.openClaw.system.show();
-            if (dataUrl) {
-                if (window.__toast)
-                    window.__toast.success('截图成功');
+            if (resultObj && resultObj.dataUrl) {
+                const { dataUrl, action } = resultObj;
                 pendingAttachmentData = dataUrl;
                 document.getElementById('attachmentImg').src = dataUrl;
                 document.getElementById('attachmentPreview').style.display = 'flex';
-                document.getElementById('chatInput').focus();
+                if (action === 'send') {
+                    if (window.__toast)
+                        window.__toast.success('截图已附加');
+                    document.getElementById('chatInput').focus();
+                }
+                else if (action === 'ocr') {
+                    // 异步触发 OCR 文字提取
+                    handleOcr('text');
+                }
+                else if (action === 'explain') {
+                    // AI 解释
+                    const input = document.getElementById('chatInput');
+                    input.value = '请详细解释和分析这张截图中的内容。';
+                    const sendBtn = document.getElementById('sendBtn');
+                    if (sendBtn)
+                        sendBtn.click();
+                }
+                else if (action === 'translate') {
+                    // AI 翻译
+                    const input = document.getElementById('chatInput');
+                    input.value = '请帮我精准翻译这张截图中的文本内容。';
+                    const sendBtn = document.getElementById('sendBtn');
+                    if (sendBtn)
+                        sendBtn.click();
+                }
             }
             else {
                 if (window.__toast)
@@ -604,6 +679,83 @@ export async function render(container) {
         if (e.target.id === 'modelSelectionModal')
             e.target.style.display = 'none';
     });
+    // ================== OCR 提取逻辑 ==================
+    const ocrTextBtn = document.getElementById('ocrTextBtn');
+    const ocrTableBtn = document.getElementById('ocrTableBtn');
+    const ocrResultModal = document.getElementById('ocrResultModal');
+    const ocrResultText = document.getElementById('ocrResultText');
+    const closeOcrModalBtn = document.getElementById('closeOcrModalBtn');
+    const copyOcrBtn = document.getElementById('copyOcrBtn');
+    const insertOcrBtn = document.getElementById('insertOcrBtn');
+    // 将 OCR 模态框也挂载到 body 下避开 transform 影响
+    if (ocrResultModal) {
+        const oldOcr = document.body.querySelector('#ocrResultModal');
+        if (oldOcr && oldOcr.parentNode === document.body && oldOcr !== ocrResultModal)
+            oldOcr.remove();
+        document.body.appendChild(ocrResultModal);
+    }
+    async function handleOcr(mode) {
+        if (!pendingAttachmentData) {
+            if (window.__toast)
+                window.__toast.error('未检测到截图附件');
+            return;
+        }
+        try {
+            if (window.__toast)
+                window.__toast.info('AI 正在高精度识别截图中，请稍候...');
+            const res = await api.post('/chat/ocr', {
+                image: pendingAttachmentData,
+                mode
+            });
+            if (res && res.text) {
+                if (window.__toast)
+                    window.__toast.success('识别成功！');
+                ocrResultText.value = res.text;
+                ocrResultModal.style.display = 'flex';
+            }
+            else {
+                throw new Error('未返回识别内容');
+            }
+        }
+        catch (e) {
+            if (window.__toast)
+                window.__toast.error('OCR 识别失败: ' + e.message);
+        }
+    }
+    if (ocrTextBtn)
+        ocrTextBtn.addEventListener('click', () => handleOcr('text'));
+    if (ocrTableBtn)
+        ocrTableBtn.addEventListener('click', () => handleOcr('table'));
+    if (closeOcrModalBtn) {
+        closeOcrModalBtn.addEventListener('click', () => {
+            ocrResultModal.style.display = 'none';
+        });
+    }
+    if (copyOcrBtn) {
+        copyOcrBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(ocrResultText.value);
+                if (window.__toast)
+                    window.__toast.success('已复制到剪贴板');
+            }
+            catch (e) {
+                if (window.__toast)
+                    window.__toast.error('复制失败');
+            }
+        });
+    }
+    if (insertOcrBtn) {
+        insertOcrBtn.addEventListener('click', () => {
+            const input = document.getElementById('chatInput');
+            if (input) {
+                input.value += (input.value ? '\n' : '') + ocrResultText.value;
+                ocrResultModal.style.display = 'none';
+                input.focus();
+                if (window.__toast)
+                    window.__toast.success('已插入到输入框');
+            }
+        });
+    }
     // 清理旧模态框并移到 body（绕过 .page 的 CSS animation transform 导致 fixed 定位失效）
     const oldModal = document.getElementById('modelSelectionModal');
     if (oldModal && oldModal.parentNode === document.body)
@@ -617,6 +769,20 @@ export async function render(container) {
         activeConvId = convId;
         await loadHistory(convId);
     };
+    // ================== 跨窗口快捷提问监听 ==================
+    if (window.openClaw && window.openClaw.system && window.openClaw.system.onQuickPrompt) {
+        window.openClaw.system.offQuickPrompt(); // 状态唯一性：防重复监听与内存泄漏
+        window.openClaw.system.onQuickPrompt((text) => {
+            console.log('[主窗口] 接收到跨窗口快捷提问并自动发送:', text);
+            const chatInput = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('sendBtn');
+            if (chatInput && sendBtn) {
+                chatInput.value = text;
+                chatInput.focus();
+                sendBtn.click();
+            }
+        });
+    }
     // 供侧边栏在 navigateTo 之前设置待加载会话 ID
     // 'NEW' = 创建新对话, 具体 ID = 加载已有对话, null = 显示空状态
     window.__setPendingConv = (convId) => {
@@ -761,18 +927,24 @@ async function loadModels() {
       </div>
     `).join('');
         document.getElementById('cloudModelsGrid').innerHTML = renderedCloud + renderedCustomCloud;
-        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(m => `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+        document.getElementById('localModelsGrid').innerHTML = localModels.length > 0 ? localModels.map(m => {
+            const isCold = m.isCold === true;
+            const icon = isCold ? '⏾' : '💻';
+            const statusColor = isCold ? '#9ca3af' : '#00c853';
+            const statusText = isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)';
+            return `
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-           <span>💻</span> ${m.name}
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
+           <span>${icon}</span> ${m.name}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${statusText}"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✅ 已本地化</span>
+           <span style="color: ${statusColor}; font-weight: 500;">${statusText}</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
-    `).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未配置本地模型</div>';
+    `;
+        }).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未发现本地模型</div>';
         // 绑定弹窗内模型点击
         document.querySelectorAll('.model-select-card').forEach(card => {
             card.addEventListener('click', async () => {
@@ -787,22 +959,32 @@ async function loadModels() {
                     return;
                 }
                 const id = card.getAttribute('data-id');
+                const isCold = card.getAttribute('data-iscold') === 'true';
                 activeModelId = id;
                 const modelObj = models.find(x => x.id === activeModelId);
                 if (modelObj) {
                     document.getElementById('activeModelLabel').textContent = modelObj.name;
                 }
                 else {
-                    // 如果是按厂商展示的，我们通过 DOM 更新显示名字
                     const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
                     document.getElementById('activeModelLabel').textContent = nameEl;
                 }
-                // 通知后端更新 activeModelId
+                // 触发热启动 UI
+                if (isCold) {
+                    if (window.__toast)
+                        window.__toast.info('🚀 正在将本地模型调入显存 (Warming up...)', 3000);
+                    document.getElementById('activeModelLabel').innerHTML = `<svg style="animation: spin 1s linear infinite; margin-right:4px;" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型预热中...`;
+                    setTimeout(() => {
+                        document.getElementById('activeModelLabel').textContent = modelObj?.name || id;
+                        if (window.__toast)
+                            window.__toast.success('显存加载完毕！');
+                    }, 2500); // 模拟感知预热
+                }
                 if (api.model && api.model.setActiveModel) {
                     await api.model.setActiveModel(id).catch(e => console.error(e));
                 }
                 document.getElementById('modelSelectionModal').style.display = 'none';
-                if (window.__toast)
+                if (!isCold && window.__toast)
                     window.__toast.success(`已切换为: ${modelObj?.name || id}`);
             });
         });
@@ -912,7 +1094,14 @@ function renderMessages(messages) {
         else {
             textContent = m.content || '';
         }
-        let renderedHtml = m.role === 'user' ? escapeHtml(textContent).replace(/\n/g, '<br/>') : parseMarkdown(textContent);
+        // [核心修复] 对历史记录里的思考链进行防崩转义
+        let safeContent = textContent || '';
+        if (m.role !== 'user') {
+            safeContent = safeContent.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+                return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+            });
+        }
+        let renderedHtml = m.role === 'user' ? escapeHtml(safeContent).replace(/\n/g, '<br/>') : parseMarkdown(safeContent);
         renderedHtml += attachmentHtml;
         const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
         const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
@@ -1024,7 +1213,7 @@ async function sendMessage() {
             extraPrompt = '\n\n【系统提示：启用深度推理模式。你必须极其彻底地思考此问题，展开所有可能的推理链条，检查每一个假设，并且以长篇幅的深度分析来回复。】';
         }
         const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
-        await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, (parsed) => {
+        await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, isAgentModeEnabled, (parsed) => {
             if (parsed.type === 'error') {
                 let errorMsg = parsed.message || '未知错误';
                 if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key') || errorMsg.toLowerCase().includes('auth')) {
@@ -1051,6 +1240,15 @@ async function sendMessage() {
                 let displayResponse = fullResponse
                     .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
                     .replace(/\[SAVE_MEMORY:[\s\S]*$/, '');
+                // [核心修复] 拦截 R1 模型的 <think> 标签，将其转化为可视化状态折叠面板
+                // 1. 处理完整的思考过程（默认折叠）
+                displayResponse = displayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+                    return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+                });
+                // 2. 处理流式截断（正在思考中，默认展开，并带有旋转动画与高亮）
+                displayResponse = displayResponse.replace(/<think>([\s\S]*)$/i, (match, p1) => {
+                    return `<details open style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px; border-left: 3px solid var(--primary);"><summary style="cursor: pointer; color: var(--primary); font-size: 13px; font-weight: bold; user-select: none;"><svg style="animation: spin 1s linear infinite; vertical-align: text-bottom; margin-right:4px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型深度思考中...</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+                });
                 // 如果代码块未闭合，补全它以防 UI 错乱
                 const codeBlockCount = (displayResponse.match(/```/g) || []).length;
                 if (codeBlockCount % 2 !== 0) {
@@ -1080,6 +1278,10 @@ async function sendMessage() {
         sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
         sendBtn.classList.remove('is-stop');
         let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
+        // [核心修复] 对最终结算的内容也进行思维链闭合折叠转换
+        finalDisplayResponse = finalDisplayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+            return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+        });
         aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
         // 为用户消息和 AI 消息动态添加快捷操作栏
         const addActions = (box, text) => {

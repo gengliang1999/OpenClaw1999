@@ -836,8 +836,16 @@ async function openLocalModelsModal(provider) {
     body.querySelectorAll('.use-model-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
             try {
-                await api.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, false);
-                window.__toast?.success(`已添加模型 ${btn.dataset.name}`);
+                await api.model.addLocalModel(btn.dataset.provider, btn.dataset.id, btn.dataset.name, true);
+                const globalId = btn.dataset.provider === 'ollama' ? btn.dataset.id : `lmstudio_${btn.dataset.id}`;
+                activeModelId = globalId;
+                if (api.model && api.model.setActiveModel) {
+                    await api.model.setActiveModel(globalId);
+                }
+                window.__toast?.success(`已切换使用: ${btn.dataset.name}`);
+                modal.style.display = 'none';
+                if (window.navigateTo)
+                    window.navigateTo('chat');
             }
             catch (e) {
                 window.__toast?.error(e.message);

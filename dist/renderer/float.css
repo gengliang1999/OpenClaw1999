@@ -1,0 +1,222 @@
+/* 强制透明底层环境，解决残影和底纹黑边 */
+html, body {
+  background: transparent !important;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+:root {
+  --primary-glow: linear-gradient(135deg, #a259ff, #6100ff);
+  --border-glow: rgba(162, 89, 255, 0.4);
+  --bg-dark: rgba(15, 15, 27, 0.9);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: transparent;
+  display: flex;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* 根容器，撑满窗口 */
+.app-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* 悬浮球默认样式 */
+.float-ball {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(22, 22, 35, 0.96); /* 取代毛玻璃的高不透明度背景 */
+  border: 1px solid var(--border-glow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* 收敛阴影以避免外延被 DWM 截断为矩形 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: grab;
+  position: absolute;
+  z-index: 10;
+  transition: all 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+  -webkit-app-region: no-drag; /* 移除原生拖拽，采用 JS 控制防冲突 */
+}
+
+/* 呼吸效果内发光 */
+.logo-inner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--primary-glow);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  -webkit-app-region: no-drag; /* no-drag 以响应鼠标点击 */
+  cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  animation: breath 3s infinite ease-in-out;
+  transition: transform 0.2s;
+}
+.logo-inner:hover {
+  transform: scale(1.08);
+}
+.logo-inner:active {
+  transform: scale(0.92);
+}
+
+.logo-text {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* 贴边半隐藏隐藏动效：贴边时往墙里缩进一半，透明度下降 */
+.side-left .float-ball {
+  left: -24px;
+  opacity: 0.45;
+}
+.side-left .float-ball:hover {
+  left: 5px;
+  opacity: 1;
+  box-shadow: 0 6px 20px rgba(162, 89, 255, 0.5);
+}
+
+.side-right .float-ball {
+  right: -24px;
+  opacity: 0.45;
+}
+.side-right .float-ball:hover {
+  right: 5px;
+  opacity: 1;
+  box-shadow: 0 6px 20px rgba(162, 89, 255, 0.5);
+}
+
+/* 快捷菜单气泡面板 */
+.quick-panel {
+  display: none;
+  position: absolute;
+  width: 250px;
+  height: 160px;
+  background: rgba(15, 15, 27, 0.98); /* 使用近乎不透明的实色替代滤镜，杜绝紫色残影 */
+  border: 1px solid rgba(162, 89, 255, 0.45);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05); /* 移除紫色底边发散阴影 */
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
+  z-index: 5;
+  -webkit-app-region: no-drag; /* 保证面板区域能够输入文本和捕获点击 */
+  animation: floatFadeIn 0.25s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+@keyframes floatFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 根据小球吸附侧边，确定面板展开朝向 */
+.side-left .quick-panel {
+  left: 65px;
+}
+.side-right .quick-panel {
+  right: 65px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.panel-title {
+  color: #a259ff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.action-icon-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  font-size: 11px;
+  transition: color 0.2s;
+}
+.action-icon-btn:hover {
+  color: #ff453a;
+}
+
+.panel-body {
+  flex: 1;
+  margin-bottom: 8px;
+}
+.quick-textarea {
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: #ffffff;
+  padding: 8px;
+  font-size: 12px;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.4;
+  transition: border-color 0.2s;
+}
+.quick-textarea:focus {
+  border-color: rgba(162, 89, 255, 0.6);
+}
+
+.panel-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.footer-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #e2e2e9;
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.footer-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #ffffff;
+}
+.footer-btn.primary {
+  background: var(--primary-glow);
+  border: none;
+}
+.footer-btn.primary:hover {
+  box-shadow: 0 0 10px rgba(162, 89, 255, 0.5);
+}
+
+@keyframes breath {
+  0%, 100% {
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.3), 0 0 4px rgba(162, 89, 255, 0.2);
+  }
+  50% {
+    box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 10px rgba(162, 89, 255, 0.6);
+  }
+}

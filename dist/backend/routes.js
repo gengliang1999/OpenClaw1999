@@ -60,6 +60,11 @@ module.exports.createChatRouter = function (dependencies) {
                 res.write(`data: ${JSON.stringify({ type: 'conversation', id: convId })}\n\n`);
             }
             const abortController = new AbortController();
+            // 监听客户端长连接断开，自动中断大模型网络推理与后台系统操作，杜绝后台算力与 Token 泄露
+            req.on('close', () => {
+                console.log(`[流式聊天] 客户端长连接已关闭，触发 Abort 中断网络推理...`);
+                abortController.abort();
+            });
             let finalContent = message;
             if (attachment) {
                 finalContent = [
@@ -111,10 +116,25 @@ module.exports.createChatRouter = function (dependencies) {
                 const execMatch = accumulatedReply.match(/<execute>([\s\S]*?)<\/execute>/i);
                 if (execMatch && recursionCount < 3) {
                     const cmd = execMatch[1].trim();
-                    res.write(`data: ${JSON.stringify({ type: 'chunk', content: `\n\n> 🤖 [系统工具] 正在执行命令: \`${cmd}\` ...\n` })}\n\n`);
                     try {
-                        const execResult = await sandbox.executeConfirmed(cmd, false, { timeout: 15000 });
-                        let outputText = execResult.output || execResult.error || '执行成功，无终端输出';
+                        // 调用 sandbox.execute 进行安全等级检查
+                        const execResult = await sandbox.execute(cmd, { timeout: 15000 });
+                        // 如果遇到中高风险命令，且未经过永久授权，则抛出 requires_confirmation SSE 事件，中断后端流并交由前端处理
+                        if (execResult.needsConfirmation) {
+                            res.write(`data: ${JSON.stringify({
+                                type: 'requires_confirmation',
+                                command: cmd,
+                                riskLevel: execResult.riskLevel,
+                                message: execResult.message,
+                                conversationId: convId
+                            })}\n\n`);
+                            // 保存 AI 目前已经吐出的内容
+                            memoryStore.saveMessage(convId, 'assistant', accumulatedReply);
+                            return accumulatedReply;
+                        }
+                        res.write(`data: ${JSON.stringify({ type: 'chunk', content: `\n\n> 🤖 [系统工具] 正在执行命令: \`${cmd}\` ...\n` })}\n\n`);
+                        // 不需要确认的低风险或授权命令直接执行，修复 stdout/stderr 属性 Bug
+                        let outputText = execResult.stdout || execResult.stderr || '执行成功，无终端输出';
                         if (outputText.length > 2000)
                             outputText = outputText.slice(0, 2000) + '\n... (内容过长已截断)';
                         res.write(`data: ${JSON.stringify({ type: 'chunk', content: `> ✅ 执行完成，继续响应中...\n\n` })}\n\n`);
@@ -123,6 +143,7 @@ module.exports.createChatRouter = function (dependencies) {
                         return accumulatedReply + '\n\n' + await chatRecursion(currentMessages, recursionCount + 1);
                     }
                     catch (e) {
+                        res.write(`data: ${JSON.stringify({ type: 'chunk', content: `\n\n> 🤖 [系统工具] 正在执行命令: \`${cmd}\` ...\n` })}\n\n`);
                         res.write(`data: ${JSON.stringify({ type: 'chunk', content: `> ❌ 执行失败，继续响应中...\n\n` })}\n\n`);
                         currentMessages.push({ role: 'assistant', content: accumulatedReply });
                         currentMessages.push({ role: 'user', content: `[沙盒执行失败]: ${e.message}\n请向用户说明情况，或尝试其他命令。` });

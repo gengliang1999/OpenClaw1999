@@ -3,65 +3,46 @@
 
 export const api = {
   get: async (url: string, options: any = {}) => {
-    let fetchOpts: any = { method: options.method || 'GET', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } };
-    if (options.signal) fetchOpts.signal = options.signal;
-    if (options.body && options.method !== 'GET') fetchOpts.body = JSON.stringify(options.body);
-    const res = await fetch(`http://127.0.0.1:3721/api${url}`, fetchOpts);
-    if (!res.ok) throw new Error(await res.text());
-    if (options.stream) return res.body;
-    return res.json();
+    if (window.openClaw && window.openClaw.apiCall) {
+      // 通过原生安全的 IPC 管道直接分发 API，无 TCP 端口开销，防御跨源攻击
+      return window.openClaw.apiCall(url, { ...options, method: options.method || 'GET' });
+    }
+    throw new Error('原生安全 IPC 管道不可用');
   },
   post: async (url: string, data: any, options: any = {}) => api.get(url, { ...options, method: 'POST', body: data }),
   put: async (url: string, data: any, options: any = {}) => api.get(url, { ...options, method: 'PUT', body: data }),
   delete: async (url: string, options: any = {}) => api.get(url, { ...options, method: 'DELETE' }),
 
-  // ===== ������� =====
+  // ===== 业务接口 =====
   chat: {
     sendMessage: (conversationId, message, modelId) => 
       api.post('/chat', { conversationId, message, modelId }),
-    sendMessageStream: (conversationId, message, attachment, modelId, systemPrompt, temperature, onData) => {
-      let currentChatController = new AbortController();
-      const signal = currentChatController.signal;
-
-      return (async () => {
-        const response = await fetch('http://127.0.0.1:3721/api/chat/stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conversationId, message, attachment, modelId, systemPrompt, temperature }),
-          signal,
+    sendMessageStream: (conversationId, message, attachment, modelId, systemPrompt, temperature, agentMode, onData) => {
+      if (window.openClaw && window.openClaw.onChatChunk) {
+        // 先解绑历史监听，状态更新唯一性防竞态 Bug
+        window.openClaw.offChatChunk();
+        
+        window.openClaw.onChatChunk((data: any) => {
+          if (data.type === 'done' || data.type === 'error') {
+            window.openClaw.offChatChunk();
+          }
+          if (onData) onData(data);
         });
 
-        if (!response.ok) {
-          const errBody = await response.json().catch(() => ({ message: '����ʧ��' }));
-          throw new Error(errBody.message || `HTTP ${response.status}`);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop();
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') return;
-              try {
-                const parsed = JSON.parse(data);
-                if (onData) onData(parsed);
-              } catch (e) {}
-            }
-          }
-        }
-      })();
+        // 异步发起流式 IPC 响应，并在主进程触发 Abort 闭环
+        window.openClaw.apiCallStream({ conversationId, message, attachment, modelId, systemPrompt, temperature, agentMode }).catch((err: any) => {
+          console.error('[流式 IPC 管道异常]', err);
+          window.openClaw.offChatChunk();
+          if (onData) onData({ type: 'error', message: err.message });
+        });
+      }
+      return Promise.resolve();
     },
-    abortStream: () => {},
+    abortStream: () => {
+      if (window.openClaw && window.openClaw.abortStream) {
+        window.openClaw.abortStream();
+      }
+    },
     deleteMessage: (messageId) => api.delete(`/chat/message/${messageId}`),
     getHistory: (conversationId) => api.get(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
     getConversations: () => api.get('/chat/conversations'),

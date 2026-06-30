@@ -6,9 +6,67 @@
 
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { EventEmitter } = require('events');
 
 const ANTHROPIC_PROVIDERS = ['Anthropic', 'claude'];
+
+// ========== API Key 安全加解密工具函数 ==========
+const FALLBACK_SECRET = 'openclaw-default-api-key-safe-salt';
+const ALGORITHM = 'aes-256-cbc';
+
+function encryptText(text) {
+  if (!text) return '';
+  try {
+    const { safeStorage } = require('electron');
+    if (safeStorage && safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(text);
+      return 'safeStorage:' + encrypted.toString('base64');
+    }
+  } catch (e) {}
+  
+  try {
+    const key = crypto.scryptSync(FALLBACK_SECRET, 'salt-claw', 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return 'fallback:' + iv.toString('hex') + ':' + encrypted;
+  } catch (e) {
+    return text;
+  }
+}
+
+function decryptText(text) {
+  if (!text) return '';
+  if (text.startsWith('safeStorage:')) {
+    try {
+      const { safeStorage } = require('electron');
+      const base64Data = text.substring('safeStorage:'.length);
+      const buffer = Buffer.from(base64Data, 'base64');
+      return safeStorage.decryptString(buffer);
+    } catch (e) {
+      console.error('[模型管理] safeStorage 解密失败，返回空:', e.message);
+      return '';
+    }
+  }
+  if (text.startsWith('fallback:')) {
+    try {
+      const parts = text.split(':');
+      const iv = Buffer.from(parts[1], 'hex');
+      const encryptedText = parts[2];
+      const key = crypto.scryptSync(FALLBACK_SECRET, 'salt-claw', 32);
+      const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+      let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      return decrypted;
+    } catch (e) {
+      console.error('[模型管理] Fallback 解密失败，返回空:', e.message);
+      return '';
+    }
+  }
+  return text;
+}
 
 class ModelManager extends EventEmitter {
   /**
@@ -32,7 +90,16 @@ class ModelManager extends EventEmitter {
     try {
       if (fs.existsSync(this.configPath)) {
         const data = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
-        this.models = data.models || [];
+        const loadedModels = data.models || [];
+        
+        // 解密从磁盘加载出的 API Key，在内存中保持解密明文以便发送 API 请求
+        this.models = loadedModels.map(m => {
+          if (m.apiKey) {
+            m.apiKey = decryptText(m.apiKey);
+          }
+          return m;
+        });
+        
         this.activeModelId = data.activeModelId || null;
       } else {
         // 默认配置：一个云端 OpenAI 兼容模型
@@ -78,8 +145,18 @@ class ModelManager extends EventEmitter {
     try {
       const dir = path.dirname(this.configPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      
+      // 写入磁盘前对 models 数据进行深拷贝并对 apiKey 字段进行加密，内存中的数据依然保持明文不变
+      const modelsToSave = this.models.map(m => {
+        const copy = { ...m };
+        if (copy.apiKey) {
+          copy.apiKey = encryptText(copy.apiKey);
+        }
+        return copy;
+      });
+
       fs.writeFileSync(this.configPath, JSON.stringify({
-        models: this.models,
+        models: modelsToSave,
         activeModelId: this.activeModelId,
       }, null, 2), 'utf-8');
     } catch (error) {
@@ -99,6 +176,7 @@ class ModelManager extends EventEmitter {
       provider: m.provider || (m.type === 'local' ? '本地模型' : '云端API'),
       isActive: m.id === this.activeModelId,
       configured: m.type === 'cloud' ? !!m.apiKey : !!m.path,
+      isCold: m.isCold || false
     }));
   }
 
@@ -187,7 +265,7 @@ class ModelManager extends EventEmitter {
     
     // 1. 同步 Ollama (默认端口 11434)
     try {
-      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags');
+      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2000) });
       if (ollamaRes.ok) {
         const data = await ollamaRes.json();
         const models = data.models || [];
@@ -200,6 +278,7 @@ class ModelManager extends EventEmitter {
               type: 'local',
               provider: 'Ollama',
               sizeGB: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) : 0,
+              isCold: false
             });
             syncedCount++;
           }
@@ -209,38 +288,85 @@ class ModelManager extends EventEmitter {
       console.log('[模型管理器] Ollama 未运行或连接失败');
     }
 
-    // 2. 同步 LM Studio (默认端口 1234)
+    // 2. 同步 LM Studio 活跃模型 (Hot)
+    let hotLMModels = [];
     try {
-      const lmRes = await fetch('http://127.0.0.1:1234/v1/models');
+      const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(2000) });
       if (lmRes.ok) {
         const data = await lmRes.json();
-        const models = data.data || [];
-        for (const m of models) {
-          const exists = this.models.some(localM => localM.id === m.id && localM.provider === 'LM Studio');
-          if (!exists) {
-            this.models.push({
-              id: m.id,
-              name: `[LM Studio] ${m.id.split('/').pop()}`,
-              type: 'cloud', // LM Studio 提供 OpenAI 兼容的 API
-              provider: 'LM Studio',
-              apiKey: 'lm-studio',
-              baseUrl: 'http://127.0.0.1:1234/v1',
-              modelName: m.id,
-              maxTokens: 4096,
-              temperature: 0.7
-            });
-            syncedCount++;
-          }
-        }
+        hotLMModels = data.data || [];
       }
     } catch (e) {
       console.log('[模型管理器] LM Studio 未运行或连接失败');
+    }
+
+    // 2.1 同步 LM Studio 物理库存 (补齐 Cold Storage 模型)
+    const physicalLMModels = this.scanLMStudioPhysicalModels();
+    
+    // 合并 Hot 与 Cold
+    const allLMModels = [...hotLMModels];
+    for (const pm of physicalLMModels) {
+      if (!allLMModels.some(m => m.id === pm.id)) {
+        allLMModels.push(pm);
+      }
+    }
+
+    for (const m of allLMModels) {
+      const isCold = !hotLMModels.some(hm => hm.id === m.id);
+      const exists = this.models.some(localM => localM.id === m.id && localM.provider === 'LM Studio');
+      if (!exists) {
+        this.models.push({
+          id: m.id,
+          name: `[LM Studio] ${m.id.split('/').pop()}`,
+          type: 'cloud',
+          provider: 'LM Studio',
+          apiKey: 'lm-studio',
+          baseUrl: 'http://127.0.0.1:1234/v1',
+          modelName: m.id,
+          maxTokens: 4096,
+          temperature: 0.7,
+          isCold: isCold
+        });
+        syncedCount++;
+      } else {
+        const existingModel = this.models.find(localM => localM.id === m.id && localM.provider === 'LM Studio');
+        if (existingModel) existingModel.isCold = isCold;
+      }
     }
 
     if (syncedCount > 0) {
       this._saveConfig();
     }
     return syncedCount;
+  }
+
+  /**
+   * 物理扫描 LM Studio 缓存目录的 GGUF 模型
+   */
+  scanLMStudioPhysicalModels() {
+    const os = require('os');
+    const path = require('path');
+    const fs = require('fs');
+    const lmCacheDir = path.join(os.homedir(), '.cache', 'lm-studio', 'models');
+    if (!fs.existsSync(lmCacheDir)) return [];
+    
+    let models = [];
+    const scanDir = (dir) => {
+      try {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const fullPath = path.join(dir, item);
+          if (fs.statSync(fullPath).isDirectory()) {
+            scanDir(fullPath);
+          } else if (item.endsWith('.gguf')) {
+            const relPath = path.relative(lmCacheDir, fullPath).replace(/\\/g, '/');
+            models.push({ id: relPath, name: item });
+          }
+        }
+      } catch (e) {}
+    };
+    scanDir(lmCacheDir);
+    return models;
   }
 
   /**
@@ -263,10 +389,10 @@ class ModelManager extends EventEmitter {
   }
 
   /**
-   * 流式聊天接口
+   * 流式聊天接口 (含 Agent Tool Calling 拦截引擎)
    * @param {Array} messages - 消息列表
-   * @param {Object} options - 选项
-   * @param {Function} onChunk - 收到数据块时的回调 (text) => void
+   * @param {Object} options - 选项，支持 options.agentMode 开启代理执行
+   * @param {Function} onChunk - 收到数据块时的回调
    * @returns {Promise<string>} 完整的 AI 回复
    */
   async chatStream(messages, options = {}, onChunk) {
@@ -274,12 +400,122 @@ class ModelManager extends EventEmitter {
     const model = this.models.find(m => m.id === modelId);
     if (!model) throw new Error('未选择模型或模型不存在');
 
-    if (model.type === 'cloud') {
-      return this._chatCloudStream(model, messages, options, onChunk);
-    } else if (model.type === 'local') {
-      return this._chatLocalStream(model, messages, options, onChunk);
+    let currentMessages = [...messages];
+    const isAgentMode = options.agentMode === true;
+    const maxAgentLoops = 5;
+    let loopCount = 0;
+    let finalMergedResponse = '';
+
+    if (isAgentMode) {
+      const agentSystemPrompt = `You are an Autonomous AI Agent. You have access to system tools. If the user asks you to read files or requires system operations, you MUST use tools by outputting a raw JSON block exactly in this format and STOP generating further text:
+\`\`\`json
+{
+  "tool": "Fs.readFile",
+  "args": { "path": "absolute_file_path" }
+}
+\`\`\`
+Supported tools: Fs.readFile.
+If no tool is needed, answer the user directly.`;
+      
+      if (currentMessages.length > 0 && currentMessages[0].role === 'system') {
+        currentMessages[0] = { role: 'system', content: agentSystemPrompt + '\n' + currentMessages[0].content };
+      } else {
+        currentMessages.unshift({ role: 'system', content: agentSystemPrompt });
+      }
     }
-    throw new Error(`不支持的模型类型: ${model.type}`);
+
+    while (loopCount < maxAgentLoops) {
+      loopCount++;
+      let fullResponse = '';
+      let jsonInterceptBuffer = '';
+      let isIntercepting = false;
+
+      const internalOnChunk = (chunk) => {
+        if (!isAgentMode) {
+          onChunk(chunk);
+          return;
+        }
+
+        jsonInterceptBuffer += chunk;
+        if (jsonInterceptBuffer.includes('```json') || jsonInterceptBuffer.includes('{"tool"')) {
+          isIntercepting = true;
+        } else {
+          if (jsonInterceptBuffer.length > 30 && !isIntercepting) {
+            onChunk(jsonInterceptBuffer);
+            jsonInterceptBuffer = '';
+          }
+        }
+      };
+
+      try {
+        if (model.type === 'cloud') {
+          fullResponse = await this._chatCloudStream(model, currentMessages, options, internalOnChunk);
+        } else if (model.type === 'local') {
+          fullResponse = await this._chatLocalStream(model, currentMessages, options, internalOnChunk);
+        } else {
+          throw new Error(`不支持的模型类型: ${model.type}`);
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError' || err.message === 'AbortError') {
+           throw err; // 如果是被主动打断的，直接向上抛出结束
+        }
+        throw err;
+      }
+
+      if (isAgentMode && !isIntercepting && jsonInterceptBuffer.length > 0) {
+        onChunk(jsonInterceptBuffer);
+      }
+
+      if (!isAgentMode) {
+        return fullResponse;
+      }
+
+      // 正则匹配并提取 JSON
+      const toolMatch = fullResponse.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
+      const rawJsonMatch = fullResponse.match(/(\{[\s\S]*?"tool"\s*:\s*"[^"]+"[\s\S]*\})/);
+      
+      let toolPayload = null;
+      if (toolMatch) {
+        try { toolPayload = JSON.parse(toolMatch[1]); } catch(e) {}
+      } else if (rawJsonMatch) {
+        try { toolPayload = JSON.parse(rawJsonMatch[1]); } catch(e) {}
+      }
+
+      if (toolPayload && toolPayload.tool) {
+        onChunk(`\n\n> ⚡ **[Agent 工具调用]** 正在执行: \`${toolPayload.tool}\` ...\n`);
+        
+        let toolResultStr = '';
+        try {
+          if (toolPayload.tool === 'Fs.readFile' && toolPayload.args?.path) {
+            const fs = require('fs');
+            if (fs.existsSync(toolPayload.args.path)) {
+              const fileContent = fs.readFileSync(toolPayload.args.path, 'utf8');
+              toolResultStr = `File Content:\n${fileContent.substring(0, 3000)}`;
+              onChunk(`> 🟢 **[执行成功]** 读取了 ${toolPayload.args.path.split(/[\/\\]/).pop()} 的内容。\n\n`);
+            } else {
+              toolResultStr = `Error: File not found at path: ${toolPayload.args.path}`;
+              onChunk(`> 🔴 **[执行失败]** 文件不存在。\n\n`);
+            }
+          } else {
+            toolResultStr = `Tool ${toolPayload.tool} is not supported or missing arguments.`;
+            onChunk(`> 🔴 **[执行失败]** 未知工具。\n\n`);
+          }
+        } catch (e: any) {
+          toolResultStr = `Error executing tool: ${e.message}`;
+          onChunk(`> 🔴 **[执行异常]** ${e.message}\n\n`);
+        }
+
+        currentMessages.push({ role: 'assistant', content: fullResponse });
+        currentMessages.push({ role: 'system', content: `Tool execution result:\n${toolResultStr}` });
+        
+        finalMergedResponse += fullResponse + '\n';
+        continue;
+      } else {
+        return finalMergedResponse + fullResponse;
+      }
+    }
+    
+    return finalMergedResponse + "\n\n> [系统警告] 已达到最大代理迭代次数 (5次)，强制终止循环。";
   }
 
   /**
@@ -595,6 +831,98 @@ class ModelManager extends EventEmitter {
     }
 
     return fullContent;
+  }
+
+  /**
+   * 检测 Ollama 引擎状态
+   * @returns {Promise<boolean>}
+   */
+  async detectOllama() {
+    try {
+      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2500) });
+      return ollamaRes.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * 检测 LM Studio 引擎状态
+   * @returns {Promise<boolean>}
+   */
+  async detectLMStudio() {
+    try {
+      const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(2500) });
+      return lmRes.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * 探测所有本地引擎与可用模型
+   * @returns {Promise<Object>}
+   */
+  async detectLocal() {
+    const result = { ollama: { running: false, models: [] as any[] }, lmstudio: { running: false, models: [] as any[] } };
+    try {
+      const ollamaRes = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+      if (ollamaRes.ok) {
+        result.ollama.running = true;
+        const data = await ollamaRes.json();
+        result.ollama.models = (data.models || []).map((m:any) => ({ id: m.name, name: m.name }));
+      }
+    } catch (e) {}
+    
+    try {
+      const lmRes = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(2000) });
+      if (lmRes.ok) {
+        result.lmstudio.running = true;
+        const data = await lmRes.json();
+        result.lmstudio.models = (data.data || []).map((m:any) => ({ id: m.id, name: m.id }));
+      }
+    } catch (e) {}
+    
+    return result;
+  }
+
+  /**
+   * 获取 Ollama 所有模型详细列表
+   * @returns {Promise<Object>}
+   */
+  async getOllamaModels() {
+    try {
+      const res = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        const data = await res.json();
+        return { models: (data.models || []).map((m:any) => ({ 
+          id: m.name, name: m.name, sizeBytes: m.size || 0, 
+          size: m.size ? (m.size / 1024 / 1024 / 1024).toFixed(1) + ' GB' : '未知',
+          parameterSize: m.details?.parameter_size || '',
+          family: m.details?.family || ''
+        })) };
+      }
+    } catch(e) {}
+    return { models: [] };
+  }
+
+  /**
+   * 获取 LM Studio 所有模型详细列表
+   * @returns {Promise<Object>}
+   */
+  async getLMStudioModels() {
+    try {
+      const res = await fetch('http://127.0.0.1:1234/v1/models', { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        const data = await res.json();
+        return { models: (data.data || []).map((m:any) => ({ 
+          id: m.id, name: m.id.split('/').pop() || m.id, size: '已加载'
+        })) };
+      }
+    } catch(e) {
+      throw new Error('无法连接到 LM Studio，请确保已经在软件内开启了 Local Server (默认端口 1234)！');
+    }
+    return { models: [] };
   }
 }
 

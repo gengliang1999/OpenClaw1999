@@ -1,15 +1,41 @@
-// @ts-nocheck
 /**
  * OpenClaw 智能助手 - Electron 主进程
  * 负责创建主窗口、启动本地 API 服务器、注册 IPC 通信处理器
  */
 
-const { app, BrowserWindow, ipcMain, shell, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu, protocol, globalShortcut } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
-// 本地 API 服务器
-let apiServer = null;
+// [P0 缓存崩溃防御] 强行禁用 GPU 和 Disk Cache，并将 UserData 挂载到安全目录
+app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+const userDataPath = path.join(os.homedir(), '.openclaw', 'app-data');
+app.setPath('userData', userDataPath);
+
+// 生成防本地攻击的安全随机 Token (保持前端向下兼容)
+const nodeCrypto = require('crypto');
+const apiToken = nodeCrypto.randomBytes(32).toString('hex');
+process.env.OPENCLAW_API_TOKEN = apiToken;
+
+// 注册自定义协议特权 scheme，保障本地静态文件同源 ES Modules 安全加载
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'claw',
+    privileges: {
+      secure: true,
+      standard: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+      stream: true,
+    }
+  }
+]);
+
 let mainWindow = null;
+let floatWindow = null;
 
 /**
  * 创建主窗口
@@ -37,8 +63,8 @@ function createMainWindow() {
 
   mainWindow.setMenu(null);
 
-  // 通过本地 HTTP 服务器加载页面（解决 file:// 协议下 ES Module CORS 问题）
-  mainWindow.loadURL('http://127.0.0.1:3721');
+  // 通过原生自定义安全协议加载本地页面（支持同源 ES Module，消除网络端口依赖与 CORS 问题）
+  mainWindow.loadURL('claw://app/index.html');
 
   // 窗口准备好后再显示，避免闪烁
   mainWindow.once('ready-to-show', () => {
@@ -67,28 +93,122 @@ function createMainWindow() {
 }
 
 /**
- * 启动本地 API 服务器（同时提供前端静态文件服务）
+ * 创建系统级常驻悬浮球窗口
  */
-async function startApiServer() {
-  try {
-    const { createServer } = require('../backend/server');
-    const rendererPath = path.join(__dirname, '..', 'renderer');
-    apiServer = await createServer(3721, rendererPath);
-    console.log('[主进程] API 服务器已启动，端口: 3721');
-  } catch (error) {
-    if (error.code === 'EADDRINUSE') {
-      console.warn('[主进程] 端口 3721 已被占用。假设 OpenClaw 后端已在运行，继续启动...');
-    } else {
-      console.error('[主进程] API 服务器启动失败:', error);
-      dialog.showErrorBox('启动错误', `API 服务器启动失败: ${error.message}`);
+function createFloatWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  floatWindow = new BrowserWindow({
+    width: 60,
+    height: 60,
+    x: screenWidth - 80,
+    y: screenHeight / 2 - 30,
+    type: 'toolbar', // 避免在 Windows 任务栏显示
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000', // 强制透明消除底纹
+    hasShadow: false, // 取消原生阴影消除黑边
+    alwaysOnTop: true,
+    resizable: false,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+      sandbox: false,
+      webSecurity: true
     }
-  }
+  });
+
+  floatWindow.loadURL('claw://app/float.html');
+
+  floatWindow.once('ready-to-show', () => {
+    floatWindow.show();
+  });
+
+  // 自动贴边磁吸吸附机制（防止遮挡工作区，拖拽停止 300ms 后吸附）
+  let snapTimer = null;
+  let isDragging = false;
+  
+  ipcMain.on('float:drag-start', () => { isDragging = true; });
+  ipcMain.on('float:drag-end', () => { 
+    isDragging = false; 
+    if (floatWindow && !floatWindow.isDestroyed()) {
+      floatWindow.emit('move'); // 触发归位
+    }
+  });
+
+  floatWindow.on('move', () => {
+    if (snapTimer) clearTimeout(snapTimer);
+    snapTimer = setTimeout(() => {
+      if (!floatWindow || floatWindow.isDestroyed()) return;
+      if (isDragging) return; // 正在拖拽时绝对禁止系统抢夺焦点并强制归位
+      const [x, y] = floatWindow.getPosition();
+      const [w, h] = floatWindow.getSize();
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width: sW, height: sH } = primaryDisplay.workAreaSize;
+
+      let targetX = x;
+      if (x < 80) {
+        targetX = 0; // 吸附左侧
+      } else if (x > sW - w - 80) {
+        targetX = sW - w; // 吸附右侧
+      }
+
+      let targetY = Math.max(10, Math.min(sH - h - 10, y));
+
+      let side = 'none';
+      if (targetX === 0) {
+        side = 'left';
+      } else if (targetX === sW - w) {
+        side = 'right';
+      }
+      floatWindow.webContents.send('float:status', side);
+
+      if (targetX !== x || targetY !== y) {
+        floatWindow.setPosition(targetX, targetY, true);
+      }
+    }, 300);
+  });
+
+  // 支持悬浮窗自适应动态拉伸（菜单展开与收回）
+  ipcMain.on('float:resize', (event, { width, height, x, y }) => {
+    if (floatWindow && !floatWindow.isDestroyed()) {
+      floatWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) }, true);
+    }
+  });
+
+  // 支持前端基于鼠标偏移量的原生级拖动 (取代容易引发闪屏的绝对定位)
+  ipcMain.on('float:move-by', (event, dx, dy) => {
+    if (floatWindow && !floatWindow.isDestroyed()) {
+      const [x, y] = floatWindow.getPosition();
+      floatWindow.setPosition(x + dx, y + dy, false);
+    }
+  });
+
+  floatWindow.on('closed', () => {
+    floatWindow = null;
+  });
 }
+
+
 
 /**
  * 注册 IPC 通信处理器
  */
 function registerIpcHandlers() {
+  // 同步获取 API Token
+  ipcMain.on('system:getApiToken', (event) => {
+    const senderUrl = event.sender.getURL();
+    if (senderUrl.startsWith('claw://') || senderUrl.startsWith('file:///')) {
+      event.returnValue = apiToken;
+    } else {
+      event.returnValue = null;
+    }
+  });
+
   // 系统信息
   ipcMain.handle('system:getInfo', () => {
     return {
@@ -103,7 +223,17 @@ function registerIpcHandlers() {
 
   // 打开外部链接
   ipcMain.handle('system:openExternal', (_, url) => {
-    return shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return shell.openExternal(url);
+      }
+      console.warn(`[安全拦截] 拦截到非安全协议的外部链接打开请求: ${url}`);
+      return Promise.reject(new Error('仅允许打开 http/https 链接'));
+    } catch (e) {
+      console.warn(`[安全拦截] 非法的外部链接格式: ${url}`);
+      return Promise.reject(new Error('无效的 URL 格式'));
+    }
   });
 
   // 选择文件
@@ -135,6 +265,15 @@ function registerIpcHandlers() {
     }
   });
   ipcMain.handle('window:close', () => mainWindow?.close());
+  ipcMain.handle('window:toggleMain', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
 
   // 重启应用
   ipcMain.handle('app:restart', () => {
@@ -158,6 +297,13 @@ function registerIpcHandlers() {
       return sources[0].thumbnail.toDataURL();
     }
     return null;
+  });
+
+  // 跨窗口快捷提问 IPC 转发
+  ipcMain.on('quick-prompt:send', (event, text) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('quick-prompt:received', text);
+    }
   });
 
   let captureWin = null;
@@ -185,7 +331,7 @@ function registerIpcHandlers() {
         contextIsolation: true
       }
     });
-    captureWin.loadFile(path.join(__dirname, '../renderer/screenshot.html'));
+    captureWin.loadURL('claw://app/screenshot.html');
   }
 
   // 初始化隐藏的截屏窗口
@@ -233,10 +379,110 @@ function registerIpcHandlers() {
 
 // 应用准备就绪
 app.whenReady().then(async () => {
+  // 1. 注册 claw 自定义安全协议的本地文件加载拦截处理器
+  protocol.handle('claw', (request) => {
+    const url = request.url;
+    const parsedPath = url.replace('claw://app/', '');
+    const filePath = path.join(__dirname, '..', 'renderer', parsedPath || 'index.html');
+    const { net } = require('electron');
+    const pathToFile = path.normalize(filePath);
+    return net.fetch(`file://${pathToFile}`);
+  });
+
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
-  await startApiServer();
+
+  // 2. 初始化本地数据目录与后端业务实例 (零 TCP 端口监听，全内存数据流转)
+  const os = require('os');
+  const isMac = process.platform === 'darwin';
+  const baseDataDir = path.join(
+    process.env.APPDATA || (isMac ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config')),
+    'OpenClawAssistant'
+  );
+
+  if (!fs.existsSync(baseDataDir)) {
+    fs.mkdirSync(baseDataDir, { recursive: true });
+  }
+
+  let dataDir = baseDataDir;
+  let downloadDir = baseDataDir;
+  let logDir = path.join(baseDataDir, 'logs');
+  const globalConfigPath = path.join(baseDataDir, 'global-config.json');
+
+  if (fs.existsSync(globalConfigPath)) {
+    try {
+      const globalConfig = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+      if (globalConfig.customDataDir && fs.existsSync(globalConfig.customDataDir)) {
+        dataDir = globalConfig.customDataDir;
+      }
+      if (globalConfig.customDownloadDir) {
+        downloadDir = globalConfig.customDownloadDir;
+        if (!fs.existsSync(downloadDir)) {
+          fs.mkdirSync(downloadDir, { recursive: true });
+        }
+      }
+      if (globalConfig.customLogDir) {
+        logDir = globalConfig.customLogDir;
+      }
+    } catch (e) {
+      console.error('[主进程] 加载 global-config 失败', e);
+    }
+  }
+
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+  }
+
+  // 重定向 console.log 到物理日志文件（异步写保护将在后续迭代追加，目前保留文件追加）
+  const logFilePath = path.join(logDir, 'openclaw.log');
+  const originalConsoleLog = console.log;
+  const originalConsoleError = console.error;
+  console.log = function(...args) {
+    originalConsoleLog(...args);
+    try { fs.appendFileSync(logFilePath, `[INFO] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8'); } catch(e) {}
+  };
+  console.error = function(...args) {
+    originalConsoleError(...args);
+    try { fs.appendFileSync(logFilePath, `[ERROR] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8'); } catch(e) {}
+  };
+
+  const { ModelManager } = require('../backend/model-manager');
+  const { MemoryStore } = require('../backend/memory-store');
+  const { SandboxExecutor } = require('../backend/sandbox');
+  const { PermissionManager } = require('../backend/permission-manager');
+  const { AutomationController } = require('../backend/automation');
+
+  const modelManager = new ModelManager(dataDir);
+  const memoryStore = new MemoryStore(dataDir);
+  const sandbox = new SandboxExecutor(downloadDir);
+  const permissionManager = new PermissionManager(dataDir);
+  const automation = new AutomationController(sandbox);
+
+  await memoryStore.init();
+  console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
+
+  // 3. 注册全链路原生 IPC API 路由分发器，彻底替代 Express 路由
+  const { registerApiIpc } = require('./ipc-handlers');
+  registerApiIpc({
+    memoryStore,
+    modelManager,
+    sandbox,
+    permissionManager,
+    automation,
+    baseDataDir,
+    globalConfigPath,
+    dataDir
+  }, () => mainWindow);
+
   createMainWindow();
+  createFloatWindow();
+
+  // 注册全局截图快捷键
+  globalShortcut.register('CommandOrControl+Shift+A', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('shortcut:captureScreen');
+    }
+  });
 
   // macOS 点击 dock 图标重新创建窗口
   app.on('activate', () => {
@@ -253,10 +499,4 @@ app.on('window-all-closed', () => {
   }
 });
 
-// 应用退出前清理
-app.on('before-quit', () => {
-  if (apiServer) {
-    apiServer.close();
-    console.log('[主进程] API 服务器已关闭');
-  }
-});
+export {};

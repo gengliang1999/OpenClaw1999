@@ -1,7 +1,7 @@
 # 依赖文件夹
 node_modules/
 # 编译产物
-dist/ build/ out/ target/
+dist/ build/ out/ target/ release/
 # IDE配置
 .idea/ .vscode/ *.iml
 # 日志、缓存

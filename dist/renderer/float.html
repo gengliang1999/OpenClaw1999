@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="float.css">
+  <title>Claw悬浮助手</title>
+</head>
+<body>
+  <!-- 根组件容器，用来包容悬浮球与快捷气泡 -->
+  <div id="appContainer" class="app-container side-none">
+    
+    <!-- 1. 悬浮球体 (drag 区域) -->
+    <div class="float-ball" id="ball">
+      <!-- 内部发光按钮 (no-drag 区域以捕获点击) -->
+      <div class="logo-inner" id="logoBtn">
+        <span class="logo-text">Claw</span>
+      </div>
+    </div>
+    
+    <!-- 2. AI 快捷提问与控制气泡面板 (no-drag 区域) -->
+    <div class="quick-panel" id="quickPanel">
+      <div class="panel-header">
+        <span class="panel-title">🤖 Claw 快捷操作</span>
+        <button id="closePanelBtn" class="action-icon-btn">✕</button>
+      </div>
+      <div class="panel-body">
+        <textarea id="quickInput" class="quick-textarea" placeholder="原地输入问题，Enter 直接提问..." rows="2"></textarea>
+      </div>
+      <div class="panel-footer">
+        <button id="quickCaptureBtn" class="footer-btn">📸 截图识屏</button>
+        <button id="openMainBtn" class="footer-btn primary">⚙️ 打开面板</button>
+      </div>
+    </div>
+    
+  </div>
+  <script src="float.js"></script>
+</body>
+</html>

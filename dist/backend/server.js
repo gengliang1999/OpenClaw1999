@@ -40,6 +40,28 @@ async function createServer(port = 3721, rendererPath) {
             },
         }));
     }
+    // 安全防范中间件：对所有 API 接口进行 Bearer Token 身份校验，拦截跨站恶意调用（如 DNS Rebinding）
+    app.use('/api', (req, res, next) => {
+        // 排除健康检查接口，允许进程探活
+        if (req.path === '/health') {
+            return next();
+        }
+        const apiToken = process.env.OPENCLAW_API_TOKEN;
+        if (!apiToken) {
+            return res.status(500).json({ error: '安全拦截：系统安全令牌未就绪' });
+        }
+        const authHeader = req.headers['authorization'];
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.warn(`[安全拦截] 阻断了未携带令牌的 API 请求: ${req.method} ${req.originalUrl}`);
+            return res.status(401).json({ error: '未授权访问：缺少安全令牌' });
+        }
+        const token = authHeader.substring(7);
+        if (token !== apiToken) {
+            console.warn(`[安全拦截] 阻断了携带非法令牌的 API 请求: ${req.method} ${req.originalUrl}`);
+            return res.status(403).json({ error: '未授权访问：安全令牌无效' });
+        }
+        next();
+    });
     const isMac = process.platform === 'darwin';
     const baseDataDir = path.join(process.env.APPDATA || (isMac ? path.join(os.homedir(), 'Library', 'Application Support') : path.join(os.homedir(), '.config')), 'OpenClawAssistant');
     if (!fs.existsSync(baseDataDir)) {
