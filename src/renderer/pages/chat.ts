@@ -1217,8 +1217,17 @@ async function sendMessage() {
   sendBtn.classList.add('is-stop');
 
   const aiBox = appendMessage('ai');
-  // 注入加载中占位符，缓解模型延迟造成的“卡死”感。该占位符会在首次收到 stream chunk 时被 fullResponse 直接覆盖。
-  aiBox.innerHTML = '<div style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型思考与响应中，请稍候...</div>';
+  // 注入带有动态读秒器的加载状态，每 100 毫秒更新一次数字，彻底消除“卡死”假象
+  aiBox.innerHTML = '<div style="font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 8px;"><svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 正在唤醒模型与思考... <span class="loading-timer" style="font-family: monospace; font-weight: bold; color: var(--primary);">0.0s</span></div>';
+  const startTime = Date.now();
+  const loadingTimerId = setInterval(() => {
+    const timerEl = aiBox.querySelector('.loading-timer');
+    if (timerEl) {
+      timerEl.textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+    } else {
+      clearInterval(loadingTimerId);
+    }
+  }, 100);
   let fullResponse = '';
 
   tokenUsage += 5;
