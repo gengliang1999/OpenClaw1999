@@ -948,6 +948,46 @@ If no tool is needed, answer the user directly.`;
     }
     return { models: [] };
   }
+
+  /**
+   * 代理请求外部模型的 /models 接口以规避 CORS，并返回模型列表
+   */
+  async proxyFetchModels(baseUrl, apiKey) {
+    try {
+      const targetUrl = baseUrl.endsWith('/v1') ? `${baseUrl}/models` : (baseUrl.endsWith('/') ? `${baseUrl}v1/models` : `${baseUrl}/v1/models`);
+      const headers: any = {
+        'Content-Type': 'application/json'
+      };
+      if (apiKey && apiKey.trim() !== '') {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+      }
+      
+      const res = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(5000) });
+      if (!res.ok) {
+        throw new Error(`HTTP Error: ${res.status} ${res.statusText}`);
+      }
+      const data = await res.json();
+      return { success: true, models: data.data || data.models || [] };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  /**
+   * 代理测试外部 API 的联通性
+   */
+  async proxyTest(baseUrl, apiKey) {
+    try {
+      const fetchRes = await this.proxyFetchModels(baseUrl, apiKey);
+      if (fetchRes.success) {
+        return { success: true, message: '连接成功！' };
+      } else {
+        return { success: false, error: fetchRes.error };
+      }
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
 }
 
 module.exports = { ModelManager };
