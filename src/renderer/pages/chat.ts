@@ -680,7 +680,8 @@ export async function render(container) {
   });
 
   // 模型 Modal 逻辑
-  (document.getElementById('modelModalBtn') as any).addEventListener('click', () => {
+  (document.getElementById('modelModalBtn') as any).addEventListener('click', async () => {
+    await loadModels();
     (document.getElementById('modelSelectionModal') as any).style.display = 'flex';
   });
   (document.getElementById('closeModelModalBtn') as any).addEventListener('click', () => {
@@ -890,6 +891,13 @@ async function loadModels() {
     (res || []).forEach(m => uniqueMap.set(m.id, m));
     models = Array.from(uniqueMap.values());
 
+    const activeRes = await api.model.getActiveModel();
+    if (activeRes && activeRes.id) {
+      activeModelId = activeRes.id;
+    } else if (models.length > 0) {
+      activeModelId = models[0].id;
+    }
+
     // 判断本地模型的更严谨逻辑
     const isLocal = (m) => m.type === 'local' || m.provider === 'LM Studio' || m.provider === 'Ollama' || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
 
@@ -912,18 +920,23 @@ async function loadModels() {
       const targetModelId = isConfigured ? matchedModels[0].id : vendor.id;
       const configuredModelName = isConfigured ? (matchedModels[0].modelName || '默认模型') : '';
 
+      const isActive = targetModelId === activeModelId;
+      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '✅ 正在使用' : (isConfigured ? '✅ 已配置' : '去配置&rarr;');
+      const statusColorClass = isActive ? 'var(--primary)' : (isConfigured ? 'var(--success)' : 'inherit');
+
       // 状态灯：已配置且可连通的厂商显示绿色呼吸灯
       const statusLight = isConfigured
         ? `<span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>`
         : '';
 
       return `
-        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+        <div class="model-select-card" data-id="${targetModelId}" data-vendor="${vendor.id}" data-configured="${isConfigured}" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
            <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
              <span>${vendor.icon}</span> ${vendor.name}${statusLight}
            </div>
            <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${isConfigured ? 'var(--success)' : 'inherit'};">${isConfigured ? '✅ 已配置' : '去配置&rarr;'}</span>
+             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
              ${isConfigured ? `<span title="底层调用模型名称">[${configuredModelName}]</span>` : ''}
            </div>
         </div>
@@ -931,33 +944,42 @@ async function loadModels() {
     }).join('');
 
     const customCloudModels = cloudModelsConfigured.filter(m => !matchedIds.has(m.id));
-    const renderedCustomCloud = customCloudModels.map(m => `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+    const renderedCustomCloud = customCloudModels.map(m => {
+      const isActive = m.id === activeModelId;
+      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '✅ 正在使用' : '✅ 已配置';
+      const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
+      return `
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>🔗</span> ${m.name || m.id}
            <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: 6px;" title="已连通"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: var(--success);">✅ 已配置</span>
+           <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
            <span title="底层调用模型名称">[${m.modelName || '未知'}]</span>
          </div>
       </div>
-    `).join('');
+      `;
+    }).join('');
 
     (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloud + renderedCustomCloud;
     (document.getElementById('localModelsGrid') as any).innerHTML = localModels.length > 0 ? localModels.map(m => {
       const isCold = m.isCold === true;
       const icon = isCold ? '⏾' : '💻';
       const statusColor = isCold ? '#9ca3af' : '#00c853';
-      const statusText = isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)';
+      const isActive = m.id === activeModelId;
+      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '✅ 正在使用' : (isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)');
+      const statusColorClass = isActive ? 'var(--primary)' : statusColor;
       return `
-      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
          <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
            <span>${icon}</span> ${m.name}
-           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${statusText}"></span>
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${isCold ? 'Cold' : 'Hot'}"></span>
          </div>
          <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-           <span style="color: ${statusColor}; font-weight: 500;">${statusText}</span>
+           <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : '500'};">${statusTextContent}</span>
            <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
          </div>
       </div>
@@ -1008,13 +1030,6 @@ async function loadModels() {
         if (!isCold && window.__toast) window.__toast.success(`已切换为: ${modelObj?.name || id}`);
       });
     });
-
-    const activeRes = await api.model.getActiveModel();
-    if (activeRes && activeRes.id) {
-      activeModelId = activeRes.id;
-    } else if (models.length > 0) {
-      activeModelId = models[0].id;
-    }
 
     const initialModel = models.find(x => x.id === activeModelId);
     if (initialModel) {
