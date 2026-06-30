@@ -1273,6 +1273,11 @@ async function sendMessage() {
       if (parsed.content) {
         fullResponse += parsed.content;
 
+        // 如果目前只收到毫无意义的空字符或换行，暂不更新 DOM，保留加载动画
+        if (!fullResponse.trim()) {
+          return;
+        }
+
         // 隐藏已完整闭合的和正在流式生成的记忆标签
         let displayResponse = fullResponse
           .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
