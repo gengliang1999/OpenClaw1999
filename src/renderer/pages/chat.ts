@@ -1218,17 +1218,13 @@ async function sendMessage() {
 
   const aiBox = appendMessage('ai');
   // 注入带有动态读秒器的加载状态，每 100 毫秒更新一次数字，彻底消除“卡死”假象
-  // 注入高辨识度的全息加载读秒器，确保用户能清晰感知后台加载进程
   aiBox.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 16px; padding: 8px 12px; background: rgba(0, 0, 0, 0.05); border-radius: 12px; border: 1px solid rgba(0, 0, 0, 0.1);">
-      <div style="position: relative; width: 24px; height: 24px;">
-        <svg style="animation: spin 2s linear infinite; position: absolute; inset: 0;" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-dasharray="16 16"/></svg>
-        <svg style="animation: spin 1s linear infinite reverse; position: absolute; inset: 0; padding: 4px;" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 2px;">
-        <span style="font-size: 14px; font-weight: 600; color: var(--primary); letter-spacing: 0.5px;">模型核心引擎唤醒中...</span>
-        <span style="font-size: 12px; color: var(--text-secondary); opacity: 0.8;">数据传输与思考准备 <span style="display:inline-block; margin-left: 6px; font-weight: bold; background: var(--bg-hover); padding: 2px 6px; border-radius: 4px;">耗时: <span class="loading-timer" style="font-family: 'Courier New', Courier, monospace; color: var(--danger);">0.0s</span></span></span>
-      </div>
+    <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px;">
+      <svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      <span>正在思考...</span>
+      <span class="loading-timer" style="font-family: monospace; color: var(--primary);">0.0s</span>
     </div>
   `;
   const startTime = Date.now();
