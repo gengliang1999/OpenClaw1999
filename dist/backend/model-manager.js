@@ -367,7 +367,7 @@ class ModelManager extends EventEmitter {
         const model = this.models.find(m => m.id === modelId);
         if (!model)
             throw new Error('未选择模型或模型不存在');
-        if (model.type === 'cloud') {
+        if (model.type === 'cloud' || model.provider === 'LM Studio') {
             return this._chatCloud(model, messages, options);
         }
         else if (model.type === 'local') {
@@ -431,7 +431,7 @@ If no tool is needed, answer the user directly.`;
                 }
             };
             try {
-                if (model.type === 'cloud') {
+                if (model.type === 'cloud' || model.provider === 'LM Studio') {
                     fullResponse = await this._chatCloudStream(model, currentMessages, options, internalOnChunk);
                 }
                 else if (model.type === 'local') {
@@ -593,7 +593,7 @@ If no tool is needed, answer the user directly.`;
      * @private
      */
     async _chatCloud(model, messages, options) {
-        if (!model.apiKey)
+        if (!model.apiKey && model.provider !== 'LM Studio')
             throw new Error('请先配置 API Key');
         const { url, headers, body } = this._buildCloudRequestConfig(model, messages, options, false);
         const makeRequest = () => fetch(url, {
@@ -614,7 +614,7 @@ If no tool is needed, answer the user directly.`;
      * @private
      */
     async _chatCloudStream(model, messages, options, onChunk) {
-        if (!model.apiKey)
+        if (!model.apiKey && model.provider !== 'LM Studio')
             throw new Error('请先配置 API Key');
         const { url, headers, body } = this._buildCloudRequestConfig(model, messages, options, true);
         const isAnthropic = this._isAnthropicProvider(model);
