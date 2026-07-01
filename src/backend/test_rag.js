@@ -21,15 +21,15 @@ async function runTests() {
   console.log('\\n测试查询:', query);
   
   console.time('检索召回耗时');
-  const results = await ragEngine.search(conversationId, query, 3);
+  const results = await ragEngine.searchRelevant(conversationId, query, 3);
   console.timeEnd('检索召回耗时');
   
   console.log('\\n召回结果片段:');
   results.forEach((r, i) => {
-    console.log(`[${i+1}] 相似度: ${r.score.toFixed(3)} | 内容: ${r.content.trim()}`);
+    console.log(`[${i+1}] 相似度: ${r.score.toFixed(3)} | 内容: ${r.chunkText.trim()}`);
   });
 
-  if (results.length > 0 && results[0].content.includes('RAG')) {
+  if (results.length > 0 && results[0].chunkText.includes('RAG')) {
     console.log('\\n✅ 测试通过: 成功召回了最相关的 RAG 架构描述。');
   } else {
     console.log('\\n❌ 测试失败: 召回准确率不达标。');
