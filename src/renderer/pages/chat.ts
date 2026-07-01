@@ -880,6 +880,9 @@ async function loadModels() {
       await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
     }
     const res = await api.model.getModels();
+    
+    let allSettings: any = {};
+    try { allSettings = await api.settings.getAll() || {}; } catch(e) {}
 
     // 移除重复模型，保留最后一个唯一 ID
     const uniqueMap = new Map();
@@ -905,21 +908,30 @@ async function loadModels() {
         (m.provider && m.provider.toLowerCase() === v.name.toLowerCase()) ||
         (m.provider && m.provider.toLowerCase() === v.id.toLowerCase()) ||
         m.id.toLowerCase().includes(v.id.toLowerCase())
-      ) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗' };
+      ) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗', color: '#007aff' };
+
+      const vendorSettings = allSettings[vendor.id] || {};
+      const modelNameDisplay = vendorSettings.defaultModel || m.name || m.modelName || m.id;
 
       const isActive = m.id === activeModelId;
-      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
-      const statusTextContent = isActive ? '✅ 正在使用' : '✅ 已配置';
-      const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
+      const activeStyle = isActive ? `border: 2px solid ${vendor.color || 'var(--primary)'}; background: ${vendor.color || 'var(--primary)'}15;` : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '🔥正在使用' : '✅已配置';
+      const statusColorClass = isActive ? (vendor.color || 'var(--primary)') : 'var(--success)';
 
       return `
-        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
-           <div style="font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${m.name || m.id} <span style="color: var(--primary); font-size: 14px;">- ${m.modelName || '未知模型'}</span>
-             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: auto;" title="已连通"></span>
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 14px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; gap: 10px; ${activeStyle} box-shadow: 0 4px 12px rgba(0,0,0,0.03);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.03)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color || 'var(--primary)'}20; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;" title="${modelNameDisplay}">${vendor.name} - ${modelNameDisplay}</div>
+               <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; line-height: 1.2; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                 <span style="opacity: 0.8;">[${vendor.name}]</span>
+               </div>
+             </div>
+             ${isActive ? `<div style="width: 8px; height: 8px; border-radius: 50%; background: ${vendor.color || 'var(--primary)'}; box-shadow: 0 0 8px ${vendor.color || 'var(--primary)'}; flex-shrink: 0;"></div>` : `<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); flex-shrink: 0;"></div>`}
            </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
+           <div style="font-size: 12px; font-weight: 500; color: ${statusColorClass}; display: flex; align-items: center; gap: 4px; background: ${isActive ? `${vendor.color || 'var(--primary)'}15` : 'rgba(52, 199, 89, 0.1)'}; padding: 4px 8px; border-radius: 6px; width: fit-content;">
+             ${statusTextContent}
            </div>
         </div>
       `;
@@ -934,12 +946,16 @@ async function loadModels() {
       ))
       .map(vendor => {
         return `
-        <div class="model-select-card" data-id="${vendor.id}" data-vendor="${vendor.id}" data-configured="false" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}
+        <div class="model-select-card" data-vendor="${vendor.id}" data-configured="false" style="padding: 14px; border: 1px solid ${vendor.color}30; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); background: linear-gradient(135deg, ${vendor.color}05 0%, ${vendor.color}15 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px ${vendor.color}30';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.02)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color}25; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); line-height: 1.2;">${vendor.name}</div>
+               <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.2;">尚未配置 API Key</div>
+             </div>
            </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: inherit;">去配置&rarr;</span>
+           <div style="font-size: 12px; font-weight: 600; color: ${vendor.color}; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${vendor.color}20; padding: 6px 10px; border-radius: 8px; width: fit-content; transition: all 0.2s; margin-top: 2px;" onmouseover="this.style.background='${vendor.color}35'; this.style.transform='scale(1.02)';" onmouseout="this.style.background='${vendor.color}20'; this.style.transform='scale(1)';">
+             立即配置 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
            </div>
         </div>
         `;
