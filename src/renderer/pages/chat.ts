@@ -661,7 +661,7 @@ export async function render(container) {
   (document.getElementById('fileUploadBtn') as any).addEventListener('click', () => {
     const fileInput = (document.createElement('input') as any);
     fileInput.type = 'file';
-    fileInput.accept = 'image/*';
+    fileInput.accept = '*/*'; // 支持所有格式，包括文档与图片
     fileInput.onchange = (e) => {
       const file = (e.target as any).files[0];
       if (!file) return;
