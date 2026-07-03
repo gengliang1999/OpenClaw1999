@@ -311,7 +311,7 @@ export function registerApiIpc(dependencies, mainWindowRef) {
         }
         if (url.startsWith('/memory/') && method === 'DELETE') {
           const id = url.split('/').pop();
-          memoryStore.deleteMemory(parseInt(id));
+          memoryStore.deleteMemory(id);
           return { success: true };
         }
         // 分页获取
