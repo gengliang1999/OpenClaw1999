@@ -735,54 +735,36 @@ export function registerApiIpc(dependencies, mainWindowRef) {
 
       messages.unshift({ role: 'system', content: augmentedSystemPrompt });
 
-      const chatRecursion = async (currentMessages, recursionCount = 0) => {
-        if (signal.aborted) throw new Error('AbortError');
-        let accumulatedReply = '';
-        const fullReply = await modelManager.chatStream(currentMessages, { modelId, temperature, signal, agentMode }, (chunk) => {
-          accumulatedReply += chunk;
+      const { AgentLoop } = require('../backend/agent-loop');
+      const { EvolutionEngine } = require('../backend/evolution-engine');
+      const evolutionEngine = new EvolutionEngine(baseDataDir, memoryStore, modelManager);
+
+      const agentLoop = new AgentLoop({
+        modelManager,
+        sandbox,
+        memoryStore,
+        evolutionEngine,
+        onChunk: (chunk) => {
           mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: chunk });
-        });
-
-        const execMatch = accumulatedReply.match(/<execute>([\s\S]*?)<\/execute>/i);
-        if (execMatch && recursionCount < 3) {
-          const cmd = execMatch[1].trim();
-          
-          try {
-            const execResult = await sandbox.execute(cmd, { timeout: 15000 });
-            if (execResult.needsConfirmation) {
-              mainWindow.webContents.send('api:chat:chunk', { 
-                type: 'requires_confirmation', 
-                command: cmd,
-                riskLevel: execResult.riskLevel,
-                message: execResult.message,
-                conversationId: convId
-              });
-              memoryStore.saveMessage(convId, 'assistant', accumulatedReply);
-              return accumulatedReply;
-            }
-
-            mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: `\n\n> 🤖 [系统工具] 正在执行命令: \`${cmd}\` ...\n` });
-            let outputText = execResult.stdout || execResult.stderr || '执行成功，无终端输出';
-            if (outputText.length > 2000) outputText = outputText.slice(0, 2000) + '\n... (内容过长已截断)';
-            
-            mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: `> ✅ 执行完成，继续响应中...\n\n` });
-            
-            currentMessages.push({ role: 'assistant', content: accumulatedReply });
-            currentMessages.push({ role: 'user', content: `[沙盒命令执行结果]:\n${outputText}\n请基于此结果继续回答。` });
-            
-            return accumulatedReply + '\n\n' + await chatRecursion(currentMessages, recursionCount + 1);
-          } catch (e: any) {
-            mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: `\n\n> 🤖 [系统工具] 正在执行命令: \`${cmd}\` ...\n` });
-            mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: `> ❌ 执行失败，继续响应中...\n\n` });
-            currentMessages.push({ role: 'assistant', content: accumulatedReply });
-            currentMessages.push({ role: 'user', content: `[沙盒执行失败]: ${e.message}\n请向用户说明情况，或尝试其他命令。` });
-            return accumulatedReply + '\n\n' + await chatRecursion(currentMessages, recursionCount + 1);
-          }
+        },
+        onRequiresConfirmation: (cmd, riskLevel, msg) => {
+          mainWindow.webContents.send('api:chat:chunk', { 
+            type: 'requires_confirmation', 
+            command: cmd,
+            riskLevel: riskLevel,
+            message: msg,
+            conversationId: convId
+          });
         }
-        return accumulatedReply;
-      };
+      });
 
-      const finalReply = await chatRecursion(messages);
+      const finalReply = await agentLoop.run({
+        convId,
+        messages,
+        modelId,
+        temperature,
+        signal
+      });
 
       const memoryMatches = finalReply.match(/\[SAVE_MEMORY:([\s\S]*?)\]/g);
       if (memoryMatches) {
