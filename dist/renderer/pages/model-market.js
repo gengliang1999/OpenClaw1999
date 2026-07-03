@@ -188,98 +188,16 @@ async function startDownload(version) {
     const safeId = version.id.replace(/:/g, '-');
     const btn = document.getElementById(`btn-download-${safeId}`);
     const progressContainer = document.getElementById(`progress-container-${safeId}`);
-    const progressText = document.getElementById(`progress-text-${safeId}`);
-    const progressPercent = document.getElementById(`progress-percent-${safeId}`);
-    const progressBar = document.getElementById(`progress-bar-${safeId}`);
     btn.disabled = true;
     btn.style.display = 'none';
     progressContainer.style.display = 'block';
-    try {
-        const req = await fetch('http://localhost:3721/api/models/pull', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                modelName: version.id,
-                ggufUrl: version.ggufUrl // 传递国内镜像源 URL
-            })
-        });
-        if (!req.ok)
-            throw new Error('请求后端失败');
-        const reader = req.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done)
-                break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // keep incomplete line
-            for (const line of lines) {
-                if (!line.startsWith('data: '))
-                    continue;
-                const dataStr = line.slice(6);
-                if (!dataStr)
-                    continue;
-                try {
-                    const data = JSON.parse(dataStr);
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
-                    if (data.status === 'success') {
-                        progressText.textContent = '安装成功！';
-                        progressText.style.color = '#34c759';
-                        progressBar.style.background = '#34c759';
-                        progressBar.style.width = '100%';
-                        progressPercent.textContent = '100%';
-                        setTimeout(() => {
-                            window.__toast?.success(`${version.name} 安装完成`);
-                            btn.innerHTML = '<span style="color:#34c759">✓ 已安装</span>';
-                            btn.style.background = 'transparent';
-                            btn.style.border = '1px solid #34c759';
-                            btn.style.display = 'flex';
-                            progressContainer.style.display = 'none';
-                        }, 1000);
-                        return;
-                    }
-                    if (data.status === 'downloading') {
-                        progressText.textContent = data.detail;
-                        if (data.total > 0) {
-                            const p = (data.completed / data.total) * 100;
-                            progressBar.style.width = p + '%';
-                            progressPercent.textContent = p.toFixed(1) + '%';
-                        }
-                        else {
-                            progressBar.style.width = '100%';
-                            progressPercent.textContent = '...';
-                        }
-                    }
-                    else if (data.status === 'creating' || data.status === 'pulling') {
-                        progressText.textContent = data.detail;
-                        progressBar.style.width = '100%';
-                        progressBar.style.background = '#ff9500'; // 橙色表示正在转换处理
-                        progressPercent.textContent = '';
-                    }
-                    else if (data.status) {
-                        progressText.textContent = data.detail || data.status;
-                    }
-                }
-                catch (e) {
-                    console.warn('Parse SSE error:', e, dataStr);
-                }
-            }
-        }
-    }
-    catch (err) {
-        console.error('Download error:', err);
-        progressText.textContent = '安装失败: ' + err.message;
-        progressText.style.color = '#ff3b30';
-        progressBar.style.background = '#ff3b30';
+    setTimeout(() => {
+        if (window.__toast)
+            window.__toast.info("本地模型流式下载管线正在重构为 IPC，请使用外部工具下载。");
         btn.disabled = false;
-        btn.textContent = '重新下载';
-        btn.style.display = 'flex';
-        window.__toast?.error('下载失败: ' + err.message);
-    }
+        btn.style.display = 'inline-block';
+        progressContainer.style.display = 'none';
+    }, 500);
 }
 // ================== 视图切换动画 ==================
 function showProvidersView() {

@@ -3,91 +3,94 @@
  * 极致简约，符合国人习惯的排版，高斯模糊玻璃拟�? */
 
 /* 工具栏按�?hover 效果 */
-.toolbar-item { transition: background 0.15s; }
-.toolbar-item:hover { background: rgba(0, 0, 0, 0.05) !important; }
-.quick-tag:hover { background: var(--primary-light) !important; border-color: var(--primary) !important; }
-.chat-send-btn:hover { transform: scale(1.08); }
+/* 工具栏与悬浮按钮边界感修复 (Solid Borders) */
+.toolbar-item, .quick-tag, .sidebar-nav-item, #themeToggleBtn { 
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  background: var(--bg-hover);
+}
+.toolbar-item:hover, .quick-tag:hover, .sidebar-nav-item:hover, #themeToggleBtn:hover { 
+  background: var(--bg-active) !important; 
+  border-color: var(--border-color);
+}
 
 :root {
-  /* Apple 风格亮色主题变量 */
-  --bg-app: #f5f5f7; /* macOS 默认背景灰色 */
-  --bg-sidebar: rgba(230, 230, 235, 0.6); /* 侧边栏半透明 */
-  --bg-panel: rgba(255, 255, 255, 0.7); /* 面板半透明 */
+  --bg-app: #f9f9fa; 
+  --bg-sidebar: #f5f5f7; 
+  --bg-panel: #ffffff; 
   --bg-card: #ffffff;
   --bg-input: #ffffff;
-  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.08);
   
-  --text-primary: #1d1d1f;
-  --text-secondary: #515154;
-  --text-muted: #86868b;
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  --text-muted: #999999;
   
-  --text: #1d1d1f;
-  --text-light: #515154;
-  --bg-body: #f5f5f7;
-  --secondary: #86868b;
+  --text: #111111;
+  --text-light: #555555;
+  --bg-body: #f9f9fa;
+  --secondary: #999999;
   
-  --border-color: rgba(0, 0, 0, 0.08);
-  --border-light: rgba(0, 0, 0, 0.04);
+  --border-color: rgba(0, 0, 0, 0.06);
+  --border-light: rgba(0, 0, 0, 0.03);
   
-  /* Apple 经典�?*/
-  --primary: #007aff;
-  --primary-hover: #0066cc;
-  --primary-active: #005bb5;
-  --primary-light: rgba(0, 122, 255, 0.1);
+  --primary: #0066cc;
+  --primary-hover: #005bb5;
+  --primary-active: #004c99;
+  --primary-light: rgba(0, 102, 204, 0.08);
   
   --success: #34c759;
   --warning: #ff9f0a;
   --danger: #ff3b30;
   
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
-  --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.03);
+  --shadow-md: 0 8px 24px rgba(0,0,0,0.05);
+  --shadow-lg: 0 16px 48px rgba(0,0,0,0.08);
   
-  --blur-material: blur(24px) saturate(180%);
+  --blur-material: none;
   
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* 深色模式支持 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-app: #1c1c1e;
-    --bg-sidebar: rgba(44, 44, 46, 0.5);
-    --bg-panel: rgba(28, 28, 30, 0.7);
-    --bg-card: #2c2c2e;
-    --bg-input: #3a3a3c;
-    --bg-hover: rgba(255, 255, 255, 0.08);
-    --bg-active: rgba(255, 255, 255, 0.12);
-    
-    --text-primary: #f5f5f7;
-    --text-secondary: #ebebf5;
-    --text-muted: rgba(235, 235, 245, 0.6);
-    
-    --text: #f5f5f7;
-    --text-light: #ebebf5;
-    --bg-body: #1c1c1e;
-    --secondary: rgba(235, 235, 245, 0.6);
-    
-    --border-color: rgba(255, 255, 255, 0.1);
-    --border-light: rgba(255, 255, 255, 0.05);
-    
-    --primary: #0a84ff;
-    --primary-hover: #007aff;
-    --primary-light: rgba(10, 132, 255, 0.15);
-    
-    --success: #32d74b;
-    --warning: #ffd60a;
-    --danger: #ff453a;
+body.dark-theme {
+  --bg-app: #181825;
+  --bg-sidebar: #11111b;
+  --bg-panel: #1e1e2e;
+  --bg-card: #313244;
+  --bg-input: #45475a;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-active: rgba(255, 255, 255, 0.15);
+  
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-muted: #a6adc8;
+  
+  --text: #cdd6f4;
+  --text-light: #bac2de;
+  --bg-body: #181825;
+  --secondary: #a6adc8;
+  
+  --border-color: #45475a;
+  --border-light: #313244;
+  
+  --primary: #89b4fa;
+  --primary-hover: #b4befe;
+  --primary-active: #cba6f7;
+  --primary-light: rgba(137, 180, 250, 0.2);
+  
+  --success: #a6e3a1;
+  --warning: #f9e2af;
+  --danger: #f38ba8;
 
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
-    --shadow-lg: 0 12px 32px rgba(0,0,0,0.4);
-  }
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md: 0 8px 24px rgba(137, 180, 250, 0.25);
+  --shadow-lg: 0 16px 48px rgba(137, 180, 250, 0.35);
 }
 
 * {
@@ -1716,7 +1719,7 @@ input, textarea, [contenteditable] {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08),
               0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .doubao-input-container:focus-within {
@@ -1911,7 +1914,7 @@ input, textarea, [contenteditable] {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08),
               0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .doubao-input-container:focus-within {
@@ -2851,3 +2854,11 @@ input[type="range"]::-webkit-slider-thumb {
   from { opacity: 0; transform: translateY(30px) scale(0.95); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Spinner Animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }

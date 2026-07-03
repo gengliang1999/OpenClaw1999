@@ -13,9 +13,9 @@ export async function render(container) {
         settings = {};
     }
     try {
-        const res = await fetch('/api/system/global-config');
-        if (res.ok) {
-            globalConfig = await res.json();
+        const res = await api.get('/system/global-config');
+        if (res) {
+            globalConfig = res;
         }
     }
     catch (e) {
@@ -166,11 +166,7 @@ export async function render(container) {
                     const newPath = result.filePaths[0];
                     const confirmRes = confirm(`确定要将数据存放地址更改为：\n${newPath}\n\n更改后需要重启应用才能生效！`);
                     if (confirmRes) {
-                        await fetch('/api/system/global-config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ customDataDir: newPath })
-                        });
+                        await api.post('/system/global-config', { customDataDir: newPath });
                         if (window.__toast)
                             window.__toast.success('配置已保存，应用即将重启...');
                         setTimeout(async () => {
@@ -195,11 +191,7 @@ export async function render(container) {
                 const result = await window.openClaw.system.selectDirectory();
                 if (result && !result.canceled && result.filePaths.length > 0) {
                     const newPath = result.filePaths[0];
-                    await fetch('/api/system/global-config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ customDownloadDir: newPath })
-                    });
+                    await api.post('/system/global-config', { customDownloadDir: newPath });
                     if (window.__toast)
                         window.__toast.success('配置已保存，应用即将重启生效...');
                     setTimeout(async () => {
@@ -223,11 +215,7 @@ export async function render(container) {
                 const result = await window.openClaw.system.selectDirectory();
                 if (result && !result.canceled && result.filePaths.length > 0) {
                     const newPath = result.filePaths[0];
-                    await fetch('/api/system/global-config', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ customLogDir: newPath })
-                    });
+                    await api.post('/system/global-config', { customLogDir: newPath });
                     if (window.__toast)
                         window.__toast.success('配置已保存，应用即将重启生效...');
                     setTimeout(async () => {

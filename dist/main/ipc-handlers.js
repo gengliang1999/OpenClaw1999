@@ -152,6 +152,8 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 }
                 else if (method === 'DELETE') {
                     memoryStore.clearHistory(conversationId);
+                    const { ragEngine } = require('../backend/rag-engine');
+                    ragEngine.clearForConversation(conversationId);
                     return { success: true };
                 }
             }
@@ -193,13 +195,16 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 let totalChunks = 0;
                 for (const file of files) {
                     const chunks = DocumentParser.splitTextIntoChunks(file.content || '');
-                    const docs = chunks.map(c => ({
-                        id: Date.now().toString() + '_' + Math.random(),
-                        content: c.content,
-                        metadata: { source: file.name, index: c.index },
-                        // TODO: Phase 2 接入真实的 Ollama Embedding API
-                        embedding: [Math.random(), Math.random(), c.content.length % 10]
-                    }));
+                    const docs = [];
+                    for (const c of chunks) {
+                        const embedding = await modelManager.getEmbedding(c.content);
+                        docs.push({
+                            id: require('crypto').randomUUID(),
+                            content: c.content,
+                            metadata: { source: file.name, index: c.index },
+                            embedding
+                        });
+                    }
                     await store.addDocuments(docs);
                     totalChunks += docs.length;
                 }
@@ -210,9 +215,18 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 const { VectorStore } = require('../backend/vector-store');
                 const store = new VectorStore(path.join(baseDataDir, 'vectors.json'));
                 await store.load();
-                // 模拟 query 的 embedding
-                const queryEmbedding = [Math.random(), Math.random(), query.length % 10];
-                const results = await store.search(queryEmbedding, 3);
+                // 获取真实的 query embedding 并启动双路混合召回 (粗排召回放大为 10)
+                const queryEmbedding = await modelManager.getEmbedding(query);
+                const candidates = await store.search(queryEmbedding, query, 10);
+                // 深度重排 (Reranker)
+                for (const item of candidates) {
+                    const rrScore = await modelManager.getRerankScore(query, item.doc.content);
+                    // Rerank 分数赋予更高权重
+                    item.score = (item.score * 0.4) + (rrScore * 0.6);
+                }
+                // 重排后截断，仅允许最高精度的 Top-3 送入大模型，零上下文污染
+                candidates.sort((a, b) => b.score - a.score);
+                const results = candidates.slice(0, 3);
                 return { results };
             }
             // ================== 模型管理 ==================
@@ -319,7 +333,7 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 const page = parseInt(getQueryParam(url, 'page')) || 1;
                 const pageSize = parseInt(getQueryParam(url, 'pageSize')) || 50;
                 const category = getQueryParam(url, 'category');
-                return memoryStore.getMemories(page, pageSize, category);
+                return memoryStore.getAllMemories(page, pageSize, category);
             }
             // ================== 自动控制 ==================
             if (url === '/automation/screenshot') {
@@ -327,6 +341,37 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 return { success: true, path: outputPath };
             }
             // ================== 沙盒控制 ==================
+            if (url === '/system/parseDocument' && method === 'POST') {
+                const { filePath, convId } = body;
+                if (!filePath)
+                    throw new Error('文件路径不能为空');
+                if (!convId)
+                    throw new Error('必须提供关联的 Conversation ID');
+                const fs = require('fs');
+                if (!fs.existsSync(filePath))
+                    throw new Error('文件不存在');
+                try {
+                    const ext = filePath.split('.').pop().toLowerCase();
+                    const officeParser = require('officeparser');
+                    let parsedText = '';
+                    const officeExts = ['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods', 'pdf', 'rtf'];
+                    if (officeExts.includes(ext)) {
+                        parsedText = await officeParser.parseOfficeAsync(filePath);
+                    }
+                    else {
+                        // 纯文本后备处理
+                        parsedText = fs.readFileSync(filePath, 'utf8');
+                    }
+                    // 写入 RAG 引擎
+                    const { ragEngine } = require('../backend/rag-engine');
+                    const fileName = require('path').basename(filePath);
+                    ragEngine.addDocument(convId, fileName, parsedText);
+                    return { success: true, length: parsedText.length };
+                }
+                catch (e) {
+                    throw new Error(`文档解析失败: ${e.message}`);
+                }
+            }
             if (url === '/sandbox/execute') {
                 const { command, confirmed, permanent, cwd, timeout } = body;
                 if (!command)
@@ -660,11 +705,28 @@ function registerApiIpc(dependencies, mainWindowRef) {
                 catch (e) { }
                 return { role: m.role, content: content };
             });
-            const relevantMemories = memoryStore.searchMemory(message, 3);
+            // [Task 2.3] 使用高级双路召回 (BM25 + Dense) 来匹配相关的长期记忆
+            const { VectorStore } = require('../backend/vector-store');
+            const memoryVecStore = new VectorStore(path.join(baseDataDir, 'memories_vectors.json'));
+            await memoryVecStore.load();
             let augmentedSystemPrompt = systemPrompt || '你是一个有用的、无所不知的人工智能助手。';
-            if (relevantMemories && relevantMemories.length > 0) {
-                const memoryContext = relevantMemories.map(m => `- ${m.content}`).join('\n');
-                augmentedSystemPrompt += `\n\n[用户相关的长期记忆（仅供参考）：]\n${memoryContext}`;
+            try {
+                const msgEmbedding = await modelManager.getEmbedding(message);
+                const relevantMemories = await memoryVecStore.search(msgEmbedding, message, 3);
+                if (relevantMemories && relevantMemories.length > 0) {
+                    const memoryContext = relevantMemories.map(m => `- ${m.doc.content}`).join('\n');
+                    augmentedSystemPrompt += `\n\n[用户相关的长期记忆（仅供参考）：]\n${memoryContext}`;
+                }
+            }
+            catch (e) {
+                console.log('[语义记忆检索跳过]', e.message);
+            }
+            // 动态检索 RAG 知识库
+            const { ragEngine } = require('../backend/rag-engine');
+            const ragChunks = ragEngine.searchRelevant(convId, message, 3);
+            if (ragChunks && ragChunks.length > 0) {
+                const ragContext = ragChunks.map(c => `[文本切片: ${c.fileName}]\n${c.chunkText}`).join('\n\n---\n\n');
+                augmentedSystemPrompt += `\n\n[参考知识库（这是通过 RAG 检索引擎查找到的与用户当前提问最相关的文档片段。如果与提问相关，请优先参考这些内容作答）：]\n${ragContext}`;
             }
             const semanticMemoryPrompt = `\n\n[长期记忆能力]: 当你在对话中获取了关于用户的持久性事实、偏好或习惯时，请在回复的最后加上 \`[SAVE_MEMORY: 事实内容]\`，以便系统为你永久记住它。例如：\`[SAVE_MEMORY: 用户是一名后端开发工程师]\`。`;
             augmentedSystemPrompt += semanticMemoryPrompt;
@@ -717,13 +779,31 @@ function registerApiIpc(dependencies, mainWindowRef) {
             const finalReply = await chatRecursion(messages);
             const memoryMatches = finalReply.match(/\[SAVE_MEMORY:([\s\S]*?)\]/g);
             if (memoryMatches) {
-                memoryMatches.forEach(match => {
+                // [Task 2.1] 获取或实例化独立的语义记忆存储库
+                const { VectorStore } = require('../backend/vector-store');
+                const memoryVecStore = new VectorStore(path.join(baseDataDir, 'memories_vectors.json'));
+                await memoryVecStore.load();
+                for (const match of memoryMatches) {
                     const fact = match.replace(/\[SAVE_MEMORY:/, '').replace(/\]$/, '').trim();
                     if (fact) {
+                        // 写入传统的关系型 SQLite (用于界面展示和管理)
                         memoryStore.addMemory(fact, 'User Preference', '["auto"]');
-                        console.log('[自动提取语义记忆]', fact);
+                        // 写入高端向量倒排库 (用于无感语义召回)
+                        try {
+                            const embedding = await modelManager.getEmbedding(fact);
+                            await memoryVecStore.addDocuments([{
+                                    id: require('crypto').randomUUID(),
+                                    content: fact,
+                                    metadata: { source: 'auto_extraction', timestamp: new Date().toISOString() },
+                                    embedding
+                                }]);
+                            console.log('[自动提取语义记忆并入库]', fact);
+                        }
+                        catch (e) {
+                            console.error('[记忆向量化失败]', e.message);
+                        }
                     }
-                });
+                }
             }
             const cleanReply = finalReply.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '').trim();
             memoryStore.saveMessage(convId, 'assistant', cleanReply);

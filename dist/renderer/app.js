@@ -12,7 +12,7 @@ const ROUTES = [
     { path: 'memory', label: '核心记忆', shortLabel: '记忆', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>', module: './pages/memory.js' },
     { path: 'knowledge', label: '知识仓库', shortLabel: '知识', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>', module: './pages/knowledge.js' },
     { path: 'skills', label: '技能库', shortLabel: '技能', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>', module: './pages/skills.js' },
-    { path: 'plugins', label: '应用市场', shortLabel: '插件', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>', module: './pages/plugins.js' },
+    { path: 'plugins', label: '插件市场', shortLabel: '插件', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>', module: './pages/plugins.js' },
     { path: 'market', label: '模型市场', shortLabel: '模型', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>', module: './pages/market.js' },
     { path: 'core-manager', label: '内核管控台', shortLabel: '内核', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>', module: './pages/core-manager.js' },
     { path: 'settings', label: '设置', shortLabel: '设置', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', module: './pages/settings.js' },
@@ -139,7 +139,11 @@ function renderShell() {
           🗑️ 垃圾篓
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 6px;" class="sidebar-bottom-controls">
-          <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0; flex: 1;">
+          <!-- 主题切换按钮 -->
+          <div id="themeToggleBtn" style="cursor: pointer; padding: 4px; border-radius: 6px; color: var(--text-secondary); transition: all 0.2s;" title="切换亮/暗模式">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          </div>
+          <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0; flex: 1; padding-left: 8px;">
             <div class="nav-icon">${ROUTES.find(r => r.path === 'settings').icon}</div>
             <span class="nav-label">设置</span>
           </div>
@@ -1238,5 +1242,53 @@ document.addEventListener('click', (e) => {
         e.target.classList.remove('visible');
     }
 });
+/* ======================== 主题管理 (ThemeManager) ======================== */
+function initThemeManager() {
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    const applyTheme = (theme) => {
+        if (theme === 'dark') {
+            document.body.classList.add('dark-theme');
+            if (toggleBtn)
+                toggleBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+        }
+        else {
+            document.body.classList.remove('dark-theme');
+            if (toggleBtn)
+                toggleBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+        }
+    };
+    const evalTheme = () => {
+        let saved = localStorage.getItem('oc_theme_pref');
+        if (!saved)
+            saved = 'auto';
+        if (saved === 'auto') {
+            const hour = new Date().getHours();
+            // 默认 早 7 点 到 晚 7 点为亮色，其余为暗黑
+            if (hour >= 7 && hour < 19) {
+                applyTheme('light');
+            }
+            else {
+                applyTheme('dark');
+            }
+        }
+        else {
+            applyTheme(saved);
+        }
+    };
+    evalTheme();
+    // 每隔1分钟重新判定一次时间主题
+    setInterval(evalTheme, 60000);
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const isDark = document.body.classList.contains('dark-theme');
+            const newTheme = isDark ? 'light' : 'dark';
+            localStorage.setItem('oc_theme_pref', newTheme);
+            applyTheme(newTheme);
+        });
+    }
+}
 // 启动应用
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    init();
+    initThemeManager();
+});

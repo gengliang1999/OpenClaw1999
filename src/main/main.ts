@@ -476,6 +476,15 @@ app.whenReady().then(async () => {
   await memoryStore.init();
   console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
 
+  // 挂载并启动知识蒸馏泵 (Nightly Knowledge Pump)
+  const { VectorStore } = require('../backend/vector-store');
+  const vectorStore = new VectorStore(path.join(baseDataDir, 'vectors.json'));
+  await vectorStore.load();
+  
+  const { KnowledgePump } = require('../backend/knowledge-pump');
+  const knowledgePump = new KnowledgePump(modelManager, vectorStore);
+  knowledgePump.start();
+
   // 3. 注册全链路原生 IPC API 路由分发器，彻底替代 Express 路由
   const { registerApiIpc } = require('./ipc-handlers');
   registerApiIpc({

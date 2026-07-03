@@ -329,6 +329,16 @@ class MemoryStore {
             this.db.run('DELETE FROM messages');
             this.db.run('DELETE FROM conversations');
         }
+        // 强制同步清理 RAG 引擎的关联记忆
+        try {
+            const { ragEngine } = require('./rag-engine');
+            if (ragEngine && typeof ragEngine.clearForConversation === 'function') {
+                ragEngine.clearForConversation(conversationId);
+            }
+        }
+        catch (e) {
+            console.error('清理 RAG 引擎数据失败:', e);
+        }
         this._save();
     }
     /**

@@ -45,17 +45,21 @@
     }
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "iconv-lite": "^0.7.2",
     "officeparser": "^7.2.3",
+    "pdfjs-dist": "^6.1.200",
     "sql.js": "^1.14.1",
+    "tesseract.js": "^7.0.0",
     "uuid": "^11.1.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.0.0",
+    "@types/pdfjs-dist": "^2.10.377",
     "copyfiles": "^2.4.1",
     "electron": "^42.4.1",
     "electron-builder": "^24.13.3",

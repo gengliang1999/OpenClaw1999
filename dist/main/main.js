@@ -70,9 +70,20 @@ function createMainWindow() {
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
-    // 阻止新窗口打开，改用系统浏览器
+    // 阻止新窗口打开，改用系统浏览器（强制实施 URL 安全强拦截）
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                shell.openExternal(url);
+            }
+            else {
+                console.warn(`[安全拦截] 拦截到新窗口打开非安全协议链接: ${url}`);
+            }
+        }
+        catch (e) {
+            console.warn(`[安全拦截] 非法的新窗口 URL: ${url}`);
+        }
         return { action: 'deny' };
     });
     // 开发模式下打开开发者工具
@@ -427,6 +438,13 @@ app.whenReady().then(async () => {
     const automation = new AutomationController(sandbox);
     await memoryStore.init();
     console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
+    // 挂载并启动知识蒸馏泵 (Nightly Knowledge Pump)
+    const { VectorStore } = require('../backend/vector-store');
+    const vectorStore = new VectorStore(path.join(baseDataDir, 'vectors.json'));
+    await vectorStore.load();
+    const { KnowledgePump } = require('../backend/knowledge-pump');
+    const knowledgePump = new KnowledgePump(modelManager, vectorStore);
+    knowledgePump.start();
     // 3. 注册全链路原生 IPC API 路由分发器，彻底替代 Express 路由
     const { registerApiIpc } = require('./ipc-handlers');
     registerApiIpc({

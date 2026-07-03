@@ -178,6 +178,9 @@ export async function render(container) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
                   魔法优化
                 </button>
+                <button id="voiceBtn" class="btn-ghost" title="语音输入" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 12px; color: var(--text-secondary);">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                </button>
                 <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                 </button>
@@ -662,19 +665,56 @@ export async function render(container) {
     const fileInput = (document.createElement('input') as any);
     fileInput.type = 'file';
     fileInput.accept = '*/*'; // 支持所有格式，包括文档与图片
-    fileInput.onchange = (e) => {
+    fileInput.onchange = async (e) => {
       const file = (e.target as any).files[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e2) => {
-        const dataUrl = e2.target.result;
-        pendingAttachmentData = dataUrl;
-        (document.getElementById('attachmentImg') as any).src = dataUrl;
-        (document.getElementById('attachmentPreview') as any).style.display = 'flex';
-        (document.getElementById('chatInput') as any).focus();
-        if (window.__toast) window.__toast.success('图片已附加');
-      };
-      reader.readAsDataURL(file);
+      
+      const isImage = file.type.startsWith('image/');
+      
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e2) => {
+          const dataUrl = e2.target.result;
+          pendingAttachmentData = dataUrl;
+          
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = dataUrl;
+          
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          (document.getElementById('chatInput') as any).focus();
+          if (window.__toast) window.__toast.success('图片已附加');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // 非图片文件，当做文档解析并加入知识库
+        try {
+          if (!activeConvId) {
+            await createNewChat();
+          }
+          if (window.__toast) window.__toast.info('正在解析文档并加入知识库，请稍候...');
+          
+          // Electron 环境下，file 对象具有 path 属性
+          const filePath = file.path; 
+          
+          const res = await api.post('/system/parseDocument', { filePath, convId: activeConvId });
+          if (res && res.success) {
+             if (window.__toast) window.__toast.success(`📄 文档已解析完毕并加入上下文！`);
+             
+             // 在聊天界面添加一条本地提示消息
+             const container = document.getElementById('chatMessages') as any;
+             const msgDiv = document.createElement('div');
+             msgDiv.style.textAlign = 'center';
+             msgDiv.style.margin = '16px 0';
+             msgDiv.style.fontSize = '12px';
+             msgDiv.style.color = 'var(--text-muted)';
+             msgDiv.innerHTML = `<span style="background: rgba(0,0,0,0.05); padding: 4px 12px; border-radius: 12px;">📚 已将文档 <b>${file.name}</b> 解析并加入本会话知识库，可直接提问。</span>`;
+             container.appendChild(msgDiv);
+             container.scrollTop = container.scrollHeight;
+          }
+        } catch (err: any) {
+          if (window.__toast) window.__toast.error(`文档解析失败: ${err.message}`);
+        }
+      }
     };
     fileInput.click();
   });
@@ -777,6 +817,83 @@ export async function render(container) {
     activeConvId = convId;
     await loadHistory(convId);
   };
+
+  // ================== 语音与安全控制 ==================
+  const chatInputArea = (document.getElementById('chatInput') as HTMLTextAreaElement);
+  
+  if (chatInputArea) {
+    chatInputArea.addEventListener('paste', (e) => {
+      const clipboardData = e.clipboardData;
+      if (clipboardData) {
+        const text = clipboardData.getData('text');
+        if (text && /(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/.test(text)) {
+          e.preventDefault();
+          const safeText = text.replace(/(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/g, '[REDACTED API KEY]');
+          chatInputArea.setRangeText(safeText, chatInputArea.selectionStart, chatInputArea.selectionEnd, 'end');
+          if (window.__toast) window.__toast.error('检测到敏感 API Key，已自动脱敏保护！');
+        }
+      }
+    });
+  }
+
+  const voiceBtn = document.getElementById('voiceBtn');
+  let isRecording = false;
+  let recognition: any = null;
+  
+  if (voiceBtn && ('webkitSpeechRecognition' in window)) {
+    const SpeechRecognition = (window as any).webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'zh-CN';
+    
+    recognition.onstart = () => {
+      isRecording = true;
+      voiceBtn.style.color = '#ff3b30';
+      voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+      if (window.__toast) window.__toast.info('正在聆听...');
+    };
+    
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript && chatInputArea) {
+        chatInputArea.value += finalTranscript;
+      }
+    };
+    
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error', event.error);
+      isRecording = false;
+      resetVoiceBtn();
+    };
+    
+    recognition.onend = () => {
+      isRecording = false;
+      resetVoiceBtn();
+    };
+    
+    const resetVoiceBtn = () => {
+      if (!voiceBtn) return;
+      voiceBtn.style.color = 'var(--text-secondary)';
+      voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>';
+    };
+    
+    voiceBtn.addEventListener('click', () => {
+      if (isRecording) {
+        recognition.stop();
+      } else {
+        recognition.start();
+      }
+    });
+  } else if (voiceBtn) {
+    voiceBtn.title = "浏览器不支持语音输入";
+    voiceBtn.style.opacity = '0.5';
+  }
 
   // ================== 跨窗口快捷提问监听 ==================
   if (window.openClaw && window.openClaw.system && window.openClaw.system.onQuickPrompt) {
@@ -1118,7 +1235,16 @@ function renderMessages(messages) {
       const textBlock = m.content.find(c => c.type === 'text');
       const imgBlock = m.content.find(c => c.type === 'image_url');
       if (textBlock) textContent = textBlock.text;
-      if (imgBlock && imgBlock.image_url) attachmentHtml = `<div style="margin-top: 8px;"><img src="${imgBlock.image_url.url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+      if (imgBlock && imgBlock.image_url) {
+        const url = imgBlock.image_url.url;
+        const isImage = url.startsWith('data:image/') && !url.startsWith('data:image/svg+xml');
+        if (isImage || !url.startsWith('data:')) {
+          attachmentHtml = `<div style="margin-top: 8px;"><img src="${url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+        } else {
+          const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+          attachmentHtml = `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+        }
+      }
     } else {
       textContent = m.content || '';
     }
@@ -1223,7 +1349,13 @@ async function sendMessage() {
   const userBox = appendMessage('user');
   let userHtml = escapeHtml(text).replace(/\n/g, '<br/>');
   if (attachmentData) {
-    userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+    const isImage = attachmentData.startsWith('data:image/') && !attachmentData.startsWith('data:image/svg+xml');
+    if (isImage) {
+      userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+    } else {
+      const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+      userHtml += `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+    }
   }
   userBox.innerHTML = userHtml;
 

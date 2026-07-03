@@ -175,6 +175,9 @@ export async function render(container) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
                   魔法优化
                 </button>
+                <button id="voiceBtn" class="btn-ghost" title="语音输入" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 12px; color: var(--text-secondary);">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                </button>
                 <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                 </button>
@@ -649,22 +652,57 @@ export async function render(container) {
     document.getElementById('fileUploadBtn').addEventListener('click', () => {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = 'image/*';
-        fileInput.onchange = (e) => {
+        fileInput.accept = '*/*'; // 支持所有格式，包括文档与图片
+        fileInput.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file)
                 return;
-            const reader = new FileReader();
-            reader.onload = (e2) => {
-                const dataUrl = e2.target.result;
-                pendingAttachmentData = dataUrl;
-                document.getElementById('attachmentImg').src = dataUrl;
-                document.getElementById('attachmentPreview').style.display = 'flex';
-                document.getElementById('chatInput').focus();
-                if (window.__toast)
-                    window.__toast.success('图片已附加');
-            };
-            reader.readAsDataURL(file);
+            const isImage = file.type.startsWith('image/');
+            if (isImage) {
+                const reader = new FileReader();
+                reader.onload = (e2) => {
+                    const dataUrl = e2.target.result;
+                    pendingAttachmentData = dataUrl;
+                    const imgEl = document.getElementById('attachmentImg');
+                    imgEl.src = dataUrl;
+                    document.getElementById('attachmentPreview').style.display = 'flex';
+                    document.getElementById('chatInput').focus();
+                    if (window.__toast)
+                        window.__toast.success('图片已附加');
+                };
+                reader.readAsDataURL(file);
+            }
+            else {
+                // 非图片文件，当做文档解析并加入知识库
+                try {
+                    if (!activeConvId) {
+                        await createNewChat();
+                    }
+                    if (window.__toast)
+                        window.__toast.info('正在解析文档并加入知识库，请稍候...');
+                    // Electron 环境下，file 对象具有 path 属性
+                    const filePath = file.path;
+                    const res = await api.post('/system/parseDocument', { filePath, convId: activeConvId });
+                    if (res && res.success) {
+                        if (window.__toast)
+                            window.__toast.success(`📄 文档已解析完毕并加入上下文！`);
+                        // 在聊天界面添加一条本地提示消息
+                        const container = document.getElementById('chatMessages');
+                        const msgDiv = document.createElement('div');
+                        msgDiv.style.textAlign = 'center';
+                        msgDiv.style.margin = '16px 0';
+                        msgDiv.style.fontSize = '12px';
+                        msgDiv.style.color = 'var(--text-muted)';
+                        msgDiv.innerHTML = `<span style="background: rgba(0,0,0,0.05); padding: 4px 12px; border-radius: 12px;">📚 已将文档 <b>${file.name}</b> 解析并加入本会话知识库，可直接提问。</span>`;
+                        container.appendChild(msgDiv);
+                        container.scrollTop = container.scrollHeight;
+                    }
+                }
+                catch (err) {
+                    if (window.__toast)
+                        window.__toast.error(`文档解析失败: ${err.message}`);
+                }
+            }
         };
         fileInput.click();
     });
@@ -770,6 +808,78 @@ export async function render(container) {
         activeConvId = convId;
         await loadHistory(convId);
     };
+    // ================== 语音与安全控制 ==================
+    const chatInputArea = document.getElementById('chatInput');
+    if (chatInputArea) {
+        chatInputArea.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData;
+            if (clipboardData) {
+                const text = clipboardData.getData('text');
+                if (text && /(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/.test(text)) {
+                    e.preventDefault();
+                    const safeText = text.replace(/(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/g, '[REDACTED API KEY]');
+                    chatInputArea.setRangeText(safeText, chatInputArea.selectionStart, chatInputArea.selectionEnd, 'end');
+                    if (window.__toast)
+                        window.__toast.error('检测到敏感 API Key，已自动脱敏保护！');
+                }
+            }
+        });
+    }
+    const voiceBtn = document.getElementById('voiceBtn');
+    let isRecording = false;
+    let recognition = null;
+    if (voiceBtn && ('webkitSpeechRecognition' in window)) {
+        const SpeechRecognition = window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'zh-CN';
+        recognition.onstart = () => {
+            isRecording = true;
+            voiceBtn.style.color = '#ff3b30';
+            voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+            if (window.__toast)
+                window.__toast.info('正在聆听...');
+        };
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                }
+            }
+            if (finalTranscript && chatInputArea) {
+                chatInputArea.value += finalTranscript;
+            }
+        };
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            isRecording = false;
+            resetVoiceBtn();
+        };
+        recognition.onend = () => {
+            isRecording = false;
+            resetVoiceBtn();
+        };
+        const resetVoiceBtn = () => {
+            if (!voiceBtn)
+                return;
+            voiceBtn.style.color = 'var(--text-secondary)';
+            voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>';
+        };
+        voiceBtn.addEventListener('click', () => {
+            if (isRecording) {
+                recognition.stop();
+            }
+            else {
+                recognition.start();
+            }
+        });
+    }
+    else if (voiceBtn) {
+        voiceBtn.title = "浏览器不支持语音输入";
+        voiceBtn.style.opacity = '0.5';
+    }
     // ================== 跨窗口快捷提问监听 ==================
     if (window.openClaw && window.openClaw.system && window.openClaw.system.onQuickPrompt) {
         window.openClaw.system.offQuickPrompt(); // 状态唯一性：防重复监听与内存泄漏
@@ -876,6 +986,11 @@ async function loadModels() {
             await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
         }
         const res = await api.model.getModels();
+        let allSettings = {};
+        try {
+            allSettings = await api.settings.getAll() || {};
+        }
+        catch (e) { }
         // 移除重复模型，保留最后一个唯一 ID
         const uniqueMap = new Map();
         (res || []).forEach(m => uniqueMap.set(m.id, m));
@@ -895,19 +1010,27 @@ async function loadModels() {
         const renderedConfiguredCloud = cloudModelsConfigured.map(m => {
             const vendor = cloudVendors.find(v => (m.provider && m.provider.toLowerCase() === v.name.toLowerCase()) ||
                 (m.provider && m.provider.toLowerCase() === v.id.toLowerCase()) ||
-                m.id.toLowerCase().includes(v.id.toLowerCase())) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗' };
+                m.id.toLowerCase().includes(v.id.toLowerCase())) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗', color: '#007aff' };
+            const vendorSettings = allSettings[vendor.id] || {};
+            const modelNameDisplay = vendorSettings.defaultModel || m.name || m.modelName || m.id;
             const isActive = m.id === activeModelId;
-            const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
-            const statusTextContent = isActive ? '✅ 正在使用' : '✅ 已配置';
-            const statusColorClass = isActive ? 'var(--primary)' : 'var(--success)';
+            const activeStyle = isActive ? `border: 2px solid ${vendor.color || 'var(--primary)'}; background: ${vendor.color || 'var(--primary)'}15;` : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+            const statusTextContent = isActive ? '🔥正在使用' : '✅已配置';
+            const statusColorClass = isActive ? (vendor.color || 'var(--primary)') : 'var(--success)';
             return `
-        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
-           <div style="font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${m.name || m.id} <span style="color: var(--primary); font-size: 14px;">- ${m.modelName || '未知模型'}</span>
-             <span style="display: inline-block; width: 8px; height: 8px; background-color: #00c853; border-radius: 50%; box-shadow: 0 0 8px #00c853; margin-left: auto;" title="已连通"></span>
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 14px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; gap: 10px; ${activeStyle} box-shadow: 0 4px 12px rgba(0,0,0,0.03);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.03)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color || 'var(--primary)'}20; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;" title="${modelNameDisplay}">${vendor.name} - ${modelNameDisplay}</div>
+               <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; line-height: 1.2; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                 <span style="opacity: 0.8;">[${vendor.name}]</span>
+               </div>
+             </div>
+             ${isActive ? `<div style="width: 8px; height: 8px; border-radius: 50%; background: ${vendor.color || 'var(--primary)'}; box-shadow: 0 0 8px ${vendor.color || 'var(--primary)'}; flex-shrink: 0;"></div>` : `<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); flex-shrink: 0;"></div>`}
            </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : 'normal'};">${statusTextContent}</span>
+           <div style="font-size: 12px; font-weight: 500; color: ${statusColorClass}; display: flex; align-items: center; gap: 4px; background: ${isActive ? `${vendor.color || 'var(--primary)'}15` : 'rgba(52, 199, 89, 0.1)'}; padding: 4px 8px; border-radius: 6px; width: fit-content;">
+             ${statusTextContent}
            </div>
         </div>
       `;
@@ -919,12 +1042,16 @@ async function loadModels() {
             m.id.toLowerCase().includes(vendor.id.toLowerCase())))
             .map(vendor => {
             return `
-        <div class="model-select-card" data-id="${vendor.id}" data-vendor="${vendor.id}" data-configured="false" style="padding: 12px; border: 1px solid var(--border-light); border-radius: 12px; cursor: pointer; transition: all 0.2s; background: var(--bg-card); display: flex; flex-direction: column; gap: 4px;">
-           <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
-             <span>${vendor.icon}</span> ${vendor.name}
+        <div class="model-select-card" data-vendor="${vendor.id}" data-configured="false" style="padding: 14px; border: 1px solid ${vendor.color}30; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); background: linear-gradient(135deg, ${vendor.color}05 0%, ${vendor.color}15 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px ${vendor.color}30';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.02)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color}25; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); line-height: 1.2;">${vendor.name}</div>
+               <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.2;">尚未配置 API Key</div>
+             </div>
            </div>
-           <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
-             <span style="color: inherit;">去配置&rarr;</span>
+           <div style="font-size: 12px; font-weight: 600; color: ${vendor.color}; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${vendor.color}20; padding: 6px 10px; border-radius: 8px; width: fit-content; transition: all 0.2s; margin-top: 2px;" onmouseover="this.style.background='${vendor.color}35'; this.style.transform='scale(1.02)';" onmouseout="this.style.background='${vendor.color}20'; this.style.transform='scale(1)';">
+             立即配置 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
            </div>
         </div>
         `;
@@ -1088,8 +1215,17 @@ function renderMessages(messages) {
             const imgBlock = m.content.find(c => c.type === 'image_url');
             if (textBlock)
                 textContent = textBlock.text;
-            if (imgBlock && imgBlock.image_url)
-                attachmentHtml = `<div style="margin-top: 8px;"><img src="${imgBlock.image_url.url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+            if (imgBlock && imgBlock.image_url) {
+                const url = imgBlock.image_url.url;
+                const isImage = url.startsWith('data:image/') && !url.startsWith('data:image/svg+xml');
+                if (isImage || !url.startsWith('data:')) {
+                    attachmentHtml = `<div style="margin-top: 8px;"><img src="${url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+                }
+                else {
+                    const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+                    attachmentHtml = `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+                }
+            }
         }
         else {
             textContent = m.content || '';
@@ -1185,7 +1321,14 @@ async function sendMessage() {
     const userBox = appendMessage('user');
     let userHtml = escapeHtml(text).replace(/\n/g, '<br/>');
     if (attachmentData) {
-        userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+        const isImage = attachmentData.startsWith('data:image/') && !attachmentData.startsWith('data:image/svg+xml');
+        if (isImage) {
+            userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+        }
+        else {
+            const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+            userHtml += `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+        }
     }
     userBox.innerHTML = userHtml;
     isGenerating = true;
@@ -1193,6 +1336,26 @@ async function sendMessage() {
     sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="10" x="7" y="7" rx="1"></rect></svg>`;
     sendBtn.classList.add('is-stop');
     const aiBox = appendMessage('ai');
+    // 注入带有动态读秒器的加载状态，每 100 毫秒更新一次数字，彻底消除“卡死”假象
+    aiBox.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px;">
+      <svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      <span>正在思考...</span>
+      <span class="loading-timer" style="font-family: monospace; color: var(--primary);">0.0s</span>
+    </div>
+  `;
+    const startTime = Date.now();
+    const loadingTimerId = setInterval(() => {
+        const timerEl = aiBox.querySelector('.loading-timer');
+        if (timerEl) {
+            timerEl.textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+        }
+        else {
+            clearInterval(loadingTimerId);
+        }
+    }, 100);
     let fullResponse = '';
     tokenUsage += 5;
     updateTokenUsage();
@@ -1236,6 +1399,10 @@ async function sendMessage() {
             }
             if (parsed.content) {
                 fullResponse += parsed.content;
+                // 如果目前只收到毫无意义的空字符或换行，暂不更新 DOM，保留加载动画
+                if (!fullResponse.trim()) {
+                    return;
+                }
                 // 隐藏已完整闭合的和正在流式生成的记忆标签
                 let displayResponse = fullResponse
                     .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
@@ -1282,7 +1449,14 @@ async function sendMessage() {
         finalDisplayResponse = finalDisplayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
             return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
         });
-        aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
+        // 如果没有返回任何实质性内容（例如第一帧由于网络不通就报错了），
+        // 或者完全为空，不要强制用空字符串重置 DOM，保留现存的报错或加载动画
+        if (finalDisplayResponse.trim() !== '') {
+            aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
+        }
+        else if (fullResponse.trim() !== '') {
+            aiBox.innerHTML = parseMarkdown(fullResponse);
+        }
         // 为用户消息和 AI 消息动态添加快捷操作栏
         const addActions = (box, text) => {
             const actionsHtml = `
