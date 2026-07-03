@@ -1398,6 +1398,32 @@ async function sendMessage() {
                 activeConvId = parsed.id;
             }
             if (parsed.content) {
+                // --- 动态指示灯控制 ---
+                const computeInd = document.getElementById('computeIndicator');
+                const computeLight = document.getElementById('computeLight');
+                const computeLabel = document.getElementById('computeLabel');
+                if (computeInd && computeLight && computeLabel) {
+                    computeInd.style.opacity = '1';
+                    if (parsed.content.includes('[双脑路由生效]') || parsed.content.includes('思考')) {
+                        computeLight.style.background = '#00f2fe';
+                        computeLight.style.boxShadow = '0 0 12px #00f2fe';
+                        computeLabel.style.color = '#00f2fe';
+                        computeLabel.innerText = 'LOCAL ROUTER';
+                    }
+                    else if (parsed.content.includes('Cloud-Reasoner') || parsed.content.includes('深度推理')) {
+                        computeLight.style.background = '#ff0844';
+                        computeLight.style.boxShadow = '0 0 15px #ff0844';
+                        computeLabel.style.color = '#ff0844';
+                        computeLabel.innerText = 'CLOUD REASONER';
+                    }
+                    else if (parsed.content.includes('[Agent')) {
+                        computeLight.style.background = '#ff9500';
+                        computeLight.style.boxShadow = '0 0 12px #ff9500';
+                        computeLabel.style.color = '#ff9500';
+                        computeLabel.innerText = 'SANDBOX EXEC';
+                    }
+                }
+                // -------------------
                 fullResponse += parsed.content;
                 // 如果目前只收到毫无意义的空字符或换行，暂不更新 DOM，保留加载动画
                 if (!fullResponse.trim()) {
@@ -1444,6 +1470,17 @@ async function sendMessage() {
         isGenerating = false;
         sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
         sendBtn.classList.remove('is-stop');
+        // 结束时恢复指示灯状态
+        const computeInd = document.getElementById('computeIndicator');
+        const computeLight = document.getElementById('computeLight');
+        const computeLabel = document.getElementById('computeLabel');
+        if (computeInd && computeLight && computeLabel) {
+            computeLight.style.background = '#4CAF50';
+            computeLight.style.boxShadow = '0 0 8px #4CAF50';
+            computeLabel.style.color = '#4CAF50';
+            computeLabel.innerText = 'STANDBY';
+            setTimeout(() => { computeInd.style.opacity = '0.5'; }, 1000);
+        }
         let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
         // [核心修复] 对最终结算的内容也进行思维链闭合折叠转换
         finalDisplayResponse = finalDisplayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
