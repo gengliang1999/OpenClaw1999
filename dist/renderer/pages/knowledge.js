@@ -2,6 +2,7 @@
  * 知识库页面模块 (Knowledge UI)
  * 用于提供极简的 RAG 本地知识引擎前端拖拽交互界面
  */
+import { api } from '../utils.js';
 export function render(container) {
     container.innerHTML = `
     <div class="page-container" style="padding: 20px; color: var(--text-primary); display: flex; flex-direction: column; height: 100%; box-sizing: border-box; overflow: hidden;">
@@ -130,7 +131,7 @@ async function handleFiles(files, dropZone, docListContainer) {
         }
     }
     try {
-        const res = await window.api.post('/knowledge/add', { files: fileDataPayload });
+        const res = await api.post('/knowledge/add', { files: fileDataPayload });
         if (res && res.success) {
             if (list) {
                 for (const f of files) {

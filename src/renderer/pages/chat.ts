@@ -60,8 +60,12 @@ export async function render(container) {
           </button>
         </div>
 
-        <!-- 右侧区域 (已将功能移至输入框下方) -->
-        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px;">
+        <!-- 右侧区域 -->
+        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px; align-items: center;">
+          <div id="computeIndicator" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 12px; opacity: 0.5; transition: all 0.3s; font-size: 11px; font-weight: 700; letter-spacing: 1px;">
+            <div id="computeLight" style="width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; box-shadow: 0 0 8px #4CAF50; transition: all 0.3s;"></div>
+            <span id="computeLabel" style="color: #4CAF50; transition: all 0.3s;">STANDBY</span>
+          </div>
         </div>
       </div>
 
