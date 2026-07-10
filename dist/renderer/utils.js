@@ -10,7 +10,12 @@ export const api = {
     },
     post: async (url, data, options = {}) => api.get(url, { ...options, method: 'POST', body: data }),
     put: async (url, data, options = {}) => api.get(url, { ...options, method: 'PUT', body: data }),
-    delete: async (url, options = {}) => api.get(url, { ...options, method: 'DELETE' }),
+    delete: async (url, options = {}) => {
+        const body = options.body || { ...options };
+        // 移除特殊的 method 属性以防冲突
+        delete body.method;
+        return api.get(url, { method: 'DELETE', body });
+    },
     // ===== 业务接口 =====
     chat: {
         sendMessage: (conversationId, message, modelId) => api.post('/chat', { conversationId, message, modelId }),
@@ -88,6 +93,7 @@ export const api = {
         },
         addMemory: (content, category, tags) => api.post('/memory', { content, category, tags }),
         deleteMemory: (id) => api.delete(`/memory/${id}`),
+        pinMemory: (id, isPinned) => api.put(`/memory/${id}/pin`, { isPinned }),
         searchMemory: (query, limit) => api.get(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
     },
     // ===== �Զ������ =====

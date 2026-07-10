@@ -1,71 +1,94 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.KnowledgePump = void 0;
 /**
  * 知识蒸馏泵 (Nightly Knowledge Pump)
- * 用于实现私有知识库的网络自律进化。通过定时挂载爬虫/RSS采集新闻，并由本地模型提纯压缩后入库。
+ * 挂载至后台的定时采集源探针。爬取到的内容自动推入 IngestionQueueManager 队列进行隔离鉴伪提炼。
  */
 const timers_1 = require("timers");
+const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 class KnowledgePump {
     modelManager;
     vectorStore;
+    baseDataDir;
+    queueManager;
     isRunning = false;
-    constructor(modelManager, vectorStore) {
+    constructor(modelManager, vectorStore, baseDataDir, queueManager) {
         this.modelManager = modelManager;
         this.vectorStore = vectorStore;
+        this.baseDataDir = baseDataDir;
+        this.queueManager = queueManager;
     }
     start() {
         if (this.isRunning)
             return;
         this.isRunning = true;
-        console.log('[Knowledge Pump] 知识蒸馏泵已启动，挂载至后台自律引擎...');
-        // 假设每天夜间凌晨触发（此处使用 10 小时间隔，作为调度抽象）
+        console.log('[Knowledge Pump] 🛡️ 知识蒸馏巡逻泵已启动，已挂载至队列管理器...');
+        // 定时触发自律巡逻 (每 6 小时扫描一次，自动压入队列)
         (0, timers_1.setInterval)(() => {
             this.pump();
-        }, 10 * 60 * 60 * 1000);
+        }, 6 * 60 * 60 * 1000);
     }
     /**
-     * 触发执行巡逻与知识提纯
+     * 触发自律扫描并将任务推送给队列
      */
     async pump() {
-        console.log('[Knowledge Pump] 📡 开始向公网 / 行业定向源发送巡逻探针...');
-        let crawledText = '';
-        try {
-            // 使用底层 fetch 与 cheerio 进行物理剥离，防范 XSS 与内存爆炸
-            const fetchApi = globalThis.fetch || require('node-fetch');
-            const cheerio = require('cheerio');
-            const response = await fetchApi('https://news.ycombinator.com/');
-            const html = await response.text();
-            const $ = cheerio.load(html);
-            const headlines = [];
-            $('.titleline > a').each((i, el) => {
-                if (i < 8)
-                    headlines.push($(el).text()); // 抓取前8条
-            });
-            crawledText = `[外网神经源·实时提炼]\n` + headlines.join('\n');
+        console.log('[Knowledge Pump] 📡 开始扫描 settings.json 载入的自定义采集白名单...');
+        let urls = ['https://news.ycombinator.com/']; // 默认兜底站
+        const settingsPath = path.join(this.baseDataDir, 'settings.json');
+        if (fs.existsSync(settingsPath)) {
+            try {
+                const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                if (settings.crawlingSources && Array.isArray(settings.crawlingSources) && settings.crawlingSources.length > 0) {
+                    urls = settings.crawlingSources;
+                }
+            }
+            catch (e) {
+                console.error('[Knowledge Pump] 读取 settings.json 失败，采用默认源:', e.message);
+            }
         }
-        catch (err) {
-            console.warn('[Knowledge Pump] 抓取失败，切回防呆模式:', err);
-            crawledText = `[自动抓取资讯] 行业更新：OpenClaw 升级了私有化 RAG 与端侧 OCR。`;
-        }
-        console.log('[Knowledge Pump] 🧠 正在调度本地大模型对爬取信息进行洗稿去重、抽取 Graph Node...');
-        try {
-            // 提炼入库
-            const embedding = await this.modelManager.getEmbedding(crawledText);
-            await this.vectorStore.addDocuments([{
-                    id: `auto_news_${Date.now()}`,
-                    content: crawledText,
-                    metadata: {
-                        source: 'NightlyCrawler',
-                        tag: 'industry-news',
-                        timestamp: Date.now()
-                    },
-                    embedding
-                }]);
-            console.log('[Knowledge Pump] ✅ 新知识蒸馏入库完成，知识护城河已自动加深！');
-        }
-        catch (e) {
-            console.error('[Knowledge Pump] ❌ 知识提炼引擎错误', e);
+        for (const url of urls) {
+            try {
+                console.log(`[Knowledge Pump] 📡 正在将自律采集源推送至提炼队列: ${url}`);
+                this.queueManager.addTask('url', url, url, 'system-auto-pump');
+            }
+            catch (err) {
+                console.error(`[Knowledge Pump] 采集源 ${url} 推送至队列失败:`, err.message);
+            }
         }
     }
 }

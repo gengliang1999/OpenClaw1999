@@ -1,0 +1,1695 @@
+// @ts-nocheck
+/**
+ * 聊天页面 v3 — 全宽聊天界面，会话管理已移至主侧边栏
+ */
+
+import { api } from '../utils.js';
+
+import { escapeHtml } from '../utils.js';
+import { parseMarkdown } from '../utils.js';
+import { EXPERTS } from './experts.js';
+
+let activeConvId = null;
+let isGenerating = false;
+let models = [];
+let activeModelId = '';
+let activeExpert = null;
+let tokenUsage = 0;
+let pendingAttachmentData = null;
+let pendingLoadConvId = null; // 从侧边栏点击时预设的会话 ID
+let reloadModelsCallback = null;
+let isAgentModeEnabled = false;
+
+export async function init(container) {
+  if (reloadModelsCallback) {
+    await reloadModelsCallback();
+  }
+}
+
+export async function render(container) {
+  container.className = 'page';
+  container.style.padding = '0';
+
+  const expertData = localStorage.getItem('activeExpert');
+  if (expertData) {
+    try { activeExpert = JSON.parse(expertData); } catch (e) { }
+  } else {
+    activeExpert = null;
+  }
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; background: var(--bg-app); position: absolute; inset: 0;">
+
+      <!-- 顶部 Header -->
+      <div style="height: 56px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--bg-panel); backdrop-filter: var(--blur-material); -webkit-backdrop-filter: var(--blur-material); z-index: 10;">
+        
+        <!-- 左侧区域 -->
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+          <h2 id="chatTitle" style="margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.2px; color: var(--text-primary);">新对话</h2>
+          <div id="expertIndicator" style="display: none; align-items: center; gap: 6px; background: var(--primary-light); color: var(--primary); padding: 3px 12px; border-radius: 20px; font-size: 12px; border: 1px solid rgba(0,122,255,0.1); font-weight: 500;">
+            <span id="expertName"></span>
+            <button id="clearExpertBtn" style="background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0.7;">&times;</button>
+          </div>
+        </div>
+
+
+        <!-- 右侧区域 -->
+        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px; align-items: center;">
+          <div id="computeIndicator" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 12px; opacity: 0.5; transition: all 0.3s; font-size: 11px; font-weight: 700; letter-spacing: 1px;">
+            <div id="computeLight" style="width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; box-shadow: 0 0 8px #4CAF50; transition: all 0.3s;"></div>
+            <span id="computeLabel" style="color: #4CAF50; transition: all 0.3s;">STANDBY</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 聊天消息展示区 -->
+      <div id="chatMessages" class="chat-messages-container">
+        <!-- Messages -->
+      </div>
+
+      <!-- 底部输入区 — 极简收纳风格 -->
+      <div class="doubao-input-wrapper" style="padding-bottom: 24px;">
+        <div id="mentionPopup" class="mention-popup" style="display: none; position: absolute; bottom: 100%; left: 16px; margin-bottom: 8px;"></div>
+        <div class="doubao-input-container">
+          <!-- 引用预览 -->
+          <div id="quotePreview" class="quote-preview" style="display: none;">
+            <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <strong style="color: var(--primary);">引用：</strong>
+              <span id="quoteText"></span>
+            </div>
+            <span class="close-quote" id="closeQuoteBtn">&times;</span>
+          </div>
+
+          <!-- 截图预览 -->
+          <div id="attachmentPreview" style="display: none; padding: 8px 16px; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-light); background: rgba(0,0,0,0.02); border-radius: 12px 12px 0 0;">
+            <div style="position: relative; display: inline-block;">
+              <img id="attachmentImg" style="height: 60px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);" />
+              <button id="removeAttachmentBtn" style="position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; background: var(--danger); color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm);">&times;</button>
+            </div>
+            <!-- OCR 提取控制 -->
+            <div style="display: flex; gap: 8px;">
+              <button id="ocrTextBtn" class="btn-ghost" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--primary); background: rgba(0, 122, 255, 0.08); border: 1px solid rgba(0, 122, 255, 0.15); display: flex; align-items: center; gap: 4px; cursor: pointer;" onmouseover="this.style.background='rgba(0,122,255,0.15)';" onmouseout="this.style.background='rgba(0,122,255,0.08)';">
+                🤖 提取文字 (OCR)
+              </button>
+              <button id="ocrTableBtn" class="btn-ghost" style="padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #00c853; background: rgba(0, 200, 83, 0.08); border: 1px solid rgba(0, 200, 83, 0.15); display: flex; align-items: center; gap: 4px; cursor: pointer;" onmouseover="this.style.background='rgba(0,200,83,0.15)';" onmouseout="this.style.background='rgba(0,200,83,0.08)';">
+                📊 提取表格
+              </button>
+            </div>
+          </div>
+
+          <!-- 输入行：内部嵌入左右控制区 -->
+          <div class="doubao-input-row">
+            <textarea id="chatInput" class="doubao-textarea" placeholder="发送消息给 Assistant...  @呼叫专家  Shift+Enter 换行" rows="1"></textarea>
+            
+            <!-- 底部操作栏 -->
+            <div class="doubao-input-tools">
+              
+              <!-- 左侧：附件与设定 -->
+              <div style="display: flex; gap: 4px; position: relative; align-items: center;">
+                <button id="plusMenuBtn" class="btn-icon" title="附加操作">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                </button>
+                <!-- 隐藏的+号悬浮菜单 -->
+                <div id="plusMenu" class="popover-menu" style="display: none; bottom: 100%; left: 0; margin-bottom: 8px; width: 140px;">
+                  <button id="fileUploadBtn" class="popover-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    上传文件
+                  </button>
+                  <button id="readScreenBtn" class="popover-item">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M3 9h2"/><path d="M19 9h2"/></svg>
+                    截取屏幕
+                  </button>
+                </div>
+
+                <!-- 🤖 选择模型 -->
+                <button id="modelModalBtn" class="btn-ghost" title="切换大模型" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg>
+                  <span id="activeModelLabel" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+
+                <!-- 思考深度 -->
+                <div class="btn-ghost" title="思考深度" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #00d9ff;"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
+                  <select id="depthSelect" style="background:transparent; border:none; color:inherit; outline:none; cursor:pointer;">
+                    <option value="auto">自动</option>
+                    <option value="low">浅度思考</option>
+                    <option value="medium">中度思考</option>
+                    <option value="high">深度思考</option>
+                    <option value="extreme">极度推理</option>
+                  </select>
+                </div>
+
+                <!-- 智能代理: 关/开 -->
+                <button id="agentModeBtn" class="btn-ghost" title="让 AI 在后台自动调用本地读取工具与系统组件" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--text-secondary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  智能代理: <span id="agentModeStatus">关</span>
+                </button>
+
+                <!-- 新建对话 -->
+                <button id="newChatBtn" class="btn-ghost" title="新建对话" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--primary);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                  新对话
+                </button>
+
+                <!-- 清空上下文 -->
+                <button id="clearMemoryBtn" class="btn-ghost" title="清空上下文记忆" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px; color: #ff3b30;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  清空上下文
+                </button>
+              </div>
+
+              <!-- 右侧：发送组 -->
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button id="tokenCircleBtn" class="btn-ghost" title="上下文压缩" style="display: flex; align-items: center; gap: 6px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: var(--text-secondary); height: 32px;">
+                  <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
+                    <svg viewBox="0 0 36 36" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
+                      <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--primary)" stroke-width="4" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: stroke-dashoffset 0.4s ease;"></circle>
+                    </svg>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: inherit; z-index: 1;"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
+                  </div>
+                  压缩
+                </button>
+
+                <button id="optimizePromptBtn" class="btn-ghost" title="提示词优化" style="display: flex; align-items: center; gap: 5px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: #a259ff; height: 32px; background: rgba(162, 89, 255, 0.08);">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
+                  魔法优化
+                </button>
+                <button id="voiceBtn" class="btn-ghost" title="语音输入" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 12px; color: var(--text-secondary);">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                </button>
+                <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模型选择 Modal 弹窗 -->
+    <div id="modelSelectionModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+       <div style="background: var(--bg-app); width: 660px; max-width: 92%; border-radius: 24px; box-shadow: 0 32px 64px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+          <div style="padding: 20px 28px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(108,99,255,0.08), rgba(0,217,255,0.05));">
+             <h3 style="margin: 0; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 10px;">切换模型</h3>
+             <button id="closeModelModalBtn" style="background: rgba(128,128,128,0.15); border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,59,48,0.15)'; this.style.color='#ff3b30';" onmouseout="this.style.background='rgba(128,128,128,0.15)'; this.style.color='var(--text-muted)';">&times;</button>
+          </div>
+          <div style="padding: 24px 28px; display: flex; flex-direction: column; gap: 24px; max-height: 65vh; overflow-y: auto;">
+             <!-- 云端模型 -->
+             <div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #6c63ff, #af52de);"></span> 云端模型</h4>
+                <div id="cloudModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
+             </div>
+             <!-- 本地模型 -->
+             <div>
+                <h4 style="margin: 0 0 14px 0; font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px;"><span style="display: inline-block; width: 4px; height: 16px; border-radius: 2px; background: linear-gradient(180deg, #00d9ff, #00c853);"></span> 本地模型</h4>
+                <div id="localModelsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 10px;"></div>
+             </div>
+          </div>
+       </div>
+    </div>
+
+    <!-- 思考设定 (Tuning Modal) -->
+    <div id="tuningModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+       <div style="background: var(--bg-app); width: 480px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column;">
+          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+             <h3 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">🧠 思考设定 <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); background: var(--bg-hover); padding: 2px 8px; border-radius: 10px;">微调 AI 性格与思考方式</span></h3>
+             <button id="closeTuningModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
+          </div>
+          <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
+             
+             <!-- 系统设定 (System Prompt) -->
+             <div class="config-form-group">
+                <label style="font-weight: 600; font-size: 14px;">🎭 角色与背景设定 (System Prompt)</label>
+                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">赋予 AI 特定的身份、语气和知识背景（例如：“你是一个暴躁的老板”或“你是一位专业的法律顾问”）。</div>
+                <textarea id="tuningSystemPrompt" class="input" style="height: 100px; resize: vertical;" placeholder="默认：你是一个乐于助人的智能助手。"></textarea>
+             </div>
+
+             <!-- 发散程度 (Temperature) -->
+             <div class="tuning-slider-container">
+                <div class="tuning-slider-header">
+                   <div class="tuning-slider-label">🌡️ 发散程度 (Temperature)</div>
+                   <div class="tuning-slider-value" id="tuningTempValue">1.0</div>
+                </div>
+                <div class="tuning-slider-desc" style="margin-bottom: 6px;">较小的值回答更精确严谨；较大的值回答更具创造力和想象力。</div>
+                <input type="range" id="tuningTemp" class="tuning-slider" min="0" max="2" step="0.1" value="1.0">
+             </div>
+
+             <!-- 记忆深度 (Max History) -->
+             <div class="tuning-slider-container">
+                <div class="tuning-slider-header">
+                   <div class="tuning-slider-label">📚 记忆深度 (Context Size)</div>
+                   <div class="tuning-slider-value" id="tuningHistoryValue">10 轮</div>
+                </div>
+                <div class="tuning-slider-desc" style="margin-bottom: 6px;">AI 单次对话能记住的上下文轮数。调大更聪明，但消耗更多算力。</div>
+                <input type="range" id="tuningHistory" class="tuning-slider" min="0" max="50" step="1" value="10">
+             </div>
+
+          </div>
+          <div style="padding: 16px 24px; border-top: 1px solid var(--border-light); background: var(--bg-panel); display: flex; justify-content: flex-end; gap: 12px;">
+             <button id="resetTuningBtn" class="btn btn-default" style="border-radius: 10px;">恢复默认</button>
+             <button id="saveTuningBtn" class="btn btn-primary" style="border-radius: 10px; padding: 0 24px;">保存设定</button>
+          </div>
+        </div>
+     </div>
+
+    <!-- OCR 识别结果浮窗 -->
+    <div id="ocrResultModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
+      <div style="background: var(--bg-app); width: 500px; max-width: 90%; border-radius: 16px; box-shadow: 0 24px 48px rgba(0,0,0,0.3); display: flex; flex-direction: column; overflow: hidden; animation: modalSlideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, rgba(0,200,83,0.05), rgba(0,122,255,0.05));">
+          <h4 style="margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">🤖 AI OCR 提取识别结果</h4>
+          <button id="closeOcrModalBtn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);">&times;</button>
+        </div>
+        <div style="padding: 20px; flex: 1; overflow-y: auto;">
+          <textarea id="ocrResultText" style="width: 100%; height: 160px; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 13px; background: rgba(0,0,0,0.02); color: var(--text-primary); resize: none; outline: none; box-sizing: border-box; line-height: 1.5;"></textarea>
+        </div>
+        <div style="padding: 12px 20px; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end; gap: 8px; background: rgba(0,0,0,0.01);">
+          <button id="copyOcrBtn" class="btn btn-default" style="border-radius: 8px; font-size: 13px; padding: 6px 14px; cursor: pointer;">复制到剪贴板</button>
+          <button id="insertOcrBtn" class="btn btn-primary" style="border-radius: 8px; font-size: 13px; padding: 6px 14px; border: none; cursor: pointer;">插入到输入框</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // --- 基础事件 ---
+  (document.getElementById('newChatBtn') as any).addEventListener('click', createNewChat);
+  (document.getElementById('agentModeBtn') as any).addEventListener('click', () => {
+    isAgentModeEnabled = !isAgentModeEnabled;
+    const btn = (document.getElementById('agentModeBtn') as any);
+    const statusText = (document.getElementById('agentModeStatus') as any);
+    if (isAgentModeEnabled) {
+      btn.style.color = '#ff9800';
+      btn.style.background = 'rgba(255, 152, 0, 0.1)';
+      statusText.textContent = '开';
+      if (window.__toast) window.__toast.success('⚡ 智能代理模式已开启');
+    } else {
+      btn.style.color = 'var(--text-secondary)';
+      btn.style.background = 'transparent';
+      statusText.textContent = '关';
+      if (window.__toast) window.__toast.info('⚡ 智能代理模式已关闭');
+    }
+  });
+  (document.getElementById('clearExpertBtn') as any).addEventListener('click', () => {
+    localStorage.removeItem('activeExpert');
+    activeExpert = null;
+    updateExpertIndicator();
+    if (window.__toast) window.__toast.info('已退出专家模式');
+  });
+
+  const chatInput = (document.getElementById('chatInput') as any);
+
+  // --- Tuning Modal 逻辑 ---
+  const tuningModalBtn = (document.getElementById('tuningModalBtn') as any);
+  const tuningModal = (document.getElementById('tuningModal') as any);
+  const closeTuningModalBtn = (document.getElementById('closeTuningModalBtn') as any);
+  const tuningTemp = (document.getElementById('tuningTemp') as any);
+  const tuningTempValue = (document.getElementById('tuningTempValue') as any);
+  const tuningHistory = (document.getElementById('tuningHistory') as any);
+  const tuningHistoryValue = (document.getElementById('tuningHistoryValue') as any);
+  const tuningSystemPrompt = (document.getElementById('tuningSystemPrompt') as any);
+  const saveTuningBtn = (document.getElementById('saveTuningBtn') as any);
+  const resetTuningBtn = (document.getElementById('resetTuningBtn') as any);
+  const plusMenuBtn = (document.getElementById('plusMenuBtn') as any);
+  const plusMenu = (document.getElementById('plusMenu') as any);
+
+  if (plusMenuBtn && plusMenu) {
+    plusMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      plusMenu.style.display = plusMenu.style.display === 'none' ? 'flex' : 'none';
+    });
+    document.addEventListener('click', (e) => {
+      if (!plusMenuBtn.contains((e.target as any)) && !plusMenu.contains((e.target as any))) {
+        plusMenu.style.display = 'none';
+      }
+    });
+  }
+
+  // Hide popover if item is clicked
+  document.querySelectorAll('.popover-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (plusMenu) plusMenu.style.display = 'none';
+    });
+  });
+
+  // 初始化 sessionConfig
+  window.sessionConfig = window.sessionConfig || { temp: 1.0, maxHistory: 10, systemPrompt: '' };
+
+  const openTuningModal = () => {
+    tuningTemp.value = window.sessionConfig.temp;
+    tuningTempValue.textContent = parseFloat(window.sessionConfig.temp).toFixed(1);
+    tuningHistory.value = window.sessionConfig.maxHistory;
+    tuningHistoryValue.textContent = window.sessionConfig.maxHistory + ' 轮';
+    tuningSystemPrompt.value = window.sessionConfig.systemPrompt || '';
+    tuningModal.style.display = 'flex';
+  };
+
+  if (tuningModalBtn) {
+    tuningModalBtn.addEventListener('click', openTuningModal);
+  }
+  if (closeTuningModalBtn && tuningModal) {
+    closeTuningModalBtn.addEventListener('click', () => tuningModal.style.display = 'none');
+  }
+
+  if (tuningTemp && tuningTempValue) {
+    tuningTemp.addEventListener('input', (e) => {
+      tuningTempValue.textContent = parseFloat((e.target as any).value).toFixed(1);
+    });
+  }
+  if (tuningHistory && tuningHistoryValue) {
+    tuningHistory.addEventListener('input', (e) => {
+      tuningHistoryValue.textContent = (e.target as any).value + ' 轮';
+    });
+  }
+
+  if (saveTuningBtn && tuningTemp && tuningHistory && tuningSystemPrompt && tuningModal) {
+    saveTuningBtn.addEventListener('click', () => {
+      window.sessionConfig.temp = parseFloat(tuningTemp.value);
+      window.sessionConfig.maxHistory = parseInt(tuningHistory.value);
+      window.sessionConfig.systemPrompt = tuningSystemPrompt.value.trim();
+      tuningModal.style.display = 'none';
+      if (window.__toast) window.__toast.success('🧠 思考设定已保存，将在下一次对话生效');
+    });
+  }
+
+  if (resetTuningBtn && tuningTemp && tuningTempValue && tuningHistory && tuningHistoryValue && tuningSystemPrompt) {
+    resetTuningBtn.addEventListener('click', () => {
+      tuningTemp.value = 1.0;
+      tuningTempValue.textContent = '1.0';
+      tuningHistory.value = 10;
+      tuningHistoryValue.textContent = '10 轮';
+      tuningSystemPrompt.value = '';
+    });
+  }
+
+  // --- Mention Popup (@呼叫专家) 逻辑 ---
+  let mentionActive = false;
+  let mentionQuery = '';
+  let selectedExpertIndex = 0;
+  let filteredExperts = [];
+  const mentionPopup = (document.getElementById('mentionPopup') as any);
+
+  const renderMentionPopup = () => {
+    if (!mentionActive) {
+      mentionPopup.style.display = 'none';
+      return;
+    }
+
+    filteredExperts = EXPERTS.filter(exp =>
+      exp.name.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+      (exp.description && exp.description.toLowerCase().includes(mentionQuery.toLowerCase()))
+    );
+
+    if (filteredExperts.length === 0) {
+      mentionPopup.style.display = 'none';
+      return;
+    }
+
+    selectedExpertIndex = Math.max(0, Math.min(selectedExpertIndex, filteredExperts.length - 1));
+
+    mentionPopup.innerHTML = filteredExperts.map((exp, idx) => `
+      <div class="mention-popup-item ${idx === selectedExpertIndex ? 'active' : ''}" data-idx="${idx}">
+        <div class="icon" style="background: ${exp.color}15;">${exp.icon}</div>
+        <div class="info">
+          <div class="name">${escapeHtml(exp.name)}</div>
+          <div class="desc">${escapeHtml(exp.description || '')}</div>
+        </div>
+      </div>
+    `).join('');
+
+    mentionPopup.style.display = 'flex';
+
+    // 绑定点击事件
+    mentionPopup.querySelectorAll('.mention-popup-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const idx = parseInt(item.getAttribute('data-idx'));
+        selectExpert(filteredExperts[idx]);
+      });
+      item.addEventListener('mouseenter', () => {
+        selectedExpertIndex = parseInt(item.getAttribute('data-idx'));
+        renderMentionPopup();
+      });
+    });
+  };
+
+  const selectExpert = (expert) => {
+    // 替换输入框中的 @query 为空，然后聚焦
+    const val = chatInput.value;
+    const atIndex = val.lastIndexOf('@');
+    if (atIndex !== -1) {
+      chatInput.value = val.substring(0, atIndex) + val.substring(atIndex + mentionQuery.length + 1).trim();
+    }
+    mentionActive = false;
+    renderMentionPopup();
+
+    // 激活专家
+    activeExpert = expert;
+    localStorage.setItem('activeExpert', JSON.stringify(expert));
+    updateExpertIndicator();
+    if (window.__toast) window.__toast.success(`已切换至专家模式：${expert.name}`);
+
+    chatInput.focus();
+  };
+
+  chatInput.addEventListener('input', (e) => {
+    const val = chatInput.value;
+    const lastAtIndex = val.lastIndexOf('@');
+
+    if (lastAtIndex !== -1) {
+      // 检查 @ 之后是否有空格，如果有空格则取消激活
+      const afterAt = val.substring(lastAtIndex + 1);
+      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
+        mentionActive = true;
+        mentionQuery = afterAt;
+        selectedExpertIndex = 0;
+        renderMentionPopup();
+      } else {
+        mentionActive = false;
+        renderMentionPopup();
+      }
+    } else {
+      mentionActive = false;
+      renderMentionPopup();
+    }
+
+    chatInput.style.height = 'auto';
+    chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+  });
+
+  chatInput.addEventListener('keydown', (e) => {
+    if (mentionActive && filteredExperts.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedExpertIndex = (selectedExpertIndex + 1) % filteredExperts.length;
+        renderMentionPopup();
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedExpertIndex = (selectedExpertIndex - 1 + filteredExperts.length) % filteredExperts.length;
+        renderMentionPopup();
+        return;
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        selectExpert(filteredExperts[selectedExpertIndex]);
+        return;
+      } else if (e.key === 'Escape') {
+        mentionActive = false;
+        renderMentionPopup();
+        return;
+      }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // 提示词魔法优化按钮
+  (document.getElementById('optimizePromptBtn') as any).addEventListener('click', async () => {
+    const input = (document.getElementById('chatInput') as any);
+    const btn = (document.getElementById('optimizePromptBtn') as any);
+    let text = input.value.trim();
+    if (!text) {
+      if (window.__toast) window.__toast.info('请先输入需要优化的原始需求');
+      return;
+    }
+
+    // 禁用按钮并显示施法中状态
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `<svg style="animation: spin 1s linear infinite;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> <span style="font-size: 13px">魔法注入中...</span>`;
+    btn.disabled = true;
+    input.value = ''; // 清空输入框准备流式写入
+
+    // 检查是否存在 spin 动画，如果没有则动态注入
+    if (!(document.getElementById('spinKeyframe') as any)) {
+      const style = (document.createElement('style') as any);
+      style.id = 'spinKeyframe';
+      style.innerHTML = `@keyframes spin { 100% { transform: rotate(360deg); } }`;
+      document.head.appendChild(style);
+    }
+
+    try {
+      await new Promise((resolve, reject) => {
+        const { promise } = api.chat.optimizePromptStream(text, activeModelId, (parsed) => {
+          if (parsed.type === 'chunk') {
+            input.value += parsed.content;
+            input.dispatchEvent(new Event('input')); // 触发自适应高度调整
+            input.scrollTop = input.scrollHeight; // 滚动到底部
+          } else if (parsed.type === 'error') {
+            reject(new Error(parsed.message));
+          } else if (parsed.type === 'done') {
+            resolve();
+          }
+        });
+
+        promise.catch(reject);
+      });
+
+      input.focus();
+      if (window.__toast) window.__toast.success('✨ 提示词已注入大模型灵魂！');
+    } catch (err) {
+      if (window.__toast) window.__toast.error('优化失败: ' + err.message);
+      input.value = text; // 失败则回退为原文本
+    } finally {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }
+  });
+
+  (document.getElementById('sendBtn') as any).addEventListener('click', sendMessage);
+
+  // 上下文圆环点击（执行真正的上下文压缩：删除一半最老的消息）
+  (document.getElementById('tokenCircleBtn') as any).addEventListener('click', async () => {
+    if (!activeConvId) {
+      if (window.__toast) window.__toast.info('暂无上下文可压缩');
+      return;
+    }
+    try {
+      if (window.__toast) window.__toast.info('正在压缩上下文...');
+      const history = await api.chat.getHistory(activeConvId);
+      // 如果历史少于4条，不值得压缩
+      if (!history || history.length < 4) {
+        if (window.__toast) window.__toast.success('当前上下文已是最佳状态，无需压缩');
+        return;
+      }
+
+      // 删除前一半的消息 (保留最新的)
+      const toDeleteCount = Math.floor(history.length / 2);
+      for (let i = 0; i < toDeleteCount; i++) {
+        if (history[i].id) {
+          await api.chat.deleteMessage(history[i].id).catch(e => console.error(e));
+        }
+      }
+
+      // 更新前端 token 模拟使用量
+      tokenUsage = Math.max(0, tokenUsage - Math.floor(tokenUsage * 0.5));
+      updateTokenUsage();
+      if (window.__toast) window.__toast.success(`上下文压缩完成！已清理 ${toDeleteCount} 条早期记忆`);
+    } catch (e) {
+      if (window.__toast) window.__toast.error('上下文压缩失败');
+      console.error(e);
+    }
+  });
+
+  // 垃圾桶按钮点击 (情况当前上下文)
+  (document.getElementById('clearMemoryBtn') as any).addEventListener('click', async () => {
+    if (activeConvId) {
+      try {
+        await api.chat.clearHistory(activeConvId);
+        (document.getElementById('chatMessages') as any).innerHTML = `
+          <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
+            <div style="font-size: 48px;">💬</div>
+            <div style="font-size: 16px;">上下文已清空，发送一条新消息开始吧</div>
+          </div>
+        `;
+        tokenUsage = 0;
+        updateTokenUsage();
+        if (window.__toast) window.__toast.success('上下文记忆已彻底清空');
+      } catch (e) {
+        if (window.__toast) window.__toast.error('清空上下文失败');
+      }
+    }
+  });
+
+  // 引用功能关闭
+  (document.getElementById('closeQuoteBtn') as any).addEventListener('click', () => {
+    (document.getElementById('quotePreview') as any).style.display = 'none';
+    (document.getElementById('quoteText') as any).textContent = '';
+  });
+
+  // 截图功能
+  (document.getElementById('readScreenBtn') as any).addEventListener('click', async () => {
+    try {
+      if (window.__toast) window.__toast.info('请在屏幕上框选截图区域...');
+      // 隐藏窗口以便截图
+      await window.openClaw.system.hide();
+
+      const resultObj = await window.openClaw.system.captureScreenArea();
+
+      // 截图完成后重新显示窗口
+      await window.openClaw.system.show();
+
+      if (resultObj && resultObj.dataUrl) {
+        const { dataUrl, action } = resultObj;
+        pendingAttachmentData = dataUrl;
+        (document.getElementById('attachmentImg') as any).src = dataUrl;
+        (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+
+        if (action === 'send') {
+          if (window.__toast) window.__toast.success('截图已附加');
+          (document.getElementById('chatInput') as any).focus();
+        } else if (action === 'ocr') {
+          // 异步触发 OCR 文字提取
+          handleOcr('text');
+        } else if (action === 'explain') {
+          // AI 解释
+          const input = document.getElementById('chatInput') as any;
+          input.value = '请详细解释和分析这张截图中的内容。';
+          const sendBtn = document.getElementById('sendBtn') as any;
+          if (sendBtn) sendBtn.click();
+        } else if (action === 'translate') {
+          // AI 翻译
+          const input = document.getElementById('chatInput') as any;
+          input.value = '请帮我精准翻译这张截图中的文本内容。';
+          const sendBtn = document.getElementById('sendBtn') as any;
+          if (sendBtn) sendBtn.click();
+        }
+      } else {
+        if (window.__toast) window.__toast.info('截图已取消');
+      }
+    } catch (e) {
+      if (window.__toast) window.__toast.error('截图失败: ' + e.message);
+    }
+  });
+
+  (document.getElementById('removeAttachmentBtn') as any).addEventListener('click', () => {
+    pendingAttachmentData = null;
+    (document.getElementById('attachmentImg') as any).src = '';
+    (document.getElementById('attachmentPreview') as any).style.display = 'none';
+  });
+
+  // 上传文件按钮（使用原生系统对话框获取真实文件路径）
+  (document.getElementById('fileUploadBtn') as any).addEventListener('click', async () => {
+    try {
+      // 通过主进程原生对话框选择文件，获取真实绝对路径
+      const filePath = await window.openClaw.system.selectFile({
+        filters: [
+          { name: '所有支持的文件', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'pdf', 'docx', 'pptx', 'xlsx', 'txt', 'md', 'json', 'csv', 'html', 'xml', 'rtf', 'odt'] },
+          { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] },
+          { name: '文档', extensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'md', 'json', 'csv', 'html', 'xml', 'rtf', 'odt'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      });
+      if (!filePath) return; // 用户取消了选择
+
+      await handleFileByPath(filePath);
+    } catch (err: any) {
+      if (window.__toast) window.__toast.error(`文件选择失败: ${err.message}`);
+    }
+  });
+
+  // 通用文件处理方法：根据真实路径判断类型并执行对应处理逻辑
+  async function handleFileByPath(filePath: string) {
+    const fileName = filePath.split(/[\\/]/).pop() || '未知文件';
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+    const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'];
+    const isImage = imageExts.includes(ext);
+
+    if (isImage) {
+      // 图片文件：通过 IPC 读取为 Base64 DataURL 后附加预览
+      try {
+        const dataUrl = await api.post('/system/readFileAsDataUrl', { filePath });
+        if (dataUrl && dataUrl.data) {
+          pendingAttachmentData = dataUrl.data;
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = dataUrl.data;
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          (document.getElementById('chatInput') as any).focus();
+          if (window.__toast) window.__toast.success('图片已附加');
+        }
+      } catch (err: any) {
+        if (window.__toast) window.__toast.error(`图片读取失败: ${err.message}`);
+      }
+    } else {
+      // 非图片文件：传递真实路径给后端进行文档解析与知识库写入
+      try {
+        if (!activeConvId) {
+          await createNewChat();
+        }
+        if (window.__toast) window.__toast.info('正在解析文档并加入知识库，请稍候...');
+        
+        const res = await api.post('/system/parseDocument', { filePath, convId: activeConvId });
+        if (res && res.success) {
+           if (window.__toast) window.__toast.success(`📄 文档已解析完毕并加入上下文！`);
+           
+           // 在聊天界面添加一条本地提示消息
+           const container = document.getElementById('chatMessages') as any;
+           const msgDiv = document.createElement('div');
+           msgDiv.style.textAlign = 'center';
+           msgDiv.style.margin = '16px 0';
+           msgDiv.style.fontSize = '12px';
+           msgDiv.style.color = 'var(--text-muted)';
+           const btnId = `saveKbBtn_${Date.now()}`;
+           msgDiv.innerHTML = `
+             <div style="background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 12px; display: inline-flex; align-items: center; gap: 12px;">
+               <span>📚 文档 <b>${fileName}</b> 已作为当前临时上下文。</span>
+               <button id="${btnId}" style="padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-light); background: white; color: var(--primary); font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 4px; box-shadow: var(--shadow-sm);">
+                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                 保存至长期知识库
+               </button>
+             </div>
+           `;
+           container.appendChild(msgDiv);
+           
+           const btn = document.getElementById(btnId) as HTMLButtonElement;
+           if (btn) {
+             btn.addEventListener('click', async () => {
+               btn.disabled = true;
+               btn.innerHTML = '保存中...';
+               try {
+                 const saveRes = await api.post('/system/saveToKnowledge', { filePath, convId: activeConvId });
+                 if (saveRes && saveRes.success) {
+                   btn.innerHTML = '已永久入库 ✓';
+                   btn.style.color = '#00c853';
+                   btn.style.background = 'rgba(0,200,83,0.1)';
+                   btn.style.borderColor = 'rgba(0,200,83,0.2)';
+                 }
+               } catch (err: any) {
+                 btn.innerHTML = '保存失败';
+                 btn.disabled = false;
+                 if (window.__toast) window.__toast.error('入库失败: ' + err.message);
+               }
+             });
+           }
+           
+           container.scrollTop = container.scrollHeight;
+           
+           // 修复: 上传文档后前端立刻自动发起请求，让大模型开始响应
+           const input = document.getElementById('chatInput') as any;
+           if (input) {
+             input.value = `我上传了一份文件：《${fileName}》。请帮我仔细阅读并提炼总结出它的核心内容和摘要。`;
+             const sendBtn = document.getElementById('sendBtn') as any;
+             if (sendBtn) {
+               // 延时一点时间保证 DOM 状态同步
+               setTimeout(() => {
+                 sendBtn.click();
+               }, 100);
+             }
+           }
+        }
+      } catch (err: any) {
+        if (window.__toast) window.__toast.error(`文档解析失败: ${err.message}`);
+      }
+    }
+  }
+
+  // 模型 Modal 逻辑
+  (document.getElementById('modelModalBtn') as any).addEventListener('click', async () => {
+    await loadModels();
+    (document.getElementById('modelSelectionModal') as any).style.display = 'flex';
+  });
+  (document.getElementById('closeModelModalBtn') as any).addEventListener('click', () => {
+    (document.getElementById('modelSelectionModal') as any).style.display = 'none';
+  });
+  (document.getElementById('modelSelectionModal') as any).addEventListener('click', (e) => {
+    if ((e.target as any).id === 'modelSelectionModal') (e.target as any).style.display = 'none';
+  });
+
+  // ================== OCR 提取逻辑 ==================
+  const ocrTextBtn = document.getElementById('ocrTextBtn') as any;
+  const ocrTableBtn = document.getElementById('ocrTableBtn') as any;
+  const ocrResultModal = document.getElementById('ocrResultModal') as any;
+  const ocrResultText = document.getElementById('ocrResultText') as any;
+  const closeOcrModalBtn = document.getElementById('closeOcrModalBtn') as any;
+  const copyOcrBtn = document.getElementById('copyOcrBtn') as any;
+  const insertOcrBtn = document.getElementById('insertOcrBtn') as any;
+
+  // 将 OCR 模态框也挂载到 body 下避开 transform 影响
+  if (ocrResultModal) {
+    const oldOcr = document.body.querySelector('#ocrResultModal');
+    if (oldOcr && oldOcr.parentNode === document.body && oldOcr !== ocrResultModal) oldOcr.remove();
+    document.body.appendChild(ocrResultModal);
+  }
+
+  async function handleOcr(mode: 'text' | 'table') {
+    if (!pendingAttachmentData) {
+      if (window.__toast) window.__toast.error('未检测到截图附件');
+      return;
+    }
+    
+    try {
+      if (window.__toast) window.__toast.info('AI 正在高精度识别截图中，请稍候...');
+      
+      const res = await api.post('/chat/ocr', {
+        image: pendingAttachmentData,
+        mode
+      });
+      
+      if (res && res.text) {
+        if (window.__toast) window.__toast.success('识别成功！');
+        ocrResultText.value = res.text;
+        ocrResultModal.style.display = 'flex';
+      } else {
+        throw new Error('未返回识别内容');
+      }
+    } catch (e: any) {
+      if (window.__toast) window.__toast.error('OCR 识别失败: ' + e.message);
+    }
+  }
+
+  if (ocrTextBtn) ocrTextBtn.addEventListener('click', () => handleOcr('text'));
+  if (ocrTableBtn) ocrTableBtn.addEventListener('click', () => handleOcr('table'));
+
+  if (closeOcrModalBtn) {
+    closeOcrModalBtn.addEventListener('click', () => {
+      ocrResultModal.style.display = 'none';
+    });
+  }
+
+  if (copyOcrBtn) {
+    copyOcrBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(ocrResultText.value);
+        if (window.__toast) window.__toast.success('已复制到剪贴板');
+      } catch (e) {
+        if (window.__toast) window.__toast.error('复制失败');
+      }
+    });
+  }
+
+  if (insertOcrBtn) {
+    insertOcrBtn.addEventListener('click', () => {
+      const input = document.getElementById('chatInput') as any;
+      if (input) {
+        input.value += (input.value ? '\n' : '') + ocrResultText.value;
+        ocrResultModal.style.display = 'none';
+        input.focus();
+        if (window.__toast) window.__toast.success('已插入到输入框');
+      }
+    });
+  }
+
+  // 清理旧模态框并移到 body（绕过 .page 的 CSS animation transform 导致 fixed 定位失效）
+  const oldModal = (document.getElementById('modelSelectionModal') as any);
+  if (oldModal && oldModal.parentNode === document.body) oldModal.remove();
+  const freshModal = (document.getElementById('modelSelectionModal') as any);
+  if (freshModal) document.body.appendChild(freshModal);
+
+  // 全局回调供主侧边栏调用
+  window.__createNewChat = createNewChat;
+  window.__loadChatHistory = async (convId) => {
+    activeConvId = convId;
+    await loadHistory(convId);
+  };
+
+  // ================== 语音与安全控制 ==================
+  const chatInputArea = (document.getElementById('chatInput') as HTMLTextAreaElement);
+  
+  if (chatInputArea) {
+    chatInputArea.addEventListener('paste', (e) => {
+      const clipboardData = e.clipboardData;
+      if (!clipboardData) return;
+
+      // 优先检测剪贴板中是否包含图片文件（截图/复制的图片）
+      const imageFile = Array.from(clipboardData.files).find((f: File) => f.type.startsWith('image/'));
+      if (imageFile) {
+        e.preventDefault();
+        const reader = new FileReader();
+        reader.onload = (e2) => {
+          const dataUrl = e2.target?.result as string;
+          if (!dataUrl) return;
+          pendingAttachmentData = dataUrl;
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = dataUrl;
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          chatInputArea.focus();
+          if (window.__toast) window.__toast.success('已从剪贴板粘贴图片');
+        };
+        reader.readAsDataURL(imageFile);
+        return;
+      }
+
+      // 纯文本安全过滤（API Key 脱敏保护）
+      const text = clipboardData.getData('text');
+      if (text && /(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/.test(text)) {
+        e.preventDefault();
+        const safeText = text.replace(/(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/g, '[REDACTED API KEY]');
+        chatInputArea.setRangeText(safeText, chatInputArea.selectionStart, chatInputArea.selectionEnd, 'end');
+        if (window.__toast) window.__toast.error('检测到敏感 API Key，已自动脱敏保护！');
+      }
+    });
+  }
+
+  // ================== 拖拽文件/图片到聊天区域上传 ==================
+  const chatContainer = document.getElementById('chatMessages') || document.querySelector('.doubao-chat-page') as any;
+  if (chatContainer) {
+    // 阻止默认拖放行为防止浏览器打开文件
+    chatContainer.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatContainer.style.outline = '2px dashed var(--primary)';
+      chatContainer.style.outlineOffset = '-4px';
+    });
+    chatContainer.addEventListener('dragleave', (e: DragEvent) => {
+      e.preventDefault();
+      chatContainer.style.outline = 'none';
+    });
+    chatContainer.addEventListener('drop', async (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatContainer.style.outline = 'none';
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        // 拖入的是图片文件：直接读取为 DataURL 附加预览
+        const reader = new FileReader();
+        reader.onload = (e2) => {
+          const dataUrl = e2.target?.result as string;
+          if (!dataUrl) return;
+          pendingAttachmentData = dataUrl;
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = dataUrl;
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          (document.getElementById('chatInput') as any).focus();
+          if (window.__toast) window.__toast.success('已拖入图片');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // 拖入的是非图片文件：如果有 path 属性则走文档解析流程
+        const filePath = (file as any).path;
+        if (filePath) {
+          await handleFileByPath(filePath);
+        } else {
+          if (window.__toast) window.__toast.error('无法读取该文件路径，请使用上传按钮选择文件');
+        }
+      }
+    });
+  }
+
+  const voiceBtn = document.getElementById('voiceBtn');
+  let isRecording = false;
+  let recognition: any = null;
+  
+  if (voiceBtn && ('webkitSpeechRecognition' in window)) {
+    const SpeechRecognition = (window as any).webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'zh-CN';
+    
+    recognition.onstart = () => {
+      isRecording = true;
+      voiceBtn.style.color = '#ff3b30';
+      voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+      if (window.__toast) window.__toast.info('正在聆听...');
+    };
+    
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript && chatInputArea) {
+        chatInputArea.value += finalTranscript;
+      }
+    };
+    
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error', event.error);
+      isRecording = false;
+      resetVoiceBtn();
+    };
+    
+    recognition.onend = () => {
+      isRecording = false;
+      resetVoiceBtn();
+    };
+    
+    const resetVoiceBtn = () => {
+      if (!voiceBtn) return;
+      voiceBtn.style.color = 'var(--text-secondary)';
+      voiceBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>';
+    };
+    
+    voiceBtn.addEventListener('click', () => {
+      if (isRecording) {
+        recognition.stop();
+      } else {
+        recognition.start();
+      }
+    });
+  } else if (voiceBtn) {
+    voiceBtn.title = "浏览器不支持语音输入";
+    voiceBtn.style.opacity = '0.5';
+  }
+
+  // ================== 跨窗口快捷提问监听 ==================
+  if (window.openClaw && window.openClaw.system && window.openClaw.system.onQuickPrompt) {
+    window.openClaw.system.offQuickPrompt(); // 状态唯一性：防重复监听与内存泄漏
+    
+    window.openClaw.system.onQuickPrompt((text: string) => {
+      console.log('[主窗口] 接收到跨窗口快捷提问并自动发送:', text);
+      const chatInput = document.getElementById('chatInput') as any;
+      const sendBtn = document.getElementById('sendBtn') as any;
+      if (chatInput && sendBtn) {
+        chatInput.value = text;
+        chatInput.focus();
+        sendBtn.click();
+      }
+    });
+  }
+  // 供侧边栏在 navigateTo 之前设置待加载会话 ID
+  // 'NEW' = 创建新对话, 具体 ID = 加载已有对话, null = 显示空状态
+  window.__setPendingConv = (convId) => {
+    pendingLoadConvId = convId;
+  };
+  window.__onConvDeleted = (convId) => {
+    if (convId === activeConvId) {
+      activeConvId = null;
+      (document.getElementById('chatMessages') as any).innerHTML = '';
+      (document.getElementById('chatTitle') as any).textContent = '新对话';
+    }
+  };
+
+  // 初始化加载
+  reloadModelsCallback = loadModels;
+  await loadModels();
+  updateExpertIndicator();
+
+  if (localStorage.getItem('justActivatedExpert') === 'true') {
+    localStorage.removeItem('justActivatedExpert');
+    await createNewChat();
+  } else if (pendingLoadConvId === 'NEW') {
+    // 侧边栏"新建对话"按钮触发
+    pendingLoadConvId = null;
+    await createNewChat();
+  } else if (pendingLoadConvId) {
+    // 从侧边栏点击了已有会话，加载它
+    const convId = pendingLoadConvId;
+    pendingLoadConvId = null;
+    activeConvId = convId;
+    await loadHistory(convId);
+  } else {
+    // 默认：显示空状态（不自动创建对话）
+    (document.getElementById('chatMessages') as any).innerHTML = `
+      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
+        <div style="font-size: 48px;">💬</div>
+        <div style="font-size: 16px;">发送一条消息开始吧</div>
+      </div>
+    `;
+    (document.getElementById('chatTitle') as any).textContent = '新对话';
+    tokenUsage = 0;
+    updateTokenUsage();
+  }
+}
+
+// ======================= 基础逻辑 =======================
+function updateExpertIndicator() {
+  const indicator = (document.getElementById('expertIndicator') as any);
+  if (activeExpert) {
+    (document.getElementById('expertName') as any).textContent = `${activeExpert.icon || ''} ${activeExpert.name}`;
+    indicator.style.display = 'flex';
+  } else {
+    indicator.style.display = 'none';
+  }
+}
+
+function updateTokenUsage() {
+  const fill = (document.getElementById('tokenCircleFill') as any);
+  if (!fill) return;
+
+  // r=15 -> circumference = 2 * pi * 15 ≈ 94.2
+  // dasharray = 94
+  // dashoffset: 94 (0%) -> 0 (100%)
+  const percentage = Math.min(tokenUsage, 100);
+  const offset = 94 - (percentage * 94 / 100);
+  fill.style.strokeDashoffset = offset;
+
+  if (tokenUsage < 50) fill.style.stroke = 'var(--success)';
+  else if (tokenUsage < 80) fill.style.stroke = 'var(--warning)';
+  else fill.style.stroke = 'var(--danger)';
+}
+
+let cloudVendors: any[] = [];
+
+async function loadModels() {
+  try {
+    if (cloudVendors.length === 0) {
+      try {
+        const res = await fetch('./assets/data/cloud-vendors.json');
+        if (res.ok) { cloudVendors = await res.json(); }
+      } catch(e) { console.warn('Failed to fetch cloud-vendors in chat.ts', e); }
+    }
+    // 触发后端探测本地与云端模型的最新状态
+    if (api.model && api.model.syncLocalModels) {
+      await api.model.syncLocalModels().catch(e => console.warn('Sync models failed:', e));
+    }
+    const res = await api.model.getModels();
+    
+    let allSettings: any = {};
+    try { allSettings = await api.settings.getAll() || {}; } catch(e) {}
+
+    // 移除重复模型，保留最后一个唯一 ID
+    const uniqueMap = new Map();
+    (res || []).forEach(m => uniqueMap.set(m.id, m));
+    models = Array.from(uniqueMap.values());
+
+    const activeRes = await api.model.getActiveModel();
+    if (activeRes && activeRes.id) {
+      activeModelId = activeRes.id;
+    } else if (models.length > 0) {
+      activeModelId = models[0].id;
+    }
+
+    // 判断本地模型的更严谨逻辑
+    const isLocal = (m) => m.type === 'local' || ['LM Studio', 'Ollama', 'Llama.cpp', 'GPT4All', 'Jan'].includes(m.provider) || m.id.toLowerCase().includes('local') || m.id.toLowerCase().includes('ollama');
+
+    const localModels = models.filter(m => isLocal(m));
+    const cloudModelsConfigured = models.filter(m => !isLocal(m) && m.configured !== false);
+
+    // 已配置的云端模型独立渲染
+    const renderedConfiguredCloud = cloudModelsConfigured.map(m => {
+      const vendor = cloudVendors.find(v => 
+        (m.provider && m.provider.toLowerCase() === v.name.toLowerCase()) ||
+        (m.provider && m.provider.toLowerCase() === v.id.toLowerCase()) ||
+        m.id.toLowerCase().includes(v.id.toLowerCase())
+      ) || { id: m.provider || m.id, name: m.provider || m.name || m.id, icon: '🔗', color: '#007aff' };
+
+      const vendorSettings = allSettings[vendor.id] || {};
+      const modelNameDisplay = vendorSettings.defaultModel || m.name || m.modelName || m.id;
+
+      const isActive = m.id === activeModelId;
+      const activeStyle = isActive ? `border: 2px solid ${vendor.color || 'var(--primary)'}; background: ${vendor.color || 'var(--primary)'}15;` : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '🔥正在使用' : '✅已配置';
+      const statusColorClass = isActive ? (vendor.color || 'var(--primary)') : 'var(--success)';
+
+      return `
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 14px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; gap: 10px; ${activeStyle} box-shadow: 0 4px 12px rgba(0,0,0,0.03);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.03)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color || 'var(--primary)'}20; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2;" title="${modelNameDisplay}">${vendor.name} - ${modelNameDisplay}</div>
+               <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; line-height: 1.2; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                 <span style="opacity: 0.8;">[${vendor.name}]</span>
+               </div>
+             </div>
+             ${isActive ? `<div style="width: 8px; height: 8px; border-radius: 50%; background: ${vendor.color || 'var(--primary)'}; box-shadow: 0 0 8px ${vendor.color || 'var(--primary)'}; flex-shrink: 0;"></div>` : `<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); flex-shrink: 0;"></div>`}
+           </div>
+           <div style="font-size: 12px; font-weight: 500; color: ${statusColorClass}; display: flex; align-items: center; gap: 4px; background: ${isActive ? `${vendor.color || 'var(--primary)'}15` : 'rgba(52, 199, 89, 0.1)'}; padding: 4px 8px; border-radius: 6px; width: fit-content;">
+             ${statusTextContent}
+           </div>
+        </div>
+      `;
+    });
+
+    // 未配置的厂商（占位卡片）
+    const renderedUnconfiguredCloud = cloudVendors
+      .filter(vendor => !cloudModelsConfigured.some(m => 
+        (m.provider && m.provider.toLowerCase() === vendor.name.toLowerCase()) ||
+        (m.provider && m.provider.toLowerCase() === vendor.id.toLowerCase()) ||
+        m.id.toLowerCase().includes(vendor.id.toLowerCase())
+      ))
+      .map(vendor => {
+        return `
+        <div class="model-select-card" data-vendor="${vendor.id}" data-configured="false" style="padding: 14px; border: 1px solid ${vendor.color}30; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); background: linear-gradient(135deg, ${vendor.color}05 0%, ${vendor.color}15 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px ${vendor.color}30';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.02)';">
+           <div style="display: flex; align-items: center; gap: 10px;">
+             <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color}25; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">${vendor.icon}</div>
+             <div style="display: flex; flex-direction: column; flex: 1; justify-content: center;">
+               <div style="font-weight: 600; font-size: 14px; color: var(--text-primary); line-height: 1.2;">${vendor.name}</div>
+               <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.2;">尚未配置 API Key</div>
+             </div>
+           </div>
+           <div style="font-size: 12px; font-weight: 600; color: ${vendor.color}; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${vendor.color}20; padding: 6px 10px; border-radius: 8px; width: fit-content; transition: all 0.2s; margin-top: 2px;" onmouseover="this.style.background='${vendor.color}35'; this.style.transform='scale(1.02)';" onmouseout="this.style.background='${vendor.color}20'; this.style.transform='scale(1)';">
+             立即配置 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+           </div>
+        </div>
+        `;
+      });
+
+    const renderedCloudHtml = [...renderedConfiguredCloud, ...renderedUnconfiguredCloud].join('');
+    (document.getElementById('cloudModelsGrid') as any).innerHTML = renderedCloudHtml;
+    (document.getElementById('localModelsGrid') as any).innerHTML = localModels.length > 0 ? localModels.map(m => {
+      const isCold = m.isCold === true;
+      const icon = isCold ? '⏾' : '💻';
+      const statusColor = isCold ? '#9ca3af' : '#00c853';
+      const isActive = m.id === activeModelId;
+      const activeStyle = isActive ? 'border: 2px solid var(--primary); background: rgba(var(--primary-rgb), 0.05);' : 'border: 1px solid var(--border-light); background: var(--bg-card);';
+      const statusTextContent = isActive ? '✅ 正在使用' : (isCold ? '💤 本地休眠 (Cold)' : '🚀 显存就绪 (Hot)');
+      const statusColorClass = isActive ? 'var(--primary)' : statusColor;
+      return `
+      <div class="model-select-card" data-id="${m.id}" data-configured="true" data-iscold="${isCold}" style="padding: 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; gap: 4px; ${activeStyle}">
+         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+           <span>${icon}</span> ${m.name}
+           <span style="display: inline-block; width: 8px; height: 8px; background-color: ${statusColor}; border-radius: 50%; box-shadow: 0 0 8px ${statusColor}; margin-left: 6px;" title="${isCold ? 'Cold' : 'Hot'}"></span>
+         </div>
+         <div style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+           <span style="color: ${statusColorClass}; font-weight: ${isActive ? '600' : '500'};">${statusTextContent}</span>
+           <span title="底层调用模型名称">[${m.modelName || m.id}]</span>
+         </div>
+      </div>
+    `}).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未发现本地模型</div>';
+
+    // 绑定弹窗内模型点击
+    document.querySelectorAll('.model-select-card').forEach(card => {
+      card.addEventListener('click', async () => {
+        const isConfigured = card.dataset.configured === 'true';
+        const vendorId = card.dataset.vendor;
+
+        if (!isConfigured && vendorId) {
+          // 未配置，跳转至模型市场配置
+          (document.getElementById('modelSelectionModal') as any).style.display = 'none';
+          if (window.navigateTo) {
+            window.navigateTo('market', { openConfig: vendorId });
+          }
+          return;
+        }
+
+        const id = card.getAttribute('data-id');
+        const isCold = card.getAttribute('data-iscold') === 'true';
+        activeModelId = id;
+        const modelObj = models.find(x => x.id === activeModelId);
+        if (modelObj) {
+          (document.getElementById('activeModelLabel') as any).textContent = modelObj.name;
+        } else {
+          const nameEl = card.querySelector('div').textContent.replace(/[^\w\s\u4e00-\u9fa5]/gi, '').trim();
+          (document.getElementById('activeModelLabel') as any).textContent = nameEl;
+        }
+
+        // 触发热启动 UI
+        if (isCold) {
+          if (window.__toast) window.__toast.info('🚀 正在将本地模型调入显存 (Warming up...)', 3000);
+          (document.getElementById('activeModelLabel') as any).innerHTML = `<svg style="animation: spin 1s linear infinite; margin-right:4px;" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型预热中...`;
+          
+          setTimeout(() => {
+             (document.getElementById('activeModelLabel') as any).textContent = modelObj?.name || id;
+             if (window.__toast) window.__toast.success('显存加载完毕！');
+          }, 2500); // 模拟感知预热
+        }
+
+        if (api.model && api.model.setActiveModel) {
+          await api.model.setActiveModel(id).catch(e => console.error(e));
+        }
+
+        (document.getElementById('modelSelectionModal') as any).style.display = 'none';
+        if (!isCold && window.__toast) window.__toast.success(`已切换为: ${modelObj?.name || id}`);
+      });
+    });
+
+    const initialModel = models.find(x => x.id === activeModelId);
+    if (initialModel) {
+      (document.getElementById('activeModelLabel') as any).textContent = initialModel.name;
+    } else if (activeModelId) {
+      (document.getElementById('activeModelLabel') as any).textContent = activeModelId;
+    }
+  } catch (e) {
+    console.error('Failed to load models:', e);
+  }
+}
+
+
+async function createNewChat() {
+  if (isGenerating) return;
+  try {
+    const res = await api.chat.createConversation('新对话');
+    activeConvId = res.id;
+    await window.refreshSidebarConversations?.();
+    (document.getElementById('chatMessages') as any).innerHTML = `
+      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 16px;">
+        <div style="font-size: 48px;">✨</div>
+        <div style="font-size: 16px;">新的对话已创建</div>
+      </div>
+    `;
+    (document.getElementById('chatTitle') as any).textContent = '新对话';
+    tokenUsage = 0;
+    updateTokenUsage();
+  } catch (e) {
+    console.error('Failed to create chat:', e);
+  }
+}
+
+async function loadHistory(convId) {
+  try {
+    const msgs = await api.chat.getHistory(convId);
+    renderMessages(msgs || []);
+    const list = await api.chat.getConversations();
+    const c = list.find(x => x.id === convId);
+    if (c) (document.getElementById('chatTitle') as any).textContent = c.title || '新对话';
+    tokenUsage = Math.min((msgs || []).length * 8, 100);
+    updateTokenUsage();
+  } catch (e) {
+    console.error('Failed to load history:', e);
+  }
+}
+
+function handleQuote(btn) {
+  let text = btn.dataset.text;
+  if (!text) return;
+  if (text.length > 50) text = text.substring(0, 50) + '...';
+  (document.getElementById('quotePreview') as any).style.display = 'flex';
+  (document.getElementById('quoteText') as any).textContent = text;
+  (document.getElementById('chatInput') as any).focus();
+}
+
+async function handleCopy(btn) {
+  let text = btn.dataset.text;
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    if (window.__toast) window.__toast.success('已复制');
+  } catch (e) {
+    if (window.__toast) window.__toast.error('复制失败');
+  }
+}
+
+window.handleQuote = handleQuote;
+window.handleCopy = handleCopy;
+
+function renderMessages(messages) {
+  const container = (document.getElementById('chatMessages') as any);
+  if (messages.length === 0) {
+    container.innerHTML = `
+      <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+        <div style="font-size: 14px; font-weight: 500;">发送一条消息开始对话</div>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = messages.map(m => {
+    let textContent = '';
+    let attachmentHtml = '';
+    if (Array.isArray(m.content)) {
+      const textBlock = m.content.find(c => c.type === 'text');
+      const imgBlock = m.content.find(c => c.type === 'image_url');
+      if (textBlock) textContent = textBlock.text;
+      if (imgBlock && imgBlock.image_url) {
+        const url = imgBlock.image_url.url;
+        const isImage = url.startsWith('data:image/') && !url.startsWith('data:image/svg+xml');
+        if (isImage || !url.startsWith('data:')) {
+          attachmentHtml = `<div style="margin-top: 8px;"><img src="${url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+        } else {
+          const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+          attachmentHtml = `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+        }
+      }
+    } else {
+      textContent = m.content || '';
+    }
+    // [核心修复] 对历史记录里的思考链进行防崩转义
+    let safeContent = textContent || '';
+    if (m.role !== 'user') {
+      safeContent = safeContent.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+        return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+      });
+    }
+
+    let renderedHtml = m.role === 'user' ? escapeHtml(safeContent).replace(/\n/g, '<br/>') : parseMarkdown(safeContent);
+    renderedHtml += attachmentHtml;
+
+    const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
+    return `
+    <div class="message" style="display: flex; gap: 12px; ${m.role === 'user' ? 'flex-direction: row-reverse;' : ''}">
+      <div style="width: 32px; height: 32px; border-radius: 10px; background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; ${m.role === 'user' ? '' : 'border: 1px solid var(--border-light);'} box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+        ${m.role === 'user' ? avatarUser : avatarAI}
+      </div>
+      <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${m.role === 'user' ? 'flex-end' : 'flex-start'};">
+        <div style="background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${m.role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${m.role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+          ${renderedHtml}
+        </div>
+        <div class="message-actions" style="margin-top: 3px; opacity: 0; transition: opacity 0.15s;">
+           <button class="action-btn" onclick="window.handleQuote(this)" data-text="${escapeHtml(textContent)}" style="font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 4px; transition: background 0.15s;">引用</button>
+           <button class="action-btn" onclick="window.handleCopy(this)" data-text="${escapeHtml(textContent)}" style="font-size: 11px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 4px; transition: background 0.15s;">复制</button>
+        </div>
+      </div>
+    </div>
+  `}).join('');
+
+  scrollToBottom();
+}
+
+function appendMessage(role, id = null) {
+  const container = (document.getElementById('chatMessages') as any);
+  if (container.children.length === 1 && (container.children[0].textContent.includes('发送一条消息') || container.children[0].textContent.includes('新的对话'))) {
+    container.innerHTML = '';
+  }
+
+  const msgDiv = (document.createElement('div') as any);
+  msgDiv.className = 'message';
+  msgDiv.id = id ? `msg-${id}` : `msg-temp`;
+  msgDiv.style.display = 'flex';
+  msgDiv.style.gap = '16px';
+  msgDiv.style.marginBottom = '24px';
+  if (role === 'user') msgDiv.style.flexDirection = 'row-reverse';
+
+  const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
+  msgDiv.innerHTML = `
+    <div style="width: 32px; height: 32px; border-radius: 10px; background: ${role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; ${role === 'user' ? '' : 'border: 1px solid var(--border-light);'} box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+      ${role === 'user' ? avatarUser : avatarAI}
+    </div>
+    <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${role === 'user' ? 'flex-end' : 'flex-start'};">
+      <div class="msg-content-box" style="background: ${role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+        <span class="cursor" style="display: ${role === 'ai' ? 'inline-block' : 'none'}; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite;"></span>
+      </div>
+    </div>
+  `;
+  container.appendChild(msgDiv);
+  scrollToBottom();
+  return msgDiv.querySelector('.msg-content-box');
+}
+
+async function sendMessage() {
+  if (isGenerating) {
+    api.chat.abortStream();
+    isGenerating = false;
+    const btn = (document.getElementById('sendBtn') as any);
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
+    btn.classList.remove('is-stop');
+    return;
+  }
+
+  const input = (document.getElementById('chatInput') as any);
+  let text = input.value.trim();
+  if (!text && !pendingAttachmentData) return;
+
+  const quotePreview = (document.getElementById('quotePreview') as any);
+  if (quotePreview.style.display === 'flex') {
+    const quoteText = (document.getElementById('quoteText') as any).textContent;
+    text = `> ${quoteText}\n\n${text}`;
+    quotePreview.style.display = 'none';
+    (document.getElementById('quoteText') as any).textContent = '';
+  }
+
+  if (!activeConvId) {
+    await createNewChat();
+  }
+
+  input.value = '';
+  input.style.height = '56px';
+
+  const attachmentData = pendingAttachmentData;
+  if (attachmentData) {
+    (document.getElementById('removeAttachmentBtn') as any).click(); // Clean UI state
+  }
+
+  const userBox = appendMessage('user');
+  let userHtml = escapeHtml(text).replace(/\n/g, '<br/>');
+  if (attachmentData) {
+    const isImage = attachmentData.startsWith('data:image/') && !attachmentData.startsWith('data:image/svg+xml');
+    if (isImage) {
+      userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+    } else {
+      const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
+      userHtml += `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
+    }
+  }
+  userBox.innerHTML = userHtml;
+
+  isGenerating = true;
+  const sendBtn = (document.getElementById('sendBtn') as any);
+  sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="10" x="7" y="7" rx="1"></rect></svg>`;
+  sendBtn.classList.add('is-stop');
+
+  const aiBox = appendMessage('ai');
+  // 注入带有动态读秒器的加载状态，每 100 毫秒更新一次数字，彻底消除“卡死”假象
+  aiBox.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px;">
+      <svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      <span>正在思考...</span>
+      <span class="loading-timer" style="font-family: monospace; color: var(--primary);">0.0s</span>
+    </div>
+  `;
+  const startTime = Date.now();
+  const loadingTimerId = setInterval(() => {
+    const timerEl = aiBox.querySelector('.loading-timer');
+    if (timerEl) {
+      timerEl.textContent = ((Date.now() - startTime) / 1000).toFixed(1) + 's';
+    } else {
+      clearInterval(loadingTimerId);
+    }
+  }, 100);
+  let fullResponse = '';
+
+  tokenUsage += 5;
+  updateTokenUsage();
+
+  try {
+    let temp = 0.7;
+    let extraPrompt = '';
+    const depth = (document.getElementById('depthSelect') as any).value;
+
+    if (depth === 'low') {
+      temp = 0.8;
+      extraPrompt = '\n\n【系统提示：请尽可能简明扼要、直接了当地回答。】';
+    } else if (depth === 'high') {
+      temp = 0.3;
+      extraPrompt = '\n\n【系统提示：请进行深思熟虑。一步一步地拆解问题，考虑各种边界情况和深层逻辑，提供详尽且富有洞察力的回答。】';
+    } else if (depth === 'extreme') {
+      temp = 0.1;
+      extraPrompt = '\n\n【系统提示：启用深度推理模式。你必须极其彻底地思考此问题，展开所有可能的推理链条，检查每一个假设，并且以长篇幅的深度分析来回复。】';
+    }
+
+    const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
+
+    await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, isAgentModeEnabled, (parsed) => {
+      if (parsed.type === 'error') {
+        let errorMsg = parsed.message || '未知错误';
+        if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key') || errorMsg.toLowerCase().includes('auth')) {
+          errorMsg = '当前选择的模型 API Key 未配置或不正确，请在左侧「模型市场」重新配置。';
+        } else if (errorMsg.includes('ECONNREFUSED') || errorMsg.toLowerCase().includes('fetch')) {
+          errorMsg = '网络连接失败，或者您配置的本地模型未启动。';
+        } else if (errorMsg.includes('500') || errorMsg.includes('JSON')) {
+          errorMsg = '服务端发生了异常，请检查该模型是否可用。';
+        }
+        fullResponse += `\n\n> ❌ **无法回复**: ${errorMsg}`;
+        let displayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
+        aiBox.innerHTML = parseMarkdown(displayResponse);
+        scrollToBottom();
+        return;
+      }
+      if (parsed.type === 'conversation' && parsed.id) {
+        activeConvId = parsed.id;
+      }
+      if (parsed.content) {
+        // --- 动态指示灯控制 ---
+        const computeInd = document.getElementById('computeIndicator');
+        const computeLight = document.getElementById('computeLight');
+        const computeLabel = document.getElementById('computeLabel');
+        if (computeInd && computeLight && computeLabel) {
+          computeInd.style.opacity = '1';
+          if (parsed.content.includes('[双脑路由生效]') || parsed.content.includes('思考')) {
+            computeLight.style.background = '#00f2fe';
+            computeLight.style.boxShadow = '0 0 12px #00f2fe';
+            computeLabel.style.color = '#00f2fe';
+            computeLabel.innerText = 'LOCAL ROUTER';
+          } else if (parsed.content.includes('Cloud-Reasoner') || parsed.content.includes('深度推理')) {
+            computeLight.style.background = '#ff0844';
+            computeLight.style.boxShadow = '0 0 15px #ff0844';
+            computeLabel.style.color = '#ff0844';
+            computeLabel.innerText = 'CLOUD REASONER';
+          } else if (parsed.content.includes('[Agent')) {
+            computeLight.style.background = '#ff9500';
+            computeLight.style.boxShadow = '0 0 12px #ff9500';
+            computeLabel.style.color = '#ff9500';
+            computeLabel.innerText = 'SANDBOX EXEC';
+          }
+        }
+        // -------------------
+
+        fullResponse += parsed.content;
+
+        // 如果目前只收到毫无意义的空字符或换行，暂不更新 DOM，保留加载动画
+        if (!fullResponse.trim()) {
+          return;
+        }
+
+        // 隐藏已完整闭合的和正在流式生成的记忆标签
+        let displayResponse = fullResponse
+          .replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '')
+          .replace(/\[SAVE_MEMORY:[\s\S]*$/, '');
+
+        // [核心修复] 拦截 R1 模型的 <think> 标签，将其转化为可视化状态折叠面板
+        // 1. 处理完整的思考过程（默认折叠）
+        displayResponse = displayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+          return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+        });
+        
+        // 2. 处理流式截断（正在思考中，默认展开，并带有旋转动画与高亮）
+        displayResponse = displayResponse.replace(/<think>([\s\S]*)$/i, (match, p1) => {
+          return `<details open style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px; border-left: 3px solid var(--primary);"><summary style="cursor: pointer; color: var(--primary); font-size: 13px; font-weight: bold; user-select: none;"><svg style="animation: spin 1s linear infinite; vertical-align: text-bottom; margin-right:4px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型深度思考中...</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+        });
+
+
+        // 如果代码块未闭合，补全它以防 UI 错乱
+        const codeBlockCount = (displayResponse.match(/```/g) || []).length;
+        if (codeBlockCount % 2 !== 0) {
+          displayResponse += '\n```';
+        }
+
+        aiBox.innerHTML = parseMarkdown(displayResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
+        scrollToBottom();
+      }
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      fullResponse += '\n\n*(已中断)*';
+    } else {
+      let errorMsg = err.message || '未知错误';
+      if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key')) {
+        errorMsg = 'API Key 似乎未配置，请前往设置检查。';
+      }
+      fullResponse += '\n\n**[请求失败]** ' + errorMsg;
+      if (window.__toast) window.__toast.error('发送失败: ' + errorMsg);
+    }
+  } finally {
+    isGenerating = false;
+    sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
+    sendBtn.classList.remove('is-stop');
+
+    // 结束时恢复指示灯状态
+    const computeInd = document.getElementById('computeIndicator');
+    const computeLight = document.getElementById('computeLight');
+    const computeLabel = document.getElementById('computeLabel');
+    if (computeInd && computeLight && computeLabel) {
+      computeLight.style.background = '#4CAF50';
+      computeLight.style.boxShadow = '0 0 8px #4CAF50';
+      computeLabel.style.color = '#4CAF50';
+      computeLabel.innerText = 'STANDBY';
+      setTimeout(() => { computeInd.style.opacity = '0.5'; }, 1000);
+    }
+
+    let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
+    
+    // [核心修复] 对最终结算的内容也进行思维链闭合折叠转换
+    finalDisplayResponse = finalDisplayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+      return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
+    });
+    
+    // 如果没有返回任何实质性内容（例如第一帧由于网络不通就报错了），
+    // 或者完全为空，不要强制用空字符串重置 DOM，保留现存的报错或加载动画
+    if (finalDisplayResponse.trim() !== '') {
+      aiBox.innerHTML = parseMarkdown(finalDisplayResponse);
+    } else if (fullResponse.trim() !== '') {
+      aiBox.innerHTML = parseMarkdown(fullResponse);
+    }
+
+    // 为用户消息和 AI 消息动态添加快捷操作栏
+    const addActions = (box, text) => {
+      const actionsHtml = `
+         <div class="message-actions" style="margin-top: 4px;">
+            <button class="action-btn" onclick="window.handleQuote(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">引用</button>
+            <button class="action-btn" onclick="window.handleCopy(this)" data-text="${escapeHtml(text)}" style="font-size: 12px; color: var(--text-muted); cursor: pointer; background: none; border: none; padding: 4px;">复制</button>
+         </div>
+       `;
+      const actionsDiv = (document.createElement('div') as any);
+      actionsDiv.innerHTML = actionsHtml;
+      box.parentElement.appendChild(actionsDiv.firstElementChild);
+    };
+    if (aiBox && aiBox.parentElement) {
+      addActions(aiBox, fullResponse);
+    }
+    if (userBox && userBox.parentElement) {
+      addActions(userBox, text);
+    }
+
+    window.refreshSidebarConversations?.();
+  }
+}
+
+function scrollToBottom() {
+  const container = (document.getElementById('chatMessages') as any);
+  container.scrollTop = container.scrollHeight;
+}
+
+

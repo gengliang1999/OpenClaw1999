@@ -11,7 +11,7 @@ import { openClawInstaller } from '../backend/openclaw-installer';
 import { openClawDaemon } from '../backend/openclaw-daemon';
 
 export function registerApiIpc(dependencies, mainWindowRef) {
-  const { memoryStore, modelManager, sandbox, permissionManager, automation, baseDataDir, globalConfigPath } = dependencies;
+  const { memoryStore, modelManager, sandbox, permissionManager, automation, baseDataDir, globalConfigPath, dataDir, queueManager, folderWatcher, jobQueue } = dependencies;
 
   // 统一的 API 原生 IPC 通道分发器
   ipcMain.handle('api:call', async (event, { url, options = {} }) => {
@@ -43,6 +43,12 @@ export function registerApiIpc(dependencies, mainWindowRef) {
           fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
           return { success: true, message: '全局配置已保存，重启生效', config };
         }
+      }
+
+      // ================== 系统后台作业队列 ==================
+      if (url === '/system/background-jobs' && method === 'GET') {
+        const results = memoryStore.db.exec("SELECT * FROM background_jobs ORDER BY created_at DESC");
+        return memoryStore._parseResults(results);
       }
 
       // ================== 聊天管理 ==================
@@ -93,10 +99,30 @@ export function registerApiIpc(dependencies, mainWindowRef) {
           if (!data) throw new Error('对话不存在');
           return data;
         } else if (url.endsWith('/trash')) {
+          // [Advanced Memory] 对话移入垃圾篓前，异步生成情景摘要
+          setImmediate(async () => {
+            try {
+              const { MemoryEngine } = require('../backend/memory-engine');
+              const memoryEngine = new MemoryEngine(modelManager, memoryStore, dataDir);
+              await memoryEngine.generateEpisodeSummary(id);
+            } catch (e) {
+              console.warn('[情景摘要] 对话归档摘要生成失败（非致命）:', e);
+            }
+          });
           memoryStore.moveToTrash(id);
           return { success: true };
         } else {
           if (method === 'DELETE') {
+            // [Advanced Memory] 硬删除前也尝试生成情景摘要
+            setImmediate(async () => {
+              try {
+                const { MemoryEngine } = require('../backend/memory-engine');
+                const memoryEngine = new MemoryEngine(modelManager, memoryStore, dataDir);
+                await memoryEngine.generateEpisodeSummary(id);
+              } catch (e) {
+                console.warn('[情景摘要] 对话删除前摘要生成失败（非致命）:', e);
+              }
+            });
             memoryStore.deleteConversation(id);
             return { success: true };
           } else if (method === 'PUT') {
@@ -152,37 +178,309 @@ export function registerApiIpc(dependencies, mainWindowRef) {
         return { success: true };
       }
 
+      // [Red Team Refactor] 将记忆晋升拆分为两步，拦截大模型直接落盘幻觉
+      if (url === '/memory/promote/generate' && method === 'POST') {
+        const { memoryId, targetCategory = '默认知识库' } = body;
+        if (!memoryId) throw new Error('memoryId 不能为空');
+
+        // 1. 获取零碎记忆内容
+        const memory = memoryStore.getMemory(memoryId);
+        if (!memory) throw new Error('未找到对应的记忆条目');
+
+        // 2. 调用大模型将零碎事实扩写为标准 Markdown 文档 (仅生成草稿，不写盘)
+        const activeModelId = modelManager.activeModelId;
+        const prompt = [
+          {
+            role: 'system',
+            content: '你是一个精通技术文档与业务指南编写的专业文档工程师。请将以下用户提供的零碎事实/记忆，整理扩写为一篇格式优美、标题清晰、逻辑完整的 Markdown 文档。仅输出 Markdown 正文，请不要包含任何前后缀的客套废话或 explanation 解释。'
+          },
+          {
+            role: 'user',
+            content: `零碎事实事实内容：\n「${memory.content}」\n\n请根据上述事实整理出一份专业的 Markdown 知识库文档：`
+          }
+        ];
+
+        let markdownContent = '';
+        try {
+          markdownContent = await modelManager.chat(prompt, { modelId: activeModelId, temperature: 0.3 });
+        } catch (e: any) {
+          throw new Error(`大模型文档扩写失败: ${e.message}`);
+        }
+
+        return {
+          success: true,
+          memoryId,
+          targetCategory,
+          draftMarkdown: markdownContent
+        };
+      }
+
+      // [Red Team Refactor] 前端用户确认无幻觉后，提交此接口正式入库
+      if (url === '/memory/promote/confirm' && method === 'POST') {
+        const { memoryId, targetCategory, markdownContent } = body;
+        if (!memoryId || !markdownContent) throw new Error('缺少必要参数');
+
+        const memory = memoryStore.getMemory(memoryId);
+        if (!memory) throw new Error('未找到对应的记忆条目');
+
+        // 1. 拟定文件名
+        const safeFactName = (memory.content || '').slice(0, 10).replace(/[\\/:*?"<>|]/g, '_').trim();
+        const now = new Date();
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const fileName = `[记忆晋升]_[${memory.category || '通用'}]_${safeFactName}_${dateStr}.md`;
+
+        // 2. 调用 IngestionQueue 分配物理路径与异步归档 (绕过 Staging 暂存区验证)
+        queueManager.addTask('text', markdownContent, fileName, 'memory-promotion', {
+          category: targetCategory,
+          trustLevel: 'trusted',
+          sourceMemoryId: memoryId
+        });
+
+        // 3. 更新 SQLite 记忆的标签为已晋升
+        let currentTags = [];
+        try {
+          currentTags = JSON.parse(memory.tags || '[]');
+        } catch (e) {}
+        if (!currentTags.includes('promoted')) {
+          currentTags.push('promoted');
+        }
+        memoryStore.db.run(
+          'UPDATE memories SET tags = ?, updated_at = ? WHERE id = ?',
+          [JSON.stringify(currentTags), new Date().toISOString(), memoryId]
+        );
+        memoryStore._save();
+
+        return {
+          success: true,
+          fileName,
+          targetCategory
+        };
+      }
+
+      // ================== 核心记忆管理接口 (Memory CRUD) ==================
+      if (url.startsWith('/memory')) {
+        const { VectorStore } = require('../backend/vector-store');
+
+        // 0. 记忆导出与导入备份
+        if (url === '/memory/export' && method === 'POST') {
+          const result = memoryStore.getAllMemories(1, 1000000);
+          const { dialog } = require('electron');
+          const { canceled, filePath } = await dialog.showSaveDialog(mainWindowRef(), {
+            title: '导出记忆神经元备份',
+            defaultPath: 'openclaw_memories_backup.json',
+            filters: [{ name: 'JSON 备份文件', extensions: ['json'] }]
+          });
+          if (canceled || !filePath) return { success: false, message: '操作已取消' };
+          fs.writeFileSync(filePath, JSON.stringify(result.items, null, 2), 'utf8');
+          return { success: true, filePath };
+        }
+
+        if (url === '/memory/import' && method === 'POST') {
+          const { dialog } = require('electron');
+          const { canceled, filePaths } = await dialog.showOpenDialog(mainWindowRef(), {
+            title: '导入记忆神经元备份',
+            filters: [{ name: 'JSON 备份文件', extensions: ['json'] }],
+            properties: ['openFile']
+          });
+          if (canceled || filePaths.length === 0) return { success: false, message: '操作已取消' };
+          const rawData = fs.readFileSync(filePaths[0], 'utf8');
+          const list = JSON.parse(rawData);
+          if (!Array.isArray(list)) throw new Error('无效的记忆备份格式');
+          let importedCount = 0;
+          for (const item of list) {
+            const content = item.content;
+            const category = item.category || '通用';
+            const tags = item.tags || [];
+            if (!content) continue;
+            const exists = memoryStore.db.exec('SELECT id FROM memories WHERE content = ? LIMIT 1', [content]);
+            if (exists && exists.length > 0 && exists[0].values.length > 0) continue;
+            const memory = memoryStore.addMemory(content, category, tags);
+            if (jobQueue) {
+              jobQueue.enqueue('memory-vectorization', { memoryId: memory.id, content, category });
+            } else {
+              setImmediate(async () => {
+                try {
+                  const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
+                  await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
+                    const embedding = await modelManager.getEmbedding(content);
+                    await store.addDocuments([{
+                      id: require('crypto').randomUUID(),
+                      content,
+                      metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
+                      embedding
+                    }]);
+                  });
+                } catch (e) {}
+              });
+            }
+            importedCount++;
+          }
+          return { success: true, importedCount };
+        }
+
+        // 修改记忆内容 (PUT /memory/:id)
+        if (url.startsWith('/memory/') && !url.endsWith('/pin') && method === 'PUT') {
+          const parts = url.split('/');
+          const id = parts[2];
+          const { content } = body;
+          if (!content) throw new Error('记忆内容不能为空');
+          const oldMemory = memoryStore.getMemory(id);
+          if (!oldMemory) throw new Error('未找到对应的记忆条目');
+          memoryStore.db.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', [content, new Date().toISOString(), id]);
+          memoryStore._save();
+          setImmediate(async () => {
+            try {
+              const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
+              await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
+                await store.removeBySource(oldMemory.content);
+                const embedding = await modelManager.getEmbedding(content);
+                await store.addDocuments([{
+                  id: require('crypto').randomUUID(),
+                  content,
+                  metadata: { source: content, memoryId: id, timestamp: new Date().toISOString() },
+                  embedding
+                }]);
+              });
+            } catch (e) {}
+          });
+          return { success: true };
+        }
+
+        // 1. 获取记忆列表 (支持分页与分类筛选)
+        if (url.startsWith('/memory?') || url === '/memory') {
+          if (method === 'GET') {
+            const page = parseInt(getQueryParam(url, 'page') || '1', 10);
+            const pageSize = parseInt(getQueryParam(url, 'pageSize') || '20', 10);
+            const category = getQueryParam(url, 'category') || null;
+            
+            const result = memoryStore.getAllMemories(page, pageSize, category);
+            return {
+              data: result.items,
+              total: result.total,
+              page,
+              pageSize
+            };
+          }
+        }
+
+        // 2. 搜索记忆 (传统 SQLite LIKE 检索)
+        if (url.startsWith('/memory/search')) {
+          if (method === 'GET') {
+            const query = getQueryParam(url, 'q') || '';
+            const limit = parseInt(getQueryParam(url, 'limit') || '10', 10);
+            return memoryStore.searchMemory(query, limit);
+          }
+        }
+
+        // 3. 手动添加记忆 (同步写入 SQLite 与向量库)
+        if (url === '/memory' && method === 'POST') {
+          const { content, category = '通用', tags = [] } = body;
+          if (!content) throw new Error('记忆内容不能为空');
+
+          const memory = memoryStore.addMemory(content, category, tags);
+          
+          // 同步写入向量库
+          try {
+            const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
+            await memVecStore.load();
+            const embedding = await modelManager.getEmbedding(content);
+            await memVecStore.addDocuments([{
+              id: require('crypto').randomUUID(),
+              content,
+              metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
+              embedding
+            }]);
+            console.log('[主进程] 手动添加记忆并向量化成功:', content);
+          } catch (e: any) {
+            console.error('[主进程] 记忆向量化失败:', e.message);
+          }
+
+          // 异步提炼实体关系三元组，使手动偏好也能享受实体图谱检索
+          setImmediate(async () => {
+            try {
+              const { MemoryEngine } = require('../backend/memory-engine');
+              const tempEngine = new MemoryEngine(modelManager, memoryStore, dataDir);
+              await tempEngine.extractAndStoreEntities(content, memory.id);
+              console.log('[主进程] 后台异步提取手动记忆实体关系成功');
+            } catch (e: any) {
+              console.warn('[主进程] 后台异步提取手动记忆实体关系失败:', e.message);
+            }
+          });
+
+          return memory;
+        }
+
+        // 4. 删除单个记忆 (同步删除 SQLite 与向量库)
+        if (url.startsWith('/memory/') && method === 'DELETE') {
+          const id = url.split('/').pop();
+          if (!id) throw new Error('memoryId 不能为空');
+
+          const memory = memoryStore.getMemory(id);
+          if (memory) {
+            try {
+              const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
+              await memVecStore.load();
+              await memVecStore.removeBySource(memory.content);
+              console.log('[主进程] 成功从向量库移除记忆分块:', memory.content);
+            } catch (e: any) {
+              console.error('[主进程] 从向量库移除记忆分块失败:', e.message);
+            }
+          }
+
+          memoryStore.deleteMemory(id);
+          return { success: true };
+        }
+
+        // 5. 记忆置顶/锁定切换 (PUT /memory/:id/pin)
+        if (url.startsWith('/memory/') && url.endsWith('/pin') && method === 'PUT') {
+          const parts = url.split('/');
+          const id = parts[2]; // /memory/:id/pin
+          const { isPinned } = body;
+          if (isPinned === undefined) throw new Error('isPinned 参数不能为空');
+
+          const pinValue = isPinned ? 1 : 0;
+          memoryStore.db.run(
+            'UPDATE memories SET is_pinned = ?, updated_at = ? WHERE id = ?',
+            [pinValue, new Date().toISOString(), id]
+          );
+          memoryStore._save();
+          console.log(`[主进程] 成功切换记忆置顶状态: ID=${id}, isPinned=${isPinned}`);
+          return { success: true, isPinned };
+        }
+      }
+
       // ================== 知识库引擎 (RAG) ==================
       if (url === '/knowledge/add' && method === 'POST') {
-        const { files } = body; // 假定前端传来了文件内容数组 {name, content}
-        const { VectorStore } = require('../backend/vector-store');
+        const { files, category = '默认知识库', trustLevel = 'trusted' } = body;
         const { DocumentParser } = require('../backend/document-parser');
-        const store = new VectorStore(path.join(baseDataDir, 'vectors.json'));
-        await store.load();
         
         let totalChunks = 0;
         for (const file of files) {
-           const chunks = DocumentParser.splitTextIntoChunks(file.content || '');
-           const docs = [];
-           for (const c of chunks) {
-             const embedding = await modelManager.getEmbedding(c.content);
-             docs.push({
-               id: require('crypto').randomUUID(),
-               content: c.content,
-               metadata: { source: file.name, index: c.index },
-               embedding
-             });
-           }
-           await store.addDocuments(docs);
-           totalChunks += docs.length;
+           const chunks = DocumentParser.splitTextIntoParentChild(file.content || '');
+           totalChunks += chunks.length;
+           
+           // 手动上传的文件压入 IngestionQueue 队列进行后台队列化物理提炼与归档
+           queueManager.addTask('text', file.content || '', file.name, 'system-manual-upload', {
+             category,
+             trustLevel
+           });
         }
         return { success: true, chunksGenerated: totalChunks };
       }
 
       if (url === '/knowledge/search' && method === 'POST') {
-        const { query } = body;
+        const { query, category = '默认知识库' } = body;
         const { VectorStore } = require('../backend/vector-store');
-        const store = new VectorStore(path.join(baseDataDir, 'vectors.json'));
+        
+        let dbPath = path.join(dataDir, 'knowledge', `${category}.json`);
+        // 兼容旧版 vectors.json 以免用户数据丢失
+        if ((category === '默认知识库' || category === 'default') && !fs.existsSync(dbPath)) {
+          const oldPath = path.join(dataDir, 'vectors.json');
+          if (fs.existsSync(oldPath)) dbPath = oldPath;
+        }
+
+        const store = new VectorStore(dbPath);
         await store.load();
         
         // 获取真实的 query embedding 并启动双路混合召回 (粗排召回放大为 10)
@@ -196,11 +494,446 @@ export function registerApiIpc(dependencies, mainWindowRef) {
           item.score = (item.score * 0.4) + (rrScore * 0.6); 
         }
         
-        // 重排后截断，仅允许最高精度的 Top-3 送入大模型，零上下文污染
+        // 重排后截断，仅允许最高精度的 Top-3 送入大模型，并将结果映射为对应的 Parent 完整上下文，防止断章取义
         candidates.sort((a, b) => b.score - a.score);
-        const results = candidates.slice(0, 3);
+        const results = candidates.slice(0, 3).map(item => ({
+          doc: {
+            ...item.doc,
+            content: item.doc.metadata?.parentContent || item.doc.content // 优先使用父切片上下文
+          },
+          score: item.score
+        }));
         
         return { results };
+      }
+
+      // ================== 智能采集与知识管理 (RAG Management) ==================
+      if (url === '/knowledge/ingest-url' && method === 'POST') {
+        const { url: targetUrl, convId } = body;
+        if (!targetUrl) throw new Error('超链接 URL 不能为空');
+        if (!convId) throw new Error('必须关联会话 ID');
+        
+        queueManager.addTask('url', targetUrl, targetUrl, convId);
+        return { success: true, enqueue: true, summary: '超链接提取与事实核查任务已排入自愈提炼队列。' };
+      }
+
+      // ================== 自愈队列控制接口 ==================
+      if (url === '/knowledge/queue') {
+        if (method === 'GET') {
+          return queueManager.getQueueInfo();
+        }
+      }
+
+      if (url === '/knowledge/queue/pause' && method === 'POST') {
+        queueManager.pause();
+        return { success: true, state: 'paused' };
+      }
+
+      if (url === '/knowledge/queue/resume' && method === 'POST') {
+        queueManager.resume();
+        return { success: true, state: 'running' };
+      }
+
+      if (url === '/knowledge/queue/clear' && method === 'POST') {
+        queueManager.clearHistory();
+        return { success: true };
+      }
+
+      if (url === '/knowledge/sources') {
+        const settingsPath = path.join(dataDir, 'settings.json');
+        let settings: any = {};
+        try {
+          if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        } catch (e) {}
+        if (!settings.crawlingSources) settings.crawlingSources = [];
+
+        if (method === 'GET') {
+          return settings.crawlingSources;
+        } else if (method === 'POST') {
+          const { sourceUrl } = body;
+          if (!sourceUrl) throw new Error('源地址不能为空');
+          if (!settings.crawlingSources.includes(sourceUrl)) {
+            settings.crawlingSources.push(sourceUrl);
+            fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+          }
+          return { success: true, sources: settings.crawlingSources };
+        } else if (method === 'DELETE') {
+          const { sourceUrl } = body;
+          if (!sourceUrl) throw new Error('源地址不能为空');
+          settings.crawlingSources = settings.crawlingSources.filter((s: string) => s !== sourceUrl);
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+          return { success: true, sources: settings.crawlingSources };
+        }
+      }
+
+      if (url.startsWith('/knowledge/files')) {
+        const category = getQueryParam(url, 'category') || '默认知识库';
+        const { vectorDbManager } = require('../backend/vector-db-manager');
+        
+        // 获取文档纯文本原文内容 (GET /knowledge/files/content?source=...)
+        if (url.startsWith('/knowledge/files/content') && method === 'GET') {
+          const sourceName = getQueryParam(url, 'source');
+          if (!sourceName) throw new Error('缺少 source 文件名');
+          const rootPath = path.join(dataDir, 'knowledge', `${category}_sources`, sourceName);
+          const promoPath = path.join(dataDir, 'knowledge', `${category}_sources`, 'promotions', sourceName);
+          let fileContent = '';
+          if (fs.existsSync(rootPath)) {
+            fileContent = fs.readFileSync(rootPath, 'utf8');
+          } else if (fs.existsSync(promoPath)) {
+            fileContent = fs.readFileSync(promoPath, 'utf8');
+          } else {
+            fileContent = '该知识条目为直接抽取的文本片段或无物理归档，无法查看全文。';
+          }
+          return { success: true, content: fileContent };
+        }
+
+        let dbPath = path.join(dataDir, 'knowledge', `${category}.json`);
+        if ((category === '默认知识库' || category === 'default') && !fs.existsSync(dbPath)) {
+          const oldPath = path.join(dataDir, 'vectors.json');
+          if (fs.existsSync(oldPath)) dbPath = oldPath;
+        }
+
+        if (method === 'GET') {
+          return await vectorDbManager.executeRead(dbPath, (store: any) => {
+            const fileMap: Record<string, { source: string, chunkCount: number, timestamp: number }> = {};
+            // @ts-ignore
+            for (const doc of store.documents) {
+              const src = doc.metadata?.source || '未知来源';
+              if (!fileMap[src]) {
+                fileMap[src] = {
+                  source: src,
+                  chunkCount: 0,
+                  timestamp: doc.metadata?.timestamp || Date.now()
+                };
+              }
+              fileMap[src].chunkCount++;
+            }
+            return Object.values(fileMap);
+          });
+        } else if (method === 'DELETE') {
+          const { source } = body;
+          if (!source) throw new Error('必须指定要删除的来源名称');
+          
+          await vectorDbManager.executeWrite(dbPath, async (store: any) => {
+            // 联动还原：若该知识文件由记忆晋升而来，删除文件时应恢复其在 SQLite 中的原始记忆活力
+            try {
+              // @ts-ignore
+              const docsToDelete = store.documents.filter((d: any) => d.metadata && d.metadata.source === source);
+              const sourceMemoryId = docsToDelete.find((d: any) => d.metadata && d.metadata.sourceMemoryId)?.metadata?.sourceMemoryId;
+              if (sourceMemoryId) {
+                const mem = memoryStore.getMemory(sourceMemoryId);
+                if (mem) {
+                  let tagsArray = [];
+                  try {
+                    tagsArray = typeof mem.tags === 'string' ? JSON.parse(mem.tags) : (mem.tags || []);
+                  } catch (e) {}
+                  tagsArray = tagsArray.filter((t: string) => t !== 'promoted');
+                  // [Red Team Fix] 赋予被剥夺 promoted 资格的记忆满级唤醒复活无敌帧，避免立刻被艾宾浩斯判定过滤
+                  const newRecallCount = (mem.recall_count || 0) + 1;
+                  memoryStore.db.run(
+                    'UPDATE memories SET tags = ?, updated_at = ?, last_recalled_at = ?, recall_count = ? WHERE id = ?',
+                    [JSON.stringify(tagsArray), new Date().toISOString(), new Date().toISOString(), newRecallCount, sourceMemoryId]
+                  );
+                  memoryStore._save();
+                  console.log(`[记忆引擎] 🔄 知识文件已物理删除，原记忆已解除 promoted 标签并恢复日常检索满血活力: ${sourceMemoryId}`);
+                }
+              }
+            } catch (e: any) {
+              console.error('[记忆引擎] 恢复晋升记忆标志失败:', e.message);
+            }
+
+            await store.removeBySource(source);
+          });
+          
+          // 物理清除 sources 目录下同名源文件归档 (兼容根目录与 promotions 隔离子目录)
+          try {
+            const rootPath = path.join(dataDir, 'knowledge', `${category}_sources`, source);
+            const promoPath = path.join(dataDir, 'knowledge', `${category}_sources`, 'promotions', source);
+            
+            if (fs.existsSync(rootPath)) {
+              fs.unlinkSync(rootPath);
+              console.log(`[RAG] 物理归档源文件已清除(普通): ${rootPath}`);
+            } else if (fs.existsSync(promoPath)) {
+              fs.unlinkSync(promoPath);
+              console.log(`[RAG] 物理归档源文件已清除(记忆晋升): ${promoPath}`);
+            }
+          } catch (e) {}
+          
+          return { success: true };
+        }
+      }
+
+      if (url === '/knowledge/files/rename' && method === 'PUT') {
+        const { oldName, newName, category = '默认知识库' } = body;
+        if (!oldName || !newName) throw new Error('旧名称和新名称均不能为空');
+        
+        const { vectorDbManager } = require('../backend/vector-db-manager');
+        let dbPath = path.join(dataDir, 'knowledge', `${category}.json`);
+        if ((category === '默认知识库' || category === 'default') && !fs.existsSync(dbPath)) {
+          const oldPath = path.join(dataDir, 'vectors.json');
+          if (fs.existsSync(oldPath)) dbPath = oldPath;
+        }
+
+        let renamedCount = 0;
+        await vectorDbManager.executeWrite(dbPath, async (store: any) => {
+          // @ts-ignore
+          store.documents = store.documents.map((doc: any) => {
+            if (doc.metadata && doc.metadata.source === oldName) {
+              doc.metadata.source = newName;
+              renamedCount++;
+            }
+            return doc;
+          });
+        });
+        
+        if (renamedCount > 0) {
+          // 同时物理重命名 sources 文件夹里的原始文件 (兼容根目录与 promotions 子目录)
+          try {
+            const oldRootPath = path.join(dataDir, 'knowledge', `${category}_sources`, oldName);
+            const newRootPath = path.join(dataDir, 'knowledge', `${category}_sources`, newName);
+            const oldPromoPath = path.join(dataDir, 'knowledge', `${category}_sources`, 'promotions', oldName);
+            const newPromoPath = path.join(dataDir, 'knowledge', `${category}_sources`, 'promotions', newName);
+
+            if (fs.existsSync(oldRootPath)) {
+              fs.renameSync(oldRootPath, newRootPath);
+              console.log(`[RAG] 物理文件已同步重命名(普通): ${oldName} -> ${newName}`);
+            } else if (fs.existsSync(oldPromoPath)) {
+              fs.renameSync(oldPromoPath, newPromoPath);
+              console.log(`[RAG] 物理文件已同步重命名(记忆晋升): ${oldName} -> ${newName}`);
+            }
+          } catch (e) {}
+        }
+        return { success: true, renamedCount };
+      }
+
+      if (url === '/knowledge/files/update' && method === 'POST') {
+        const { source, content, category = '默认知识库' } = body;
+        if (!source || content === undefined) throw new Error('缺少必要参数');
+        const rootPath = path.join(dataDir, 'knowledge', `${category}_sources`, source);
+        const promoPath = path.join(dataDir, 'knowledge', `${category}_sources`, 'promotions', source);
+        if (fs.existsSync(rootPath)) {
+          fs.writeFileSync(rootPath, content, 'utf8');
+        } else if (fs.existsSync(promoPath)) {
+          fs.writeFileSync(promoPath, content, 'utf8');
+        } else {
+          const dir = path.join(dataDir, 'knowledge', `${category}_sources`);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(rootPath, content, 'utf8');
+        }
+        const { vectorDbManager } = require('../backend/vector-db-manager');
+        let dbPath = path.join(dataDir, 'knowledge', `${category}.json`);
+        if ((category === '默认知识库' || category === 'default') && !fs.existsSync(dbPath)) {
+          const oldPath = path.join(dataDir, 'vectors.json');
+          if (fs.existsSync(oldPath)) dbPath = oldPath;
+        }
+        await vectorDbManager.executeWrite(dbPath, async (store: any) => {
+          await store.removeBySource(source);
+        });
+        queueManager.addTask('text', content, source, 'system-manual-edit', {
+          category,
+          trustLevel: 'trusted'
+        });
+        return { success: true, message: '文档已保存，后台重新提炼中...' };
+      }
+
+      if (url === '/knowledge/export' && method === 'POST') {
+        const { category = '默认知识库' } = body;
+        const { dialog } = require('electron');
+        const { canceled, filePaths } = await dialog.showOpenDialog(mainWindowRef(), {
+          title: '选择导出备份的目标文件夹',
+          properties: ['openDirectory', 'createDirectory']
+        });
+        if (canceled || filePaths.length === 0) return { success: false, message: '操作已取消' };
+        const exportDir = filePaths[0];
+        const sourcesDir = path.join(dataDir, 'knowledge', `${category}_sources`);
+        if (!fs.existsSync(sourcesDir)) {
+          return { success: true, exportedCount: 0, message: '无可导出文件' };
+        }
+        let copiedCount = 0;
+        const copyRecursive = (src, dest) => {
+          const list = fs.readdirSync(src);
+          for (const item of list) {
+            const srcPath = path.join(src, item);
+            const destPath = path.join(dest, item);
+            const stat = fs.statSync(srcPath);
+            if (stat.isDirectory()) {
+              if (!fs.existsSync(destPath)) fs.mkdirSync(destPath, { recursive: true });
+              copyRecursive(srcPath, destPath);
+            } else {
+              fs.copyFileSync(srcPath, destPath);
+              copiedCount++;
+            }
+          }
+        };
+        copyRecursive(sourcesDir, exportDir);
+        return { success: true, exportedCount: copiedCount, exportDir };
+      }
+
+      if (url === '/knowledge/import' && method === 'POST') {
+        const { category = '默认知识库' } = body;
+        const { dialog } = require('electron');
+        const { canceled, filePaths } = await dialog.showOpenDialog(mainWindowRef(), {
+          title: '选择要导入的本地文档 (支持 .txt, .md, .json)',
+          filters: [{ name: '文档文件', extensions: ['txt', 'md', 'json'] }],
+          properties: ['openFile', 'multiSelections']
+        });
+        if (canceled || filePaths.length === 0) return { success: false, message: '操作已取消' };
+        let fileCount = 0;
+        for (const filePath of filePaths) {
+          try {
+            const fileName = path.basename(filePath);
+            const content = fs.readFileSync(filePath, 'utf8');
+            queueManager.addTask('text', content, fileName, 'system-manual-import', {
+              category,
+              trustLevel: 'untrusted',
+              filePath
+            });
+            fileCount++;
+          } catch (err: any) {
+            console.error('[主进程] 导入文件失败:', filePath, err.message);
+          }
+        }
+        return { success: true, importedCount: fileCount };
+      }
+
+      if (url.startsWith('/knowledge/staging')) {
+        const { vectorDbManager } = require('../backend/vector-db-manager');
+        const stagingPath = path.join(dataDir, 'knowledge', `vectors_staging_inbox.json`);
+
+        if (url.startsWith('/knowledge/staging/action') && method === 'POST') {
+          const { source, action, category = '默认知识库' } = body;
+          if (!source || !action) throw new Error('来源和操作类型不能为空');
+          
+          if (action === 'reject') {
+            await vectorDbManager.executeWrite(stagingPath, async (stagingStore: any) => {
+              await stagingStore.removeBySource(source);
+            });
+            return { success: true };
+          } else if (action === 'approve') {
+            // [Red Team Fix] 避免锁死锁，先剥离再写入
+            let docsToMove: any[] = [];
+            let targetCategory = category;
+            
+            await vectorDbManager.executeWrite(stagingPath, async (stagingStore: any) => {
+              // @ts-ignore
+              docsToMove = stagingStore.documents.filter((doc: any) => doc.metadata?.source === source);
+              if (docsToMove.length > 0) {
+                targetCategory = docsToMove[0].metadata?.category || category;
+                await stagingStore.removeBySource(source);
+              }
+            });
+
+            if (docsToMove.length === 0) throw new Error('待考证区未找到该来源文档');
+            
+            const mainPath = path.join(dataDir, 'knowledge', `${targetCategory}.json`);
+            await vectorDbManager.executeWrite(mainPath, async (mainStore: any) => {
+              const verifiedDocs = docsToMove.map((doc: any) => {
+                doc.metadata.status = 'verified';
+                if (doc.metadata.category) doc.metadata.category = targetCategory;
+                delete doc.metadata.failType;
+                delete doc.metadata.failReason;
+                return doc;
+              });
+              await mainStore.addDocuments(verifiedDocs);
+            });
+
+            // 联动补漏：手动审批通过时，自动将源内容物理写入/拷贝至 sources/ 目录下归档，维持数据一致性
+            try {
+              const task = queueManager.getTask(source);
+              if (task) {
+                queueManager.archivePhysicalFile(task, targetCategory);
+              }
+            } catch (e: any) {
+              console.error('[RAG Staging] 手动审批时物理文件写盘失败:', e.message);
+            }
+
+            return { success: true };
+          }
+          throw new Error('不支持的操作类型: ' + action);
+        }
+
+        if (method === 'GET') {
+          return await vectorDbManager.executeRead(stagingPath, (stagingStore: any) => {
+            const stagingMap: Record<string, { source: string, chunkCount: number, status: string, failReason?: string, failType?: string, timestamp: number, category?: string }> = {};
+            // @ts-ignore
+            for (const doc of stagingStore.documents) {
+              const src = doc.metadata?.source || '未知来源';
+              if (!stagingMap[src]) {
+                stagingMap[src] = {
+                  source: src,
+                  chunkCount: 0,
+                  status: doc.metadata?.status || 'pending',
+                  failReason: doc.metadata?.failReason,
+                  failType: doc.metadata?.failType,
+                  timestamp: doc.metadata?.timestamp || Date.now(),
+                  category: doc.metadata?.category || '默认知识库'
+                };
+              }
+              stagingMap[src].chunkCount++;
+            }
+            return Object.values(stagingMap);
+          });
+        }
+      }
+
+      if (url.startsWith('/knowledge/transfer')) {
+        const category = getQueryParam(url, 'category') || '默认知识库';
+        const { vectorDbManager } = require('../backend/vector-db-manager');
+        
+        let dbPath = path.join(dataDir, 'knowledge', `${category}.json`);
+        if ((category === '默认知识库' || category === 'default') && !fs.existsSync(dbPath)) {
+          const oldPath = path.join(dataDir, 'vectors.json');
+          if (fs.existsSync(oldPath)) dbPath = oldPath;
+        }
+
+        if (method === 'GET') {
+          return await vectorDbManager.executeRead(dbPath, (store: any) => {
+            // @ts-ignore
+            return { documents: store.documents };
+          });
+        } else if (method === 'POST') {
+          const { documents } = body;
+          if (!documents || !Array.isArray(documents)) throw new Error('导入的文档列表非法');
+          
+          await vectorDbManager.executeWrite(dbPath, async (store: any) => {
+            await store.addDocuments(documents);
+          });
+          return { success: true, importedCount: documents.length };
+        }
+      }
+
+      if (url === '/knowledge/watched-folders') {
+        const settingsPath = path.join(dataDir, 'settings.json');
+        let settings: any = {};
+        try {
+          if (fs.existsSync(settingsPath)) settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        } catch (e) {}
+        if (!settings.watchedFolders) settings.watchedFolders = [];
+
+        if (method === 'GET') {
+          return settings.watchedFolders;
+        } else if (method === 'POST') {
+          const { folderPath, category, trustLevel = 'trusted' } = body;
+          if (!folderPath || !category) throw new Error('监控路径和目标分类不能为空');
+          
+          const exists = settings.watchedFolders.some((f: any) => f.path === folderPath);
+          if (!exists) {
+            settings.watchedFolders.push({ path: folderPath, category, trustLevel });
+            fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+            // 热重载
+            folderWatcher.startWatching(settings.watchedFolders);
+          }
+          return { success: true, watchedFolders: settings.watchedFolders };
+        } else if (method === 'DELETE') {
+          const { folderPath } = body;
+          if (!folderPath) throw new Error('监控路径不能为空');
+          
+          settings.watchedFolders = settings.watchedFolders.filter((f: any) => f.path !== folderPath);
+          fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+          // 热重载
+          folderWatcher.startWatching(settings.watchedFolders);
+          return { success: true, watchedFolders: settings.watchedFolders };
+        }
       }
 
       // ================== 模型管理 ==================
@@ -327,6 +1060,49 @@ export function registerApiIpc(dependencies, mainWindowRef) {
         return { success: true, path: outputPath };
       }
 
+      // ================== 文件读取为 DataURL（图片预览用） ==================
+      if (url === '/system/readFileAsDataUrl' && method === 'POST') {
+        const { filePath } = body;
+        if (!filePath) throw new Error('文件路径不能为空');
+        const fs = require('fs');
+        const path = require('path');
+        const { nativeImage } = require('electron');
+        if (!fs.existsSync(filePath)) throw new Error('文件不存在');
+
+        const ext = path.extname(filePath).toLowerCase().replace('.', '');
+        const mimeMap: Record<string, string> = {
+          'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+          'gif': 'image/gif', 'bmp': 'image/bmp', 'webp': 'image/webp',
+          'svg': 'image/svg+xml'
+        };
+        const mime = mimeMap[ext] || 'application/octet-stream';
+        
+        // [OOM Fix] 使用 Electron nativeImage 进行图片压缩与降级，防止超大图片撑爆内存
+        let base64 = '';
+        if (['png', 'jpg', 'jpeg', 'bmp', 'webp'].includes(ext)) {
+          const image = nativeImage.createFromPath(filePath);
+          const size = image.getSize();
+          // 如果图片宽或高超过 1600px，则等比例缩放
+          if (size.width > 1600 || size.height > 1600) {
+             const ratio = Math.min(1600 / size.width, 1600 / size.height);
+             const resized = image.resize({ 
+               width: Math.floor(size.width * ratio), 
+               height: Math.floor(size.height * ratio) 
+             });
+             base64 = resized.toJPEG(75).toString('base64');
+          } else {
+             // 即使尺寸不大，也压缩质量防止原图体积过大
+             base64 = image.toJPEG(80).toString('base64');
+          }
+        } else {
+          // 对于 gif, svg 等不支持压缩的格式，回退为原始读取
+          const buffer = fs.readFileSync(filePath);
+          base64 = buffer.toString('base64');
+        }
+        
+        return { data: `data:${mime};base64,${base64}` };
+      }
+
       // ================== 沙盒控制 ==================
       if (url === '/system/parseDocument' && method === 'POST') {
         const { filePath, convId } = body;
@@ -337,25 +1113,114 @@ export function registerApiIpc(dependencies, mainWindowRef) {
         
         try {
           const ext = filePath.split('.').pop().toLowerCase();
-          const officeParser = require('officeparser');
+          const fileName = require('path').basename(filePath);
+          const { DocumentParser } = require('../backend/document-parser');
           
-          let parsedText = '';
-          const officeExts = ['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods', 'pdf', 'rtf'];
-          if (officeExts.includes(ext)) {
-            parsedText = await officeParser.parseOfficeAsync(filePath);
-          } else {
-            // 纯文本后备处理
-            parsedText = fs.readFileSync(filePath, 'utf8');
+          let textFilePath = filePath;
+          let totalLength = 0;
+          
+          const pureTextExts = ['txt', 'md', 'json', 'csv', 'html', 'xml', 'log'];
+          const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'];
+          
+          if (pureTextExts.includes(ext)) {
+            // [OOM Fix & 全量注入] 纯文本文件直接返回物理路径，由大模型 Provider 拦截并 JIT 组装为全量 Context
+            const fs = require('fs');
+            const stats = fs.statSync(filePath);
+            totalLength = stats.size; // 粗略用字节数替代
+          } else if (!imageExts.includes(ext)) {
+            // 需要提炼的富文本文档 (PDF, Office 等)
+            let parsedText = '';
+            if (ext === 'pdf') {
+              parsedText = await DocumentParser.extractTextFromMultiModal(filePath, 'application/pdf');
+            } else {
+              const officeExts = ['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods', 'rtf'];
+              if (officeExts.includes(ext)) {
+                const officeParser = require('officeparser');
+                const parsedResult = await officeParser.parseOffice(filePath);
+                parsedText = typeof parsedResult === 'string' ? parsedResult : parsedResult.toText();
+              } else {
+                parsedText = require('fs').readFileSync(filePath, 'utf8');
+              }
+            }
+            
+            if (!parsedText || parsedText.trim().length === 0) {
+              throw new Error('未从文档中提取到任何可识别文字内容。');
+            }
+            
+            totalLength = parsedText.length;
+            
+            // 将提取出的纯文本缓存到临时物理目录
+            const path = require('path');
+            const fs = require('fs');
+            const tempDir = path.join(dataDir, 'temp_attachments');
+            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+            
+            textFilePath = path.join(tempDir, `${convId}_${fileName}.txt`);
+            fs.writeFileSync(textFilePath, parsedText, 'utf8');
           }
           
-          // 写入 RAG 引擎
-          const { ragEngine } = require('../backend/rag-engine');
-          const fileName = require('path').basename(filePath);
-          ragEngine.addDocument(convId, fileName, parsedText);
-          
-          return { success: true, length: parsedText.length };
+          return { 
+            success: true, 
+            textFilePath,
+            length: totalLength
+          };
         } catch (e: any) {
           throw new Error(`文档解析失败: ${e.message}`);
+        }
+      }
+
+      if (url === '/system/saveToKnowledge' && method === 'POST') {
+        const { filePath, convId } = body;
+        if (!filePath || !convId) throw new Error('缺少必要参数');
+        const fs = require('fs');
+        if (!fs.existsSync(filePath)) throw new Error('文件不存在');
+        try {
+          const ext = filePath.split('.').pop().toLowerCase();
+          const fileName = require('path').basename(filePath);
+          const { DocumentParser } = require('../backend/document-parser');
+          
+          let parsedText = '';
+          const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'];
+          if (imageExts.includes(ext)) {
+            parsedText = await DocumentParser.extractTextFromMultiModal(filePath, `image/${ext}`);
+          } else if (ext === 'pdf') {
+            parsedText = await DocumentParser.extractTextFromMultiModal(filePath, 'application/pdf');
+          } else {
+            const officeExts = ['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods', 'rtf'];
+            if (officeExts.includes(ext)) {
+              const officeParser = require('officeparser');
+              const parsedResult = await officeParser.parseOffice(filePath);
+              parsedText = typeof parsedResult === 'string' ? parsedResult : parsedResult.toText();
+            } else {
+              // [OOM Fix] 纯文本文件：流式分块读取并分批投递任务，防止撑爆内存和 LLM 上下文
+              await DocumentParser.parseTextFileStream(filePath, async (chunks) => {
+                const chunkText = chunks.map((c: any) => c.parentContent).join('\n\n');
+                if (chunkText.trim().length > 0) {
+                  // 分批投递任务，限制单次提取的文本长度
+                  queueManager.addTask('text', chunkText, fileName, convId, { 
+                    source: 'MANUAL_IMPORT_CHUNKED', 
+                    priority: 'normal' // 后续切片使用普通优先级，防止阻塞
+                  });
+                }
+              }, 10000, 500, 2000, 200); // 使用极大的切片尺寸专供 LLM 提炼
+
+              return { success: true };
+            }
+          }
+          
+          if (!parsedText || parsedText.trim().length === 0) {
+            throw new Error('未从文档中提取到任何可识别文字内容。');
+          }
+
+          // 用户手动导入的非纯文本知识（通常较小），加入元数据区分其积极性
+          queueManager.addTask('text', parsedText, fileName, convId, { 
+            source: 'MANUAL_IMPORT', 
+            priority: 'high' 
+          });
+
+          return { success: true };
+        } catch (e: any) {
+          throw new Error(`知识库保存失败: ${e.message}`);
         }
       }
 
@@ -667,138 +1532,17 @@ export function registerApiIpc(dependencies, mainWindowRef) {
     const signal = activeAbortController.signal;
 
     try {
-      let convId = conversationId;
-      if (!convId) {
-        const conv = memoryStore.createConversation('新对话');
-        convId = conv.id;
-        mainWindow.webContents.send('api:chat:chunk', { type: 'conversation', id: convId });
-      }
-
-      let finalContent = message;
-      if (attachment) {
-        finalContent = [
-          { type: 'text', text: message },
-          { type: 'image_url', image_url: { url: attachment } }
-        ];
-      }
-
-      memoryStore.saveMessage(convId, 'user', finalContent);
-
-      let history = memoryStore.getConversationHistory(convId);
-      if (history.length > 20) history = history.slice(history.length - 20);
-      let messages = history.map((m, index) => {
-        let content = m.content;
-        try {
-          if (typeof content === 'string' && content.startsWith('[')) {
-             content = JSON.parse(content);
-             if (index < history.length - 1) {
-               const textBlock = content.find(c => c.type === 'text');
-               content = textBlock ? textBlock.text : '[历史图片]';
-             }
-          }
-        } catch(e) {}
-        return { role: m.role, content: content };
-      });
-
-      // [Task 2.3] 使用高级双路召回 (BM25 + Dense) 来匹配相关的长期记忆
-      const { VectorStore } = require('../backend/vector-store');
-      const memoryVecStore = new VectorStore(path.join(baseDataDir, 'memories_vectors.json'));
-      await memoryVecStore.load();
-      
-      let augmentedSystemPrompt = systemPrompt || '你是一个有用的、无所不知的人工智能助手。';
-      
-      try {
-        const msgEmbedding = await modelManager.getEmbedding(message);
-        const relevantMemories = await memoryVecStore.search(msgEmbedding, message, 3);
-        
-        if (relevantMemories && relevantMemories.length > 0) {
-          const memoryContext = relevantMemories.map(m => `- ${m.doc.content}`).join('\n');
-          augmentedSystemPrompt += `\n\n[用户相关的长期记忆（仅供参考）：]\n${memoryContext}`;
-        }
-      } catch (e) {
-        console.log('[语义记忆检索跳过]', e.message);
-      }
-
-      // 动态检索 RAG 知识库
-      const { ragEngine } = require('../backend/rag-engine');
-      const ragChunks = ragEngine.searchRelevant(convId, message, 3);
-      if (ragChunks && ragChunks.length > 0) {
-        const ragContext = ragChunks.map(c => `[文本切片: ${c.fileName}]\n${c.chunkText}`).join('\n\n---\n\n');
-        augmentedSystemPrompt += `\n\n[参考知识库（这是通过 RAG 检索引擎查找到的与用户当前提问最相关的文档片段。如果与提问相关，请优先参考这些内容作答）：]\n${ragContext}`;
-      }
-
-      const semanticMemoryPrompt = `\n\n[长期记忆能力]: 当你在对话中获取了关于用户的持久性事实、偏好或习惯时，请在回复的最后加上 \`[SAVE_MEMORY: 事实内容]\`，以便系统为你永久记住它。例如：\`[SAVE_MEMORY: 用户是一名后端开发工程师]\`。`;
-      augmentedSystemPrompt += semanticMemoryPrompt;
-
-      const toolPrompt = `\n\n[系统能力]: 你拥有沙盒环境执行能力。如果用户要求运行脚本、查看本地环境、读取文件、操作目录等，请直接输出 <execute>具体的系统命令</execute> 。你会自动收到命令执行结果，并基于结果继续回答。请不要在执行前编造执行结果。`;
-      augmentedSystemPrompt += toolPrompt;
-
-      messages.unshift({ role: 'system', content: augmentedSystemPrompt });
-
-      const { AgentLoop } = require('../backend/agent-loop');
-      const { EvolutionEngine } = require('../backend/evolution-engine');
-      const evolutionEngine = new EvolutionEngine(baseDataDir, memoryStore, modelManager);
-
-      const agentLoop = new AgentLoop({
+      const { ContextAggregator } = require('../backend/dialogue-orchestrator');
+      const aggregator = new ContextAggregator({
         modelManager,
-        sandbox,
         memoryStore,
-        evolutionEngine,
-        onChunk: (chunk) => {
-          mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: chunk });
-        },
-        onRequiresConfirmation: (cmd, riskLevel, msg) => {
-          mainWindow.webContents.send('api:chat:chunk', { 
-            type: 'requires_confirmation', 
-            command: cmd,
-            riskLevel: riskLevel,
-            message: msg,
-            conversationId: convId
-          });
-        }
+        sandbox,
+        dataDir,
+        mainWindowRef,
+        jobQueue
       });
-
-      const finalReply = await agentLoop.run({
-        convId,
-        messages,
-        modelId,
-        temperature,
-        signal
-      });
-
-      const memoryMatches = finalReply.match(/\[SAVE_MEMORY:([\s\S]*?)\]/g);
-      if (memoryMatches) {
-        // [Task 2.1] 获取或实例化独立的语义记忆存储库
-        const { VectorStore } = require('../backend/vector-store');
-        const memoryVecStore = new VectorStore(path.join(baseDataDir, 'memories_vectors.json'));
-        await memoryVecStore.load();
-        
-        for (const match of memoryMatches) {
-          const fact = match.replace(/\[SAVE_MEMORY:/, '').replace(/\]$/, '').trim();
-          if (fact) {
-            // 写入传统的关系型 SQLite (用于界面展示和管理)
-            memoryStore.addMemory(fact, 'User Preference', '["auto"]');
-            
-            // 写入高端向量倒排库 (用于无感语义召回)
-            try {
-              const embedding = await modelManager.getEmbedding(fact);
-              await memoryVecStore.addDocuments([{
-                id: require('crypto').randomUUID(),
-                content: fact,
-                metadata: { source: 'auto_extraction', timestamp: new Date().toISOString() },
-                embedding
-              }]);
-              console.log('[自动提取语义记忆并入库]', fact);
-            } catch (e) {
-              console.error('[记忆向量化失败]', e.message);
-            }
-          }
-        }
-      }
-
-      const cleanReply = finalReply.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '').trim();
-      memoryStore.saveMessage(convId, 'assistant', cleanReply);
-      mainWindow.webContents.send('api:chat:chunk', { type: 'done', conversationId: convId });
+      
+      await aggregator.executeChatStream(payload, signal);
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message === 'AbortError') {
         console.log('[流式对话] 推理请求已被主动中断。');

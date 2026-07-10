@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http://localhost:* http://127.0.0.1:*; font-src 'self' data:; img-src 'self' data: blob:;" />
+  <meta name="description" content="OpenClaw 智能助手 - 你的全能 AI 伙伴" />
+  <title>OpenClaw 智能助手</title>
+
+  <!-- 内嵌 Inter 字体备用方案（避免 Google Fonts 在国内加载慢） -->
+  <style>
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 300 800;
+      font-display: swap;
+      src: local('Inter'), local('Inter-Regular');
+    }
+  </style>
+
+  <!-- 全局样式 -->
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <!-- 应用根节点 -->
+  <div id="root"></div>
+
+  <!-- 主应用入口（普通 script，避免 file:// 协议 CORS 问题） -->
+  <script src="app.js" type="module"></script>
+</body>
+</html>

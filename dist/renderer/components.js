@@ -139,7 +139,7 @@ function ensureContainer() {
         document.body.appendChild(toastContainer);
     }
 }
-export function showToast(message, type = 'info', duration = 3000) {
+export function showToast(message, type = 'info', duration = 2000) {
     ensureContainer();
     const toast = document.createElement('div');
     toast.style.pointerEvents = 'auto';
@@ -158,6 +158,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     toast.style.transform = 'translateX(120%)';
     toast.style.opacity = '0';
     toast.style.transition = 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    toast.style.maxWidth = '360px';
     if (type === 'success')
         toast.style.borderLeft = '4px solid #34c759';
     else if (type === 'error')
@@ -182,7 +183,7 @@ export function showToast(message, type = 'info', duration = 3000) {
     let timer = setTimeout(() => removeToast(toast), duration);
     toast.addEventListener('mouseenter', () => clearTimeout(timer));
     toast.addEventListener('mouseleave', () => {
-        timer = setTimeout(() => removeToast(toast), 1500);
+        timer = setTimeout(() => removeToast(toast), 1000);
     });
 }
 function removeToast(toast) {

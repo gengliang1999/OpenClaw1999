@@ -21,20 +21,33 @@ class RagEngine {
         }
         return bigrams;
     }
-    // 1. 滑动窗口分块存入
-    addDocument(convId, fileName, text) {
-        const chunkSize = 500;
-        const overlap = 100;
-        let i = 0;
-        while (i < text.length) {
-            const chunkText = text.slice(i, i + chunkSize);
-            this.chunks.push({
-                convId,
-                fileName,
-                text: chunkText,
-                bigrams: this.getBigrams(chunkText)
-            });
-            i += (chunkSize - overlap);
+    // 1. 滑动窗口分块存入 (支持直接传入父子分块，或纯文本兜底)
+    addDocument(convId, fileName, data) {
+        if (Array.isArray(data)) {
+            for (const c of data) {
+                this.chunks.push({
+                    convId,
+                    fileName,
+                    text: c.childContent,
+                    bigrams: this.getBigrams(c.childContent),
+                    parentText: c.parentContent
+                });
+            }
+        }
+        else {
+            const chunkSize = 500;
+            const overlap = 100;
+            let i = 0;
+            while (i < data.length) {
+                const chunkText = data.slice(i, i + chunkSize);
+                this.chunks.push({
+                    convId,
+                    fileName,
+                    text: chunkText,
+                    bigrams: this.getBigrams(chunkText)
+                });
+                i += (chunkSize - overlap);
+            }
         }
     }
     // 2. 检索并计算 Jaccard 相似度变形
@@ -58,7 +71,7 @@ class RagEngine {
             .sort((a, b) => b.score - a.score);
         return scoredChunks.slice(0, topK).map(c => ({
             fileName: c.chunk.fileName,
-            chunkText: c.chunk.text,
+            chunkText: c.chunk.parentText || c.chunk.text, // 优先使用父分块的大段上下文，解决断章取义问题
             score: c.score
         }));
     }

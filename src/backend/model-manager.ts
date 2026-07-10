@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
+import { ProviderFactory } from './providers/ProviderFactory';
 
 const ANTHROPIC_PROVIDERS = ['Anthropic', 'claude'];
 
@@ -243,8 +244,9 @@ class ModelManager extends EventEmitter {
    */
   async getEmbedding(text) {
     try {
-      // 默认使用本地 Ollama 的 nomic-embed-text 模型
-      const endpoint = 'http://127.0.0.1:11434/api/embeddings';
+      // 使用本地探测到的 Ollama 地址，如果不存在则回退至默认地址
+      const baseOllamaUrl = this.ollamaUrl || 'http://127.0.0.1:11434';
+      const endpoint = `${baseOllamaUrl}/api/embeddings`;
       const model = 'nomic-embed-text';
       
       const res = await fetch(endpoint, {
@@ -451,18 +453,14 @@ class ModelManager extends EventEmitter {
     const model = this.models.find(m => m.id === modelId);
     if (!model) throw new Error('未选择模型或模型不存在');
 
-    if (model.type === 'cloud' || model.provider === 'LM Studio') {
-      return this._chatCloud(model, messages, options);
-    } else if (model.type === 'local') {
-      return this._chatLocal(model, messages, options);
-    }
-    throw new Error(`不支持的模型类型: ${model.type}`);
+    const provider = ProviderFactory.getProvider(model);
+    return provider.chat(model, messages, options);
   }
 
   /**
-   * 流式聊天接口 (含 Agent Tool Calling 拦截引擎)
+   * 流式聊天接口
    * @param {Array} messages - 消息列表
-   * @param {Object} options - 选项，支持 options.agentMode 开启代理执行
+   * @param {Object} options - 选项
    * @param {Function} onChunk - 收到数据块时的回调
    * @returns {Promise<string>} 完整的 AI 回复
    */
@@ -471,20 +469,42 @@ class ModelManager extends EventEmitter {
     let model = this.models.find(m => m.id === modelId);
     if (!model) throw new Error('未选择模型或模型不存在');
     
-    let currentMessages = [...messages];
-    const isAgentMode = options.agentMode === true;
-    const maxAgentLoops = 5;
-    let loopCount = 0;
-    let finalMergedResponse = '';
-
     // [Task 2.2] 双脑算力分发器 (Dual-Brain Router)
     // 如果用户当前选用的是昂贵的云端模型，但对话仅有几句话 (如打招呼、简单意图)，尝试交由本地热态模型拦截处理
     if (model.type === 'cloud' && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1].content;
-      // 简易复杂性启发式评估 (Heuristic Evaluator)
-      const isSimpleTask = typeof lastMsg === 'string' && lastMsg.length < 50 && !lastMsg.includes('代码') && !lastMsg.includes('分析') && !lastMsg.includes('报错');
+      const lastMsgObj = messages[messages.length - 1];
+      let lastText = '';
+      let hasImage = false;
+
+      if (typeof lastMsgObj.content === 'string') {
+        lastText = lastMsgObj.content;
+      } else if (Array.isArray(lastMsgObj.content)) {
+        const textBlock = lastMsgObj.content.find((c: any) => c.type === 'text');
+        const imgBlock = lastMsgObj.content.find((c: any) => c.type === 'image_url');
+        lastText = textBlock ? textBlock.text : '';
+        hasImage = !!imgBlock;
+      }
+
+      const isTextSimple = lastText.length < 50 && !lastText.includes('代码') && !lastText.includes('分析') && !lastText.includes('报错');
+      
+      const isVisionCapable = (m: any) => {
+        const nameLower = (m.modelName || m.name || m.id || '').toLowerCase();
+        return nameLower.includes('vl') || nameLower.includes('vision') || nameLower.includes('llava') || nameLower.includes('minicpm');
+      };
+
+      let isSimpleTask = false;
+      if (isTextSimple) {
+        if (!hasImage) {
+          isSimpleTask = true;
+        } else {
+          const targetLocal = this.models.find(m => m.type === 'local' && !m.isCold);
+          if (targetLocal && isVisionCapable(targetLocal)) {
+            isSimpleTask = true;
+          }
+        }
+      }
+
       if (isSimpleTask) {
-        // 寻找一个当前处于活跃状态 (Hot) 的本地模型作为 Router
         const hotLocalModel = this.models.find(m => m.type === 'local' && !m.isCold);
         if (hotLocalModel) {
           console.log(`[双脑路由] 检测到极短基础指令，已自动将算力切入本地守护模型: ${hotLocalModel.name}`);
@@ -495,431 +515,8 @@ class ModelManager extends EventEmitter {
       }
     }
 
-    if (isAgentMode) {
-      const agentSystemPrompt = `You are an Autonomous AI Agent. You have access to system tools. If the user asks you to read files or requires system operations, you MUST use tools by outputting a raw JSON block exactly in this format and STOP generating further text:
-\`\`\`json
-{
-  "tool": "Fs.readFile",
-  "args": { "path": "absolute_file_path" }
-}
-\`\`\`
-Supported tools: Fs.readFile.
-If no tool is needed, answer the user directly.`;
-      
-      if (currentMessages.length > 0 && currentMessages[0].role === 'system') {
-        currentMessages[0] = { role: 'system', content: agentSystemPrompt + '\n' + currentMessages[0].content };
-      } else {
-        currentMessages.unshift({ role: 'system', content: agentSystemPrompt });
-      }
-    }
-
-    while (loopCount < maxAgentLoops) {
-      loopCount++;
-      let fullResponse = '';
-      let jsonInterceptBuffer = '';
-      let isIntercepting = false;
-
-      const internalOnChunk = (chunk) => {
-        if (!isAgentMode) {
-          onChunk(chunk);
-          return;
-        }
-
-        jsonInterceptBuffer += chunk;
-        if (jsonInterceptBuffer.includes('```json') || jsonInterceptBuffer.includes('{"tool"')) {
-          isIntercepting = true;
-        } else {
-          if (jsonInterceptBuffer.length > 30 && !isIntercepting) {
-            onChunk(jsonInterceptBuffer);
-            jsonInterceptBuffer = '';
-          }
-        }
-      };
-
-      try {
-        if (model.type === 'cloud' || model.provider === 'LM Studio') {
-          fullResponse = await this._chatCloudStream(model, currentMessages, options, internalOnChunk);
-        } else if (model.type === 'local') {
-          fullResponse = await this._chatLocalStream(model, currentMessages, options, internalOnChunk);
-        } else {
-          throw new Error(`不支持的模型类型: ${model.type}`);
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError' || err.message === 'AbortError') {
-           throw err; // 如果是被主动打断的，直接向上抛出结束
-        }
-        throw err;
-      }
-
-      if (isAgentMode && !isIntercepting && jsonInterceptBuffer.length > 0) {
-        onChunk(jsonInterceptBuffer);
-      }
-
-      if (!isAgentMode) {
-        return fullResponse;
-      }
-
-      // 正则匹配并提取 JSON
-      const toolMatch = fullResponse.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
-      const rawJsonMatch = fullResponse.match(/(\{[\s\S]*?"tool"\s*:\s*"[^"]+"[\s\S]*\})/);
-      
-      let toolPayload = null;
-      if (toolMatch) {
-        try { toolPayload = JSON.parse(toolMatch[1]); } catch(e) {}
-      } else if (rawJsonMatch) {
-        try { toolPayload = JSON.parse(rawJsonMatch[1]); } catch(e) {}
-      }
-
-      if (toolPayload && toolPayload.tool) {
-        onChunk(`\n\n> ⚡ **[Agent 工具调用]** 正在执行: \`${toolPayload.tool}\` ...\n`);
-        
-        let toolResultStr = '';
-        try {
-          if (toolPayload.tool === 'Fs.readFile' && toolPayload.args?.path) {
-            const fs = require('fs');
-            if (fs.existsSync(toolPayload.args.path)) {
-              const fileContent = fs.readFileSync(toolPayload.args.path, 'utf8');
-              toolResultStr = `File Content:\n${fileContent.substring(0, 3000)}`;
-              onChunk(`> 🟢 **[执行成功]** 读取了 ${toolPayload.args.path.split(/[\/\\]/).pop()} 的内容。\n\n`);
-            } else {
-              toolResultStr = `Error: File not found at path: ${toolPayload.args.path}`;
-              onChunk(`> 🔴 **[执行失败]** 文件不存在。\n\n`);
-            }
-          } else {
-            toolResultStr = `Tool ${toolPayload.tool} is not supported or missing arguments.`;
-            onChunk(`> 🔴 **[执行失败]** 未知工具。\n\n`);
-          }
-        } catch (e: any) {
-          toolResultStr = `Error executing tool: ${e.message}`;
-          onChunk(`> 🔴 **[执行异常]** ${e.message}\n\n`);
-        }
-
-        currentMessages.push({ role: 'assistant', content: fullResponse });
-        currentMessages.push({ role: 'system', content: `Tool execution result:\n${toolResultStr}` });
-        
-        finalMergedResponse += fullResponse + '\n';
-        continue;
-      } else {
-        return finalMergedResponse + fullResponse;
-      }
-    }
-    
-    return finalMergedResponse + "\n\n> [系统警告] 已达到最大代理迭代次数 (5次)，强制终止循环。";
-  }
-
-  /**
-   * 等待指定毫秒数
-   */
-  _delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * 重试请求（处理 429 错误）
-   * @private
-   */
-  async _retryRequest(makeRequest, maxRetries = 3) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const response = await makeRequest();
-      if (response.ok) {
-        return response;
-      }
-      if (response.status === 429) {
-        const retryAfter = parseInt(response.headers.get('Retry-After') || '5');
-        const delay = Math.min(retryAfter * 1000, Math.pow(2, attempt) * 1000 + Math.random() * 1000);
-        console.log(`[模型管理器] 请求被限流，等待 ${delay}ms 后重试 (第 ${attempt} 次)`);
-        await this._delay(delay);
-        continue;
-      }
-      return response;
-    }
-    throw new Error('重试次数已用完');
-  }
-
-  /**
-   * 判断是否为 Anthropic/Claude 提供者
-   */
-  _isAnthropicProvider(model) {
-    return ANTHROPIC_PROVIDERS.includes(model.provider);
-  }
-
-  /**
-   * 构建云端 API 请求配置
-   * @private
-   */
-  _buildCloudRequestConfig(model, messages, options, stream = false) {
-    const actualModelName = model.modelName || (model.name ? model.name.replace(/^\[.*?\]\s*/, '') : model.id);
-    const isAnthropic = this._isAnthropicProvider(model);
-    
-    if (isAnthropic) {
-      return {
-        url: `${model.baseUrl}/messages`,
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': model.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: actualModelName,
-          messages: messages,
-          max_tokens: options.maxTokens || model.maxTokens || 4096,
-          temperature: options.temperature ?? model.temperature ?? 0.7,
-          stream,
-        }),
-      };
-    }
-    
-    return {
-      url: `${model.baseUrl}/chat/completions`,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${model.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: actualModelName,
-        messages,
-        max_tokens: options.maxTokens || model.maxTokens || 4096,
-        temperature: options.temperature ?? model.temperature ?? 0.7,
-        stream,
-      }),
-    };
-  }
-
-  /**
-   * 解析云端 API 响应
-   * @private
-   */
-  _parseCloudResponse(data, model) {
-    const isAnthropic = this._isAnthropicProvider(model);
-    if (isAnthropic) {
-      return data.content?.[0]?.text || '';
-    }
-    return data.choices?.[0]?.message?.content || '';
-  }
-
-  /**
-   * 云端 API 聊天（非流式）
-   * @private
-   */
-  async _chatCloud(model, messages, options) {
-    if (!model.apiKey && model.provider !== 'LM Studio') throw new Error('请先配置 API Key');
-    
-    const { url, headers, body } = this._buildCloudRequestConfig(model, messages, options, false);
-    
-    const makeRequest = () => fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-    });
-
-    const response = await this._retryRequest(makeRequest);
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`API 调用失败 (${response.status}): ${err}`);
-    }
-
-    const data = await response.json();
-    return this._parseCloudResponse(data, model);
-  }
-
-  /**
-   * 云端 API 流式聊天
-   * @private
-   */
-  async _chatCloudStream(model, messages, options, onChunk) {
-    if (!model.apiKey && model.provider !== 'LM Studio') throw new Error('请先配置 API Key');
-    
-    const { url, headers, body } = this._buildCloudRequestConfig(model, messages, options, true);
-    const isAnthropic = this._isAnthropicProvider(model);
-    
-    const makeRequest = () => fetch(url, {
-      method: 'POST',
-      headers,
-      body,
-      signal: options.signal
-    });
-
-    const response = await this._retryRequest(makeRequest);
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`API 调用失败 (${response.status}): ${err}`);
-    }
-
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let buffer = '';
-
-    try {
-      const reader = response.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const textChunk = typeof value === 'string' ? value : decoder.decode(value, { stream: true });
-        buffer += textChunk;
-        
-        let newlineIndex;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          const line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-          
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-          const dataStr = trimmed.slice(6);
-          if (dataStr === '[DONE]') continue;
-
-          try {
-            const data = JSON.parse(dataStr);
-            
-            let content;
-            if (isAnthropic) {
-              content = data.delta?.text;
-            } else {
-              content = data.choices?.[0]?.delta?.content;
-            }
-            
-            if (content) {
-              fullContent += content;
-              if (onChunk) onChunk(content);
-            }
-          } catch (e) {}
-        }
-      }
-    } catch (err) {
-      console.error('[Cloud Stream Error]', err);
-      throw err;
-    }
-
-    return fullContent;
-  }
-
-  /**
-   * 本地模型聊天（通过 Ollama 龙虾）
-   * @private
-   */
-  async _chatLocal(model, messages, options) {
-    const baseUrl = model.baseUrl || 'http://127.0.0.1:11434';
-    const actualModelName = model.modelName || (model.name ? model.name.replace(/^\[.*?\]\s*/, '') : model.id);
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: actualModelName,
-        messages: messages,
-        stream: false,
-        options: {
-          num_ctx: options.maxTokens || model.contextSize || 4096,
-          temperature: options.temperature ?? model.temperature ?? 0.7,
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Ollama 接口调用失败: ${err}`);
-    }
-
-    const data = await response.json();
-    return data.message?.content || '';
-  }
-
-  /**
-   * 本地模型流式聊天（通过 Ollama 龙虾）
-   * @private
-   */
-  async _chatLocalStream(model, messages, options, onChunk) {
-    const baseUrl = model.baseUrl || 'http://127.0.0.1:11434';
-    const actualModelName = model.modelName || (model.name ? model.name.replace(/^\[.*?\]\s*/, '') : model.id);
-    console.log('[DEBUG] FOUND MODEL:', JSON.stringify(model));
-    console.log('[DEBUG] Sending to Ollama model:', actualModelName, 'Original name:', model.name, 'modelName:', model.modelName);
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), 120000); // 2分钟超时，防止 Ollama 卡死
-    
-    // 如果上游传来 signal，可以将它们结合（简易实现：上游 abort 时也 abort 本地）
-    if (options.signal) {
-      options.signal.addEventListener('abort', () => {
-        clearTimeout(timeoutId);
-        abortController.abort();
-      });
-    }
-
-    const ollamaMessages = messages.map(m => {
-      if (Array.isArray(m.content)) {
-        const textBlock = m.content.find(c => c.type === 'text');
-        const imgBlock = m.content.find(c => c.type === 'image_url');
-        
-        const ollamaMsg = { role: m.role, content: textBlock ? textBlock.text : '' };
-        if (imgBlock && imgBlock.image_url) {
-           // Ollama expects base64 data without the 'data:image/...;base64,' prefix
-           const base64Data = imgBlock.image_url.url.split(',')[1];
-           if (base64Data) {
-             ollamaMsg.images = [base64Data];
-           }
-        }
-        return ollamaMsg;
-      }
-      return m;
-    });
-
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: actualModelName,
-        messages: ollamaMessages,
-        stream: true,
-        options: {
-          num_ctx: options.maxTokens || model.contextSize || 4096,
-          temperature: options.temperature ?? model.temperature ?? 0.7,
-        }
-      }),
-      signal: abortController.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const err = await response.text();
-      throw new Error(`Ollama 接口调用失败: ${err}`);
-    }
-
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let buffer = '';
-
-    try {
-      const reader = response.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const textChunk = typeof value === 'string' ? value : decoder.decode(value, { stream: true });
-        buffer += textChunk;
-        
-        let newlineIndex;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          const line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          
-          try {
-            const data = JSON.parse(trimmed);
-            const content = data.message?.content;
-            if (content) {
-              fullContent += content;
-              if (onChunk) onChunk(content);
-            }
-          } catch (e) {}
-        }
-      }
-    } catch (err) {
-      console.error('[Local Stream Error]', err);
-      throw err;
-    }
-
-    return fullContent;
+    const provider = ProviderFactory.getProvider(model);
+    return provider.chatStream(model, messages, options, onChunk);
   }
 
   /**

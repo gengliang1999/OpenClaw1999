@@ -52,13 +52,8 @@ export async function render(container) {
           </div>
         </div>
 
-        <!-- 居中区域：模型切换器 (ChatGPT风格) -->
-        <div style="flex: 1; display: flex; justify-content: center;">
-          <button id="modelModalBtn" class="btn-ghost" style="display: flex; align-items: center; gap: 6px; border-radius: 20px; padding: 6px 16px; font-weight: 600; font-size: 14px; background: rgba(120, 120, 150, 0.1); border: 1px solid rgba(120, 120, 150, 0.2); backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer;" onmouseover="this.style.background='rgba(120, 120, 150, 0.2)'; this.style.transform='translateY(-1px)';" onmouseout="this.style.background='rgba(120, 120, 150, 0.1)'; this.style.transform='translateY(0)';">
-            <span id="activeModelLabel" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">选择模型</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-        </div>
+        <!-- 居中空白 -->
+        <div style="flex: 1;"></div>
 
         <!-- 右侧区域 -->
         <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px; align-items: center;">
@@ -127,6 +122,13 @@ export async function render(container) {
                     截取屏幕
                   </button>
                 </div>
+
+                <!-- 🤖 选择模型 -->
+                <button id="modelModalBtn" class="btn-ghost" title="\u5207\u6362\u5927\u6a21\u578b" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg>
+                  <span id="activeModelLabel" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\u9009\u62e9\u6a21\u578b</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
 
                 <!-- 思考深度 -->
                 <div class="btn-ghost" title="思考深度" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
@@ -658,69 +660,71 @@ export async function render(container) {
     }
   });
 
-  (document.getElementById('removeAttachmentBtn') as any).addEventListener('click', () => {
+    async function handleFileByPath(filePath: string) {
+    if (!filePath) return;
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'];
+    const isImage = imageExts.includes(ext);
+
+    if (isImage) {
+      try {
+        if (window.__toast) window.__toast.info('\u6b63\u5728\u52a0\u8f7d\u56fe\u7247...');
+        const dataUrl = await api.post('/system/readFileAsDataUrl', { filePath });
+        if (dataUrl && dataUrl.data) {
+          pendingAttachmentData = dataUrl.data;
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = dataUrl.data;
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          (document.getElementById('chatInput') as any).focus();
+          if (window.__toast) window.__toast.success('\u56fe\u7247\u5df2\u9644\u52a0');
+        }
+      } catch (err: any) {
+        if (window.__toast) window.__toast.error(`\u56fe\u7247\u52a0\u8f7d\u5931\u8d25: ${err.message}`);
+      }
+    } else {
+      try {
+        if (!activeConvId) {
+          await createNewChat();
+        }
+        if (window.__toast) window.__toast.info('\u6b63\u5728\u89e3\u6790\u6587\u6863...');
+        
+        const res = await api.post('/system/parseDocument', { filePath, convId: activeConvId });
+        if (res && res.success) {
+          pendingAttachmentData = `file:///${res.textFilePath.replace(/\\/g, '/')}`;
+          const imgEl = document.getElementById('attachmentImg') as any;
+          imgEl.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2300f2fe" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>';
+          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+          (document.getElementById('chatInput') as any).focus();
+          if (window.__toast) window.__toast.success(`\u6587\u6863\u5df2\u4f5c\u4e3a\u9644\u4ef6\u6dfb\u52a0！`);
+        }
+      } catch (err: any) {
+        if (window.__toast) window.__toast.error(`\u6587\u6863\u89e3\u6790\u5931\u8d25: ${err.message}`);
+      }
+    }
+  }
+
+(document.getElementById('removeAttachmentBtn') as any).addEventListener('click', () => {
     pendingAttachmentData = null;
     (document.getElementById('attachmentImg') as any).src = '';
     (document.getElementById('attachmentPreview') as any).style.display = 'none';
   });
 
-  // 上传文件按钮（触发隐藏的 input type="file"）
-  (document.getElementById('fileUploadBtn') as any).addEventListener('click', () => {
-    const fileInput = (document.createElement('input') as any);
-    fileInput.type = 'file';
-    fileInput.accept = '*/*'; // 支持所有格式，包括文档与图片
-    fileInput.onchange = async (e) => {
-      const file = (e.target as any).files[0];
-      if (!file) return;
-      
-      const isImage = file.type.startsWith('image/');
-      
-      if (isImage) {
-        const reader = new FileReader();
-        reader.onload = (e2) => {
-          const dataUrl = e2.target.result;
-          pendingAttachmentData = dataUrl;
-          
-          const imgEl = document.getElementById('attachmentImg') as any;
-          imgEl.src = dataUrl;
-          
-          (document.getElementById('attachmentPreview') as any).style.display = 'flex';
-          (document.getElementById('chatInput') as any).focus();
-          if (window.__toast) window.__toast.success('图片已附加');
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // 非图片文件，当做文档解析并加入知识库
-        try {
-          if (!activeConvId) {
-            await createNewChat();
-          }
-          if (window.__toast) window.__toast.info('正在解析文档并加入知识库，请稍候...');
-          
-          // Electron 环境下，file 对象具有 path 属性
-          const filePath = file.path; 
-          
-          const res = await api.post('/system/parseDocument', { filePath, convId: activeConvId });
-          if (res && res.success) {
-             if (window.__toast) window.__toast.success(`📄 文档已解析完毕并加入上下文！`);
-             
-             // 在聊天界面添加一条本地提示消息
-             const container = document.getElementById('chatMessages') as any;
-             const msgDiv = document.createElement('div');
-             msgDiv.style.textAlign = 'center';
-             msgDiv.style.margin = '16px 0';
-             msgDiv.style.fontSize = '12px';
-             msgDiv.style.color = 'var(--text-muted)';
-             msgDiv.innerHTML = `<span style="background: rgba(0,0,0,0.05); padding: 4px 12px; border-radius: 12px;">📚 已将文档 <b>${file.name}</b> 解析并加入本会话知识库，可直接提问。</span>`;
-             container.appendChild(msgDiv);
-             container.scrollTop = container.scrollHeight;
-          }
-        } catch (err: any) {
-          if (window.__toast) window.__toast.error(`文档解析失败: ${err.message}`);
-        }
-      }
-    };
-    fileInput.click();
+  // 上传文件按钮（使用原生系统对话框获取真实文件路径）
+  (document.getElementById('fileUploadBtn') as any).addEventListener('click', async () => {
+    try {
+      const filePath = await window.openClaw.system.selectFile({
+        filters: [
+          { name: '所有支持的文件', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'pdf', 'docx', 'pptx', 'xlsx', 'txt', 'md', 'json', 'csv', 'html', 'xml', 'rtf', 'odt'] },
+          { name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] },
+          { name: '文档', extensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'md', 'json', 'csv', 'html', 'xml', 'rtf', 'odt'] },
+          { name: '所有文件', extensions: ['*'] }
+        ]
+      });
+      if (!filePath) return; // 用户取消选择
+      await handleFileByPath(filePath);
+    } catch (err: any) {
+      if (window.__toast) window.__toast.error(`文件选择失败: ${err.message}`);
+    }
   });
 
   // 模型 Modal 逻辑
@@ -826,15 +830,87 @@ export async function render(container) {
   const chatInputArea = (document.getElementById('chatInput') as HTMLTextAreaElement);
   
   if (chatInputArea) {
-    chatInputArea.addEventListener('paste', (e) => {
+    chatInputArea.addEventListener('paste', async (e) => {
       const clipboardData = e.clipboardData;
-      if (clipboardData) {
-        const text = clipboardData.getData('text');
-        if (text && /(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/.test(text)) {
-          e.preventDefault();
-          const safeText = text.replace(/(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/g, '[REDACTED API KEY]');
-          chatInputArea.setRangeText(safeText, chatInputArea.selectionStart, chatInputArea.selectionEnd, 'end');
-          if (window.__toast) window.__toast.error('检测到敏感 API Key，已自动脱敏保护！');
+      if (!clipboardData) return;
+
+      const files = Array.from(clipboardData.files);
+      if (files.length > 0) {
+        e.preventDefault();
+        const file = files[0];
+        const filePath = (file as any).path;
+        
+        if (filePath) {
+          await handleFileByPath(filePath);
+        } else if (file.type.startsWith('image/')) {
+          // 剪贴板截图直接粘贴的 raw 数据，无物理路径，转为 base64 预览与上传
+          const reader = new FileReader();
+          reader.onload = (e2) => {
+            const dataUrl = e2.target?.result as string;
+            if (!dataUrl) return;
+            pendingAttachmentData = dataUrl;
+            const imgEl = document.getElementById('attachmentImg') as any;
+            imgEl.src = dataUrl;
+            (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+            chatInputArea.focus();
+            if (window.__toast) window.__toast.success('\u5df2\u4ece\u526a\u8d34\u677f\u7c98\u8d34\u622a\u56fe');
+          };
+          reader.readAsDataURL(file);
+        }
+        return;
+      }
+
+      const text = clipboardData.getData('text');
+      if (text && /(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/.test(text)) {
+        e.preventDefault();
+        const safeText = text.replace(/(sk-[a-zA-Z0-9]{32,}|Bearer\s+[a-zA-Z0-9\-_\.]{32,})/g, '[REDACTED API KEY]');
+        chatInputArea.setRangeText(safeText, chatInputArea.selectionStart, chatInputArea.selectionEnd, 'end');
+        if (window.__toast) window.__toast.error('\u68c0\u6d4b\u5230\u654f\u611f API Key，\u5df2\u81ea\u52a8\u8131\u654f\u4fdd\u62a4！');
+      }
+    });
+  }
+
+  // ================== 拖拽文件/图片到聊天区域上传 ==================
+  const chatContainer = document.getElementById('chatMessages') || document.querySelector('.doubao-chat-page') as any;
+  if (chatContainer) {
+    chatContainer.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatContainer.style.outline = '2px dashed var(--primary)';
+      chatContainer.style.outlineOffset = '-4px';
+    });
+    chatContainer.addEventListener('dragleave', (e: DragEvent) => {
+      e.preventDefault();
+      chatContainer.style.outline = 'none';
+    });
+    chatContainer.addEventListener('drop', async (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      chatContainer.style.outline = 'none';
+
+      const files = e.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+
+      const file = files[0];
+      const filePath = (file as any).path;
+      if (filePath) {
+        await handleFileByPath(filePath);
+      } else {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e2) => {
+            const dataUrl = e2.target?.result as string;
+            if (!dataUrl) return;
+            pendingAttachmentData = dataUrl;
+            const imgEl = document.getElementById('attachmentImg') as any;
+            imgEl.src = dataUrl;
+            (document.getElementById('attachmentPreview') as any).style.display = 'flex';
+            (document.getElementById('chatInput') as any).focus();
+            if (window.__toast) window.__toast.success('\u5df2\u62d6\u5165\u56fe\u7247');
+          };
+          reader.readAsDataURL(file);
+        } else {
+          if (window.__toast) window.__toast.error('\u65e0\u6cd5\u83b7\u53d6\u62d6\u62fd\u6567\u4ef6\u8def\u5f84');
         }
       }
     });
@@ -1241,9 +1317,15 @@ function renderMessages(messages) {
       if (textBlock) textContent = textBlock.text;
       if (imgBlock && imgBlock.image_url) {
         const url = imgBlock.image_url.url;
-        const isImage = url.startsWith('data:image/') && !url.startsWith('data:image/svg+xml');
-        if (isImage || !url.startsWith('data:')) {
-          attachmentHtml = `<div style="margin-top: 8px;"><img src="${url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+        const isImage = (url.startsWith('data:image/') && !url.startsWith('data:image/svg+xml')) || 
+                        (url.startsWith('file:///') && /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(url));
+        if (isImage) {
+          if (url.startsWith('file:///')) {
+            const placeholderId = `img-local-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            attachmentHtml = `<div style="margin-top: 8px;"><img id="${placeholderId}" data-local-src="${url}" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'><rect width='18' height='18' x='3' y='3' rx='2'/><circle cx='9' cy='9' r='2'/><path d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'/></svg>" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); opacity: 0.6;"></div>`;
+          } else {
+            attachmentHtml = `<div style="margin-top: 8px;"><img src="${url}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+          }
         } else {
           const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
           attachmentHtml = `<div style="margin-top: 8px; display: flex; align-items: center; background: rgba(0,0,0,0.05); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">${svgIcon} <span style="font-size: 13px; font-weight: 500;">已附加文件</span></div>`;
@@ -1281,6 +1363,25 @@ function renderMessages(messages) {
       </div>
     </div>
   `}).join('');
+
+  // 异步加载本地 file:/// 图片资源，避开 Chromium 跨域安全拦截
+  setTimeout(async () => {
+    const localImgs = container.querySelectorAll('img[data-local-src]');
+    for (const img of Array.from(localImgs) as HTMLImageElement[]) {
+      const srcUrl = img.getAttribute('data-local-src');
+      if (!srcUrl) continue;
+      const filePath = decodeURIComponent(srcUrl.replace('file:///', ''));
+      try {
+        const res = await api.post('/system/readFileAsDataUrl', { filePath });
+        if (res && res.data) {
+          img.src = res.data;
+          img.style.opacity = '1';
+        }
+      } catch (e) {
+        console.error('Failed to load local image in history:', e);
+      }
+    }
+  }, 50);
 
   scrollToBottom();
 }

@@ -17,6 +17,7 @@ class MemoryStore {
         this.dbPath = path.join(dataDir, 'memory.db');
         this.db = null;
         this._initialized = false;
+        this._saveTimer = null; // 节流写盘定时器
     }
     /**
      * 初始化数据库
@@ -44,10 +45,26 @@ class MemoryStore {
         content TEXT NOT NULL,
         category TEXT DEFAULT '通用',
         tags TEXT DEFAULT '[]',
+        recall_count INTEGER DEFAULT 0,
+        last_recalled_at TEXT,
+        is_pinned INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     `);
+        // 安全追加新列（兼容旧数据库，如果列已存在则静默跳过）
+        try {
+            this.db.run('ALTER TABLE memories ADD COLUMN recall_count INTEGER DEFAULT 0');
+        }
+        catch (e) { }
+        try {
+            this.db.run('ALTER TABLE memories ADD COLUMN last_recalled_at TEXT');
+        }
+        catch (e) { }
+        try {
+            this.db.run('ALTER TABLE memories ADD COLUMN is_pinned INTEGER DEFAULT 0');
+        }
+        catch (e) { }
         this.db.run(`
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -77,26 +94,78 @@ class MemoryStore {
         deleted_at TEXT NOT NULL
       )
     `);
+        // 实体关系三元组表（轻量图谱联想）
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS entity_relationships (
+        id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        object TEXT NOT NULL,
+        source_memory_id TEXT,
+        created_at TEXT NOT NULL
+      )
+    `);
+        // 情景记忆摘要表（跨对话回忆）
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS memory_episodes (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        topics_json TEXT DEFAULT '[]',
+        created_at TEXT NOT NULL
+      )
+    `);
+        // 后台持久化任务表
+        this.db.run(`
+      CREATE TABLE IF NOT EXISTS background_jobs (
+        id TEXT PRIMARY KEY,
+        task_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        retry_count INTEGER DEFAULT 0,
+        last_error TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
         // 创建索引
         this.db.run('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
         this.db.run('CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category)');
+        this.db.run('CREATE INDEX IF NOT EXISTS idx_entity_subject ON entity_relationships(subject)');
+        this.db.run('CREATE INDEX IF NOT EXISTS idx_entity_object ON entity_relationships(object)');
+        this.db.run('CREATE INDEX IF NOT EXISTS idx_episodes_conv ON memory_episodes(conversation_id)');
+        this.db.run('CREATE INDEX IF NOT EXISTS idx_jobs_status ON background_jobs(status)');
         this._save();
         this._initialized = true;
-        console.log('[记忆存储] 数据库初始化完成');
+        console.log('[记忆存储] 数据库初始化完成（含实体关系表、情景记忆表与任务表）');
     }
     /**
-     * 保存数据库到磁盘
+     * 原子写盘保护：先写 .tmp 临时文件再 rename，防止断电损坏主库
      * @private
      */
     _save() {
         try {
             const data = this.db.export();
             const buffer = Buffer.from(data);
-            fs.writeFileSync(this.dbPath, buffer);
+            const tmpPath = this.dbPath + '.tmp';
+            fs.writeFileSync(tmpPath, buffer);
+            fs.renameSync(tmpPath, this.dbPath);
         }
         catch (error) {
             console.error('[记忆存储] 数据库保存失败:', error);
         }
+    }
+    /**
+     * 节流写盘（Debounce 500ms）：高频写入时仅在最后一次操作后 500ms 才真正落盘
+     * @private
+     */
+    _debouncedSave() {
+        if (this._saveTimer)
+            clearTimeout(this._saveTimer);
+        this._saveTimer = setTimeout(() => {
+            this._save();
+            this._saveTimer = null;
+        }, 500);
     }
     // ===== 记忆管理 =====
     /**
@@ -147,13 +216,19 @@ class MemoryStore {
         const items = this._parseResults(results, 'memories');
         return { items, total, page, pageSize };
     }
-    /**
-     * 删除记忆
-     * @param {string} id - 记忆 ID
-     */
     deleteMemory(id) {
         this.db.run('DELETE FROM memories WHERE id = ?', [id]);
         this._save();
+    }
+    /**
+     * 根据 ID 获取单个记忆详情
+     * @param {string} id - 记忆 ID
+     * @returns {Object|null}
+     */
+    getMemory(id) {
+        const results = this.db.exec('SELECT * FROM memories WHERE id = ?', [id]);
+        const items = this._parseResults(results);
+        return items.length > 0 ? items[0] : null;
     }
     // ===== 对话管理 =====
     /**
@@ -302,10 +377,18 @@ class MemoryStore {
         // 如果是第一条用户消息，自动更新对话标题
         const msgCount = this.db.exec('SELECT COUNT(*) FROM messages WHERE conversation_id = ?', [conversationId]);
         if (msgCount.length > 0 && msgCount[0].values[0][0] === 1 && role === 'user') {
-            const title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+            let rawText = '';
+            if (typeof content === 'string') {
+                rawText = content;
+            }
+            else if (Array.isArray(content)) {
+                const textBlock = content.find((c) => c.type === 'text');
+                rawText = textBlock ? textBlock.text : '多模态消息';
+            }
+            const title = rawText.slice(0, 30) + (rawText.length > 30 ? '...' : '');
             this.db.run('UPDATE conversations SET title = ? WHERE id = ?', [title, conversationId]);
         }
-        this._save();
+        this._debouncedSave();
         return { id, conversation_id: conversationId, role, content, created_at: now };
     }
     /**
@@ -315,7 +398,17 @@ class MemoryStore {
      */
     getConversationHistory(conversationId) {
         const results = this.db.exec('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC', [conversationId]);
-        return this._parseResults(results, 'messages');
+        const messages = this._parseResults(results, 'messages');
+        return messages.map((m) => {
+            let content = m.content;
+            if (typeof content === 'string' && content.startsWith('[')) {
+                try {
+                    content = JSON.parse(content);
+                }
+                catch (e) { }
+            }
+            return { ...m, content };
+        });
     }
     /**
      * 清空对话消息
@@ -347,7 +440,7 @@ class MemoryStore {
      */
     deleteMessage(messageId) {
         this.db.run('DELETE FROM messages WHERE id = ?', [messageId]);
-        this._save();
+        this._debouncedSave();
     }
     /**
      * 解析 sql.js 查询结果为对象数组
@@ -366,6 +459,14 @@ class MemoryStore {
                     }
                     catch {
                         obj[col] = [];
+                    }
+                }
+                else if (col === 'payload') {
+                    try {
+                        obj[col] = JSON.parse(row[i]);
+                    }
+                    catch {
+                        obj[col] = row[i];
                     }
                 }
                 else {
@@ -400,12 +501,132 @@ class MemoryStore {
      * 关闭数据库
      */
     close() {
+        if (this._saveTimer) {
+            clearTimeout(this._saveTimer);
+            this._saveTimer = null;
+        }
         if (this.db) {
             this._save();
             this.db.close();
             this.db = null;
             this._initialized = false;
         }
+    }
+    // ===== 实体关系管理 (Entity Graph) =====
+    /**
+     * 添加实体关系三元组
+     * @param {string} subject - 主体（如"用户"）
+     * @param {string} predicate - 谓词/关系（如"儿子"）
+     * @param {string} object - 客体（如"小明"）
+     * @param {string} sourceMemoryId - 来源记忆 ID
+     */
+    addEntityRelation(subject, predicate, object, sourceMemoryId = null) {
+        const id = uuidv4();
+        const now = new Date().toISOString();
+        this.db.run('INSERT INTO entity_relationships (id, subject, predicate, object, source_memory_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [id, subject, predicate, object, sourceMemoryId, now]);
+        this._debouncedSave();
+        return { id, subject, predicate, object };
+    }
+    /**
+     * 查询某个实体的所有关联关系（正向+反向）
+     * @param {string} entity - 实体名称
+     * @returns {Array}
+     */
+    queryEntityRelations(entity) {
+        const querySql = `
+      SELECT r.* FROM entity_relationships r
+      LEFT JOIN memories m ON r.source_memory_id = m.id
+      WHERE (r.subject LIKE ? OR r.object LIKE ?)
+        AND (m.id IS NULL OR m.tags NOT LIKE '%promoted%')
+    `;
+        const forward = this.db.exec(querySql, [`%${entity}%`, `%${entity}%`]);
+        return this._parseResults(forward);
+    }
+    // ===== 情景记忆管理 (Episodic Memory) =====
+    /**
+     * 保存对话情景摘要
+     * @param {string} conversationId - 对话 ID
+     * @param {string} summary - 摘要内容
+     * @param {string[]} topics - 主题标签
+     */
+    saveEpisode(conversationId, summary, topics = []) {
+        const id = uuidv4();
+        const now = new Date().toISOString();
+        this.db.run('INSERT INTO memory_episodes (id, conversation_id, summary, topics_json, created_at) VALUES (?, ?, ?, ?, ?)', [id, conversationId, summary, JSON.stringify(topics), now]);
+        this._save();
+        return { id, conversationId, summary, topics };
+    }
+    /**
+     * 获取最近的情景摘要
+     * @param {number} limit - 返回数量
+     * @returns {Array}
+     */
+    getRecentEpisodes(limit = 10) {
+        const results = this.db.exec('SELECT * FROM memory_episodes ORDER BY created_at DESC LIMIT ?', [limit]);
+        return this._parseResults(results);
+    }
+    // ===== 记忆召回计数与衰减权重 =====
+    /**
+     * 增加记忆召回计数（每次被 AI 召回时调用）
+     * @param {string} memoryId - 记忆 ID
+     */
+    bumpRecallCount(memoryId) {
+        const now = new Date().toISOString();
+        this.db.run('UPDATE memories SET recall_count = recall_count + 1, last_recalled_at = ? WHERE id = ?', [now, memoryId]);
+        this._debouncedSave();
+    }
+    /**
+     * 更新记忆内容（用于 LLM 冲突合并后的覆写）
+     * @param {string} memoryId - 记忆 ID
+     * @param {string} newContent - 新内容
+     */
+    updateMemoryContent(memoryId, newContent) {
+        const now = new Date().toISOString();
+        this.db.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', [newContent, now, memoryId]);
+        this._save();
+    }
+    // ===== 任务队列管理 =====
+    /**
+     * 添加后台任务
+     * @param {string} taskType - 任务类型
+     * @param {Object|string} payload - 任务参数
+     * @returns {Object}
+     */
+    addJob(taskType, payload) {
+        const id = uuidv4();
+        const now = new Date().toISOString();
+        const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        this.db.run('INSERT INTO background_jobs (id, task_type, payload, status, retry_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [id, taskType, payloadStr, 'pending', 0, now, now]);
+        this._save();
+        return { id, taskType, payload: payloadStr, status: 'pending', retry_count: 0, created_at: now, updated_at: now };
+    }
+    /**
+     * 获取所有待处理/重试的任务
+     * @returns {Array}
+     */
+    getPendingJobs() {
+        const results = this.db.exec("SELECT * FROM background_jobs WHERE status = 'pending' OR status = 'retry' ORDER BY created_at ASC");
+        return this._parseResults(results);
+    }
+    /**
+     * 更新任务状态
+     * @param {string} id - 任务 ID
+     * @param {string} status - 状态
+     * @param {string|null} error - 错误信息
+     * @param {number} retryCount - 重试次数
+     */
+    updateJobStatus(id, status, error = null, retryCount = 0) {
+        const now = new Date().toISOString();
+        this.db.run('UPDATE background_jobs SET status = ?, last_error = ?, retry_count = ?, updated_at = ? WHERE id = ?', [status, error, retryCount, now, id]);
+        this._debouncedSave();
+    }
+    /**
+     * 删除任务
+     * @param {string} id - 任务 ID
+     */
+    deleteJob(id) {
+        this.db.run('DELETE FROM background_jobs WHERE id = ?', [id]);
+        this._debouncedSave();
     }
 }
 module.exports = { MemoryStore };

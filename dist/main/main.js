@@ -33,6 +33,22 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let mainWindow = null;
 let floatWindow = null;
+// [P0 单例锁防御] 避免多实例启动导致端口冲突与资源占用
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+    process.exit(0);
+}
+else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized())
+                mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
 /**
  * 创建主窗口
  */
@@ -372,7 +388,22 @@ app.whenReady().then(async () => {
         const pathToFile = path.normalize(filePath);
         return net.fetch(`file://${pathToFile}`);
     });
-    Menu.setApplicationMenu(null);
+    const template = [
+        {
+            label: '编辑',
+            submenu: [
+                { label: '撤销', role: 'undo' },
+                { label: '重做', role: 'redo' },
+                { type: 'separator' },
+                { label: '剪切', role: 'cut' },
+                { label: '复制', role: 'copy' },
+                { label: '粘贴', role: 'paste' },
+                { label: '全选', role: 'selectall' }
+            ]
+        }
+    ];
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
     registerIpcHandlers();
     // 2. 初始化本地数据目录与后端业务实例 (零 TCP 端口监听，全内存数据流转)
     const os = require('os');
@@ -438,13 +469,74 @@ app.whenReady().then(async () => {
     const automation = new AutomationController(sandbox);
     await memoryStore.init();
     console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
+    // 初始化持久化任务队列与后台任务守护进程
+    const { PersistentJobQueue } = require('../backend/persistent-job-queue');
+    const { BackgroundJobWorker } = require('../backend/background-job-worker');
+    const { MemoryEngine } = require('../backend/memory-engine');
+    const jobQueue = new PersistentJobQueue(memoryStore);
+    const jobWorker = new BackgroundJobWorker(jobQueue, memoryStore);
+    const memoryEngine = new MemoryEngine(modelManager, memoryStore, dataDir);
+    // 注册大模型异步记忆抽取任务处理器
+    jobWorker.registerHandler('memory-extraction', async (payload) => {
+        const { replyText } = payload;
+        await memoryEngine.processMemoryExtractionAsync(replyText);
+    });
+    // 注册大模型记忆向量化异步提炼任务处理器
+    const { VectorStore: LocalVectorStore } = require('../backend/vector-store');
+    const { vectorDbManager } = require('../backend/vector-db-manager');
+    jobWorker.registerHandler('memory-vectorization', async (payload) => {
+        const { memoryId, content } = payload;
+        const memVecStore = new LocalVectorStore(path.join(dataDir, 'memories_vectors.json'));
+        await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store) => {
+            const embedding = await modelManager.getEmbedding(content);
+            await store.addDocuments([{
+                    id: require('crypto').randomUUID(),
+                    content,
+                    metadata: { source: content, memoryId, timestamp: new Date().toISOString() },
+                    embedding
+                }]);
+        });
+    });
+    // 注册大模型记忆消重反刍任务处理器
+    const { MemoryConsolidationPipeline } = require('../backend/memory-consolidation-pipeline');
+    const consolidationPipeline = new MemoryConsolidationPipeline(modelManager, memoryStore);
+    jobWorker.registerHandler('memory-consolidation', async () => {
+        await consolidationPipeline.consolidate();
+    });
+    jobWorker.start();
+    // 启动时投递一次记忆整理任务
+    jobQueue.enqueue('memory-consolidation', {});
+    // 每 2 小时自动向队列投递一次记忆消重整理任务
+    setInterval(() => {
+        try {
+            jobQueue.enqueue('memory-consolidation', {});
+        }
+        catch (e) { }
+    }, 2 * 60 * 60 * 1000);
     // 挂载并启动知识蒸馏泵 (Nightly Knowledge Pump)
     const { VectorStore } = require('../backend/vector-store');
-    const vectorStore = new VectorStore(path.join(baseDataDir, 'vectors.json'));
+    const vectorStore = new VectorStore(path.join(dataDir, 'vectors.json'));
     await vectorStore.load();
+    const { IngestionQueueManager } = require('../backend/ingestion-queue');
+    const queueManager = new IngestionQueueManager(modelManager, dataDir);
     const { KnowledgePump } = require('../backend/knowledge-pump');
-    const knowledgePump = new KnowledgePump(modelManager, vectorStore);
+    const knowledgePump = new KnowledgePump(modelManager, vectorStore, dataDir, queueManager);
     knowledgePump.start();
+    // 加载本地被监控文件夹列表
+    const settingsPath = path.join(dataDir, 'settings.json');
+    let watchedFolders = [];
+    if (fs.existsSync(settingsPath)) {
+        try {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            if (settings.watchedFolders && Array.isArray(settings.watchedFolders)) {
+                watchedFolders = settings.watchedFolders;
+            }
+        }
+        catch (e) { }
+    }
+    const { FolderWatcherManager } = require('../backend/folder-watcher');
+    const folderWatcher = new FolderWatcherManager(queueManager, dataDir);
+    folderWatcher.startWatching(watchedFolders);
     // 3. 注册全链路原生 IPC API 路由分发器，彻底替代 Express 路由
     const { registerApiIpc } = require('./ipc-handlers');
     registerApiIpc({
@@ -455,7 +547,10 @@ app.whenReady().then(async () => {
         automation,
         baseDataDir,
         globalConfigPath,
-        dataDir
+        dataDir,
+        queueManager,
+        folderWatcher,
+        jobQueue
     }, () => mainWindow);
     createMainWindow();
     createFloatWindow();

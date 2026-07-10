@@ -47,7 +47,7 @@ if (worker_threads_1.parentPort) {
                 result = `[离线图片OCR提取内容]\n${text}`;
             }
             else if (fileType.includes('pdf')) {
-                const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+                const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs');
                 const data = new Uint8Array(fs.readFileSync(filePath));
                 const loadingTask = pdfjsLib.getDocument({
                     data,
