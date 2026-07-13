@@ -128,12 +128,13 @@ export class ContextAggregator {
       onChunk: (chunk: string) => {
         mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: chunk });
       },
-      onRequiresConfirmation: (cmd: string, riskLevel: string, msg: string) => {
+      onRequiresConfirmation: (cmd: string, riskLevel: string, msg: string, confirmationId: string) => {
         mainWindow.webContents.send('api:chat:chunk', { 
           type: 'requires_confirmation', 
           command: cmd,
           riskLevel: riskLevel,
           message: msg,
+          confirmationId: confirmationId,
           conversationId: convId
         });
       }

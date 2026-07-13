@@ -5,7 +5,7 @@
  */
 
 import toast from './components.js';
-import { api } from './utils.js';
+import { api, safeImgSrc } from './utils.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
@@ -232,7 +232,10 @@ function initLogoUpload() {
   // 加载保存的自定义 Logo
   const savedLogo = localStorage.getItem('openclaw_custom_logo');
   if (savedLogo) {
-    logoIcon.innerHTML = `<img src="${savedLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+    const safeLogo = safeImgSrc(savedLogo);
+    if (safeLogo) {
+      logoIcon.innerHTML = `<img src="${safeLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+    }
   }
 
   // 点击 Logo 触发上传
@@ -291,7 +294,12 @@ function initLogoUpload() {
       // 保存到 localStorage
       localStorage.setItem('openclaw_custom_logo', dataUrl);
       // 更新 Logo 显示
-      logoIcon.innerHTML = `<img src="${dataUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+      const safeLogo = safeImgSrc(dataUrl);
+      if (safeLogo) {
+        logoIcon.innerHTML = `<img src="${safeLogo}" style="width:100%; height:100%; object-fit:cover; border-radius:inherit;" />`;
+      } else {
+        window.__toast?.error('Logo 格式不安全，已拒绝显示');
+      }
       window.__toast?.success('Logo 已更新');
     };
     reader.readAsDataURL(file);
@@ -307,6 +315,7 @@ let sidebarConvSearchQuery = '';
 // 批量管理模式状态
 let batchMode = false;
 let batchSelected = new Set();
+let batchEscHandler: any = null;
 
 /**
  * 加载侧边栏会话列表
@@ -336,14 +345,13 @@ async function loadSidebarConversations(query = '') {
   let batchToolbar = '';
   if (batchMode) {
     batchToolbar = `
-      <div class="batch-toolbar" style="display:flex; align-items:center; gap:6px; padding:6px 8px; margin-bottom:4px; border-radius:8px; background:rgba(255,59,48,0.08); border:1px solid rgba(255,59,48,0.15);">
-        <label style="display:flex; align-items:center; gap:4px; font-size:12px; cursor:pointer; color:var(--text-muted);">
-          <input type="checkbox" id="batchSelectAll" style="cursor:pointer;" /> 全选
+      <div class="batch-toolbar" style="display:flex; align-items:center; gap:5px; padding:5px 6px; margin-bottom:6px; border-radius:8px; background:var(--bg-hover); border:1px solid var(--border-light); box-shadow:var(--shadow-sm); box-sizing:border-box; width:100%; overflow:hidden; justify-content:flex-start;">
+        <label style="display:flex; align-items:center; gap:3px; font-size:11px; font-weight:500; cursor:pointer; color:var(--text-primary); white-space:nowrap; flex-shrink:0;">
+          <input type="checkbox" id="batchSelectAll" style="cursor:pointer;" /> 全选${batchSelected.size > 0 ? `(${batchSelected.size})` : ''}
         </label>
-        <span style="font-size:11px; color:var(--text-muted);">${batchSelected.size > 0 ? `已选 ${batchSelected.size} 项` : ''}</span>
-        <div style="flex:1;"></div>
-        <button id="batchDeleteBtn" style="font-size:11px; padding:3px 8px; border-radius:6px; border:none; background:#ff3b30; color:#fff; cursor:pointer;">删除选中</button>
-        <button id="batchCancelBtn" style="font-size:11px; padding:3px 8px; border-radius:6px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer;">取消</button>
+        <button id="batchExportBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:1px solid var(--primary); background:transparent; color:var(--primary); cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='var(--primary-light)'" onmouseout="this.style.background='transparent'">导出</button>
+        <button id="batchDeleteBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:none; background:#ff3b30; color:#fff; cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='#e0241b'" onmouseout="this.style.background='#ff3b30'">删除</button>
+        <button id="batchCancelBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">取消</button>
       </div>
     `;
   }
@@ -395,6 +403,10 @@ async function loadSidebarConversations(query = '') {
       exitBatchMode();
       loadSidebarConversations(sidebarConvSearchQuery);
       updateTrashBadge();
+    });
+    (document.getElementById('batchExportBtn') as any)?.addEventListener('click', () => {
+      if (batchSelected.size === 0) { window.__toast?.info('请先选择要导出的会话'); return; }
+      batchExportConversationUI(Array.from(batchSelected));
     });
     (document.getElementById('batchCancelBtn') as any)?.addEventListener('click', () => {
       exitBatchMode();
@@ -462,6 +474,17 @@ async function loadSidebarConversations(query = '') {
 function enterBatchMode() {
   batchMode = true;
   batchSelected.clear();
+  
+  if (!batchEscHandler) {
+    batchEscHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && batchMode) {
+        exitBatchMode();
+        loadSidebarConversations(sidebarConvSearchQuery);
+      }
+    };
+    window.addEventListener('keydown', batchEscHandler);
+  }
+  
   loadSidebarConversations(sidebarConvSearchQuery);
 }
 
@@ -469,6 +492,11 @@ function enterBatchMode() {
 function exitBatchMode() {
   batchMode = false;
   batchSelected.clear();
+  
+  if (batchEscHandler) {
+    window.removeEventListener('keydown', batchEscHandler);
+    batchEscHandler = null;
+  }
 }
 
 /**
@@ -643,11 +671,93 @@ async function exportConversationUI(convId) {
 }
 
 /**
+ * 批量导出对话 UI - 支持多种格式
+ */
+async function batchExportConversationUI(convIds) {
+  const formats = [
+    { id: 'json', icon: '📋', label: 'JSON', desc: '完整数据，可备份恢复', ext: '.json' },
+    { id: 'markdown', icon: '📝', label: 'Markdown', desc: '易读文本格式', ext: '.md' },
+    { id: 'html', icon: '🌐', label: 'HTML', desc: '网页格式，带样式', ext: '.html' },
+    { id: 'txt', icon: '📄', label: 'TXT', desc: '纯文本格式', ext: '.txt' },
+    { id: 'pdf', icon: '📕', label: 'PDF', desc: '便携文档格式', ext: '.pdf' },
+    { id: 'word', icon: '📘', label: 'Word', desc: 'Office 文档格式', ext: '.docx' },
+    { id: 'png', icon: '🖼️', label: 'PNG', desc: '长截图格式', ext: '.png' },
+  ];
+
+  const overlay = (document.createElement('div') as any);
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(6px); z-index:100000; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s;';
+  const box = (document.createElement('div') as any);
+  box.style.cssText = 'background:var(--bg-card); border-radius:16px; width:90%; max-width:420px; box-shadow:0 20px 40px rgba(0,0,0,0.2); transform:translateY(20px) scale(0.95); transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);';
+
+  box.innerHTML = `
+    <div style="padding:20px 24px; border-bottom:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:18px; font-weight:600;">📤 批量导出对话 (${convIds.length} 个)</h3>
+      <button id="closeBatchExportBtn" style="background:none; border:none; font-size:20px; cursor:pointer; color:var(--text-muted);">&times;</button>
+    </div>
+    <div style="padding:16px 20px;">
+      <div style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">选择导出格式：</div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${formats.map(f => `
+          <div class="batch-export-format-item" data-format="${f.id}" style="display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:12px; border:1.5px solid var(--border-light); cursor:pointer; transition:all 0.2s;">
+            <span style="font-size:24px;">${f.icon}</span>
+            <div style="flex:1;">
+              <div style="font-weight:600; font-size:14px;">${f.label}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${f.desc}</div>
+            </div>
+            <span style="font-size:11px; color:var(--text-muted); background:var(--bg-hover); padding:2px 8px; border-radius:6px;">${f.ext}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => { overlay.style.opacity = '1'; box.style.transform = 'translateY(0) scale(1)'; });
+
+  const close = () => { overlay.style.opacity = '0'; setTimeout(() => overlay.remove(), 200); };
+  (document.getElementById('closeBatchExportBtn') as any).onclick = close;
+  overlay.onclick = (e) => { if ((e.target as any) === overlay) close(); };
+
+  box.querySelectorAll('.batch-export-format-item').forEach(item => {
+    item.onmouseenter = () => { item.style.borderColor = 'var(--primary)'; item.style.background = 'var(--primary-light)'; };
+    item.onmouseleave = () => { item.style.borderColor = 'var(--border-light)'; item.style.background = 'transparent'; };
+    item.onclick = async () => {
+      const format = item.dataset.format;
+      close();
+      window.__toast?.info(`正在批量导出 ${convIds.length} 个会话...`);
+      
+      let successCount = 0;
+      let failCount = 0;
+      for (const id of convIds) {
+        try {
+          await doExport(id, format, true);
+          successCount++;
+        } catch (e) {
+          failCount++;
+          console.error(`会话 ${id} 导出失败:`, e);
+        }
+      }
+      
+      if (failCount === 0) {
+        window.__toast?.success(`🎉 批量导出成功！共导出 ${successCount} 个文件`);
+      } else {
+        window.__toast?.warning(`⚠️ 批量导出完成：成功 ${successCount}，失败 ${failCount}`);
+      }
+      
+      // 导出完成后退出批量管理模式
+      exitBatchMode();
+      loadSidebarConversations(sidebarConvSearchQuery);
+    };
+  });
+}
+
+/**
  * 执行导出
  */
-async function doExport(convId, format) {
+async function doExport(convId, format, silent = false) {
   try {
-    window.__toast?.info('正在导出...');
+    if (!silent) window.__toast?.info('正在导出...');
     const data = await api.chat.exportConversation(convId);
     const safeName = (data.title || '对话').replace(/[<>:"/\\|?*]/g, '_');
 
@@ -674,10 +784,11 @@ async function doExport(convId, format) {
         await exportToPNG(data, safeName);
         break;
     }
-    window.__toast?.success('导出成功');
+    if (!silent) window.__toast?.success('导出成功');
   } catch (e) {
     console.error('导出失败:', e);
-    window.__toast?.error('导出失败: ' + e.message);
+    if (!silent) window.__toast?.error('导出失败: ' + e.message);
+    throw e;
   }
 }
 
@@ -808,8 +919,8 @@ function loadExternalScript(url) {
  */
 async function exportToPDF(data, filename) {
   // 动态加载 jsPDF
-  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js');
-  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js');
+  await loadExternalScript('./assets/lib/jspdf.umd.min.js');
+  await loadExternalScript('./assets/lib/html2pdf.bundle.min.js');
 
   // 创建临时 HTML
   const html = convertToHTML(data);
@@ -838,7 +949,7 @@ async function exportToPDF(data, filename) {
  */
 async function exportToWord(data, filename) {
   // 动态加载 docx 库
-  await loadExternalScript('https://unpkg.com/docx@8.5.0/build/index.umd.js');
+  await loadExternalScript('./assets/lib/docx.umd.js');
 
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
 
@@ -879,7 +990,7 @@ async function exportToWord(data, filename) {
  */
 async function exportToPNG(data, filename) {
   // 动态加载 html2canvas
-  await loadExternalScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await loadExternalScript('./assets/lib/html2canvas.min.js');
 
   // 创建临时 HTML 容器
   const html = convertToHTML(data);

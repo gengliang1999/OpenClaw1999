@@ -4,7 +4,7 @@
  * 上方：云端模型服务（国内外主流厂商 + 详细配置）
  * 上方：本地运行时检测 + 模型大市场（可滚动）
  */
-import { api } from '../utils.js';
+import { api, safeImgSrc } from '../utils.js';
 let settings = {};
 let localStatus = { ollama: { running: false, models: [] }, lmstudio: { running: false, models: [] } };
 let activeModelId = '';
@@ -198,7 +198,8 @@ function renderCloudVendors() {
         const isCustom = key.startsWith('custom_');
         const displayName = conf.customName || baseVendor.name;
         const modelName = conf.defaultModel || '未知模型';
-        const icon = conf.customLogo ? `<img src="${conf.customLogo}" alt="logo" />` : `<span>${baseVendor.icon}</span>`;
+        const logoSrc = conf.customLogo ? safeImgSrc(conf.customLogo) : null;
+        const icon = logoSrc ? `<img src="${logoSrc}" alt="logo" />` : `<span>${baseVendor.icon}</span>`;
         return { key, conf, baseVendor, isCustom, displayName, modelName, icon };
     }).filter(Boolean);
     // 分离出官方已配置和自定义已配置，并各自排序
@@ -285,7 +286,10 @@ function openCloudConfig(vendor) {
     // Header
     const logoEl = document.getElementById('configVendorLogo');
     if (conf.customLogo) {
-        logoEl.innerHTML = `<img src="${conf.customLogo}" alt="logo" />`;
+        const logoSrc = safeImgSrc(conf.customLogo);
+        logoEl.innerHTML = logoSrc ? `<img src="${logoSrc}" alt="logo" />` : `<div class="upload-placeholder"><span>${vendor.icon || '+'}</span>Logo</div>`;
+        if (!logoSrc)
+            logoEl.style.background = (vendor.color || '#888') + '15';
     }
     else {
         logoEl.innerHTML = `<div class="upload-placeholder"><span>${vendor.icon || '+'}</span>Logo</div>`;
@@ -526,7 +530,8 @@ function compressAndSetLogo(dataUrl) {
         const compressed = canvas.toDataURL('image/webp', 0.7); // WebP 格式，70% 质量
         currentLogoDataUrl = compressed;
         const logoEl = document.getElementById('configVendorLogo');
-        logoEl.innerHTML = `<img src="${compressed}" alt="logo" />`;
+        const safeLogo = safeImgSrc(compressed);
+        logoEl.innerHTML = safeLogo ? `<img src="${safeLogo}" alt="logo" />` : '';
         window.__toast?.success('Logo 已压缩并设置');
     };
     img.src = dataUrl;

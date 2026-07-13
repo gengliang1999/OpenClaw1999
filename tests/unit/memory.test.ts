@@ -17,6 +17,9 @@ describe('MemoryStore', () => {
   });
 
   afterAll(() => {
+    if (store && typeof store.close === 'function') {
+      try { store.close(); } catch (e) { /* 忽略关闭时的写盘异常 */ }
+    }
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
     }

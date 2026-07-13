@@ -35,13 +35,18 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DataCrawler = void 0;
 const cheerio = __importStar(require("cheerio"));
+const ssrf_guard_1 = require("./ssrf-guard");
 class DataCrawler {
     /**
-     * 抓取 URL 内容，并使用 cheerio 清洗出网页干净的文本内容
+     * 抓取 URL 内容，并使用 cheerio 清洗出网页干净的文本内容。
+     * 调用前强制经过 SSRF 防护（assertSafeUrl）：阻断私网 / 回环 / 非 http(s) / 不在白名单的地址。
      * @param url - 目标网址
+     * @param opts - 可选配置（allowlistDomains 域名白名单）
      * @returns 过滤出的纯文本正文
      */
-    static async crawlUrl(url) {
+    static async crawlUrl(url, opts = {}) {
+        // SSRF 防护：先校验 URL 与目标地址安全性
+        await (0, ssrf_guard_1.assertSafeUrl)(url, { allowlistDomains: opts.allowlistDomains });
         const fetchFn = globalThis.fetch || require('node-fetch');
         const response = await fetchFn(url, { signal: AbortSignal.timeout(5000) });
         if (!response.ok) {

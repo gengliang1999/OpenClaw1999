@@ -207,10 +207,21 @@ class IngestionQueueManager {
         if (!fs.existsSync(knowledgeDir)) {
             fs.mkdirSync(knowledgeDir, { recursive: true });
         }
-        // 2. 使用 DataCrawler 获取正文
+        // 2. 使用 DataCrawler 获取正文（SSRF 防护在 DataCrawler 内部统一执行）
         if (task.type === 'url') {
             const { DataCrawler } = require('./data-crawler');
-            rawText = await DataCrawler.crawlUrl(task.target);
+            // 读取抓取白名单域名，约束外联范围
+            let allowlistDomains = [];
+            try {
+                const settingsPath = path.join(this.baseDataDir, 'settings.json');
+                if (fs.existsSync(settingsPath)) {
+                    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+                    if (Array.isArray(s.crawlingAllowlist))
+                        allowlistDomains = s.crawlingAllowlist;
+                }
+            }
+            catch (e) { }
+            rawText = await DataCrawler.crawlUrl(task.target, { allowlistDomains });
             sourceName = task.target;
         }
         else {

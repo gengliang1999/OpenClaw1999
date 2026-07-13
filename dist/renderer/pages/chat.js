@@ -2,10 +2,11 @@
 /**
  * 聊天页面 v3 — 全宽聊天界面，会话管理已移至主侧边栏
  */
-import { api } from '../utils.js';
+import { api, safeImgSrc } from '../utils.js';
 import { escapeHtml } from '../utils.js';
 import { parseMarkdown } from '../utils.js';
 import { EXPERTS } from './experts.js';
+import { showSandboxConfirm } from '../components.js';
 let activeConvId = null;
 let isGenerating = false;
 let models = [];
@@ -145,12 +146,7 @@ export async function render(container) {
                   清空上下文
                 </button>
 
-                <!-- 思考设定 -->
-                <button id="tuningModalBtn" class="btn-ghost" title="系统思考设定" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                  高级设定
-                </button>
-                
+
                 <!-- 代理模式 (Agent Tool Calling) 开关 -->
                 <button id="agentModeBtn" class="btn-ghost" title="让 AI 在后台自动调用本地读取工具与系统组件" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--text-secondary);">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -216,49 +212,7 @@ export async function render(container) {
        </div>
     </div>
 
-    <!-- 思考设定 (Tuning Modal) -->
-    <div id="tuningModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-       <div style="background: var(--bg-app); width: 480px; max-width: 90%; border-radius: 20px; box-shadow: 0 24px 48px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column;">
-          <div style="padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
-             <h3 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">🧠 思考设定 <span style="font-size: 12px; font-weight: normal; color: var(--text-muted); background: var(--bg-hover); padding: 2px 8px; border-radius: 10px;">微调 AI 性格与思考方式</span></h3>
-             <button id="closeTuningModalBtn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);">&times;</button>
-          </div>
-          <div style="padding: 24px; display: flex; flex-direction: column; gap: 24px; max-height: 60vh; overflow-y: auto;">
-             
-             <!-- 系统设定 (System Prompt) -->
-             <div class="config-form-group">
-                <label style="font-weight: 600; font-size: 14px;">🎭 角色与背景设定 (System Prompt)</label>
-                <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">赋予 AI 特定的身份、语气和知识背景（例如：“你是一个暴躁的老板”或“你是一位专业的法律顾问”）。</div>
-                <textarea id="tuningSystemPrompt" class="input" style="height: 100px; resize: vertical;" placeholder="默认：你是一个乐于助人的智能助手。"></textarea>
-             </div>
 
-             <!-- 发散程度 (Temperature) -->
-             <div class="tuning-slider-container">
-                <div class="tuning-slider-header">
-                   <div class="tuning-slider-label">🌡️ 发散程度 (Temperature)</div>
-                   <div class="tuning-slider-value" id="tuningTempValue">1.0</div>
-                </div>
-                <div class="tuning-slider-desc" style="margin-bottom: 6px;">较小的值回答更精确严谨；较大的值回答更具创造力和想象力。</div>
-                <input type="range" id="tuningTemp" class="tuning-slider" min="0" max="2" step="0.1" value="1.0">
-             </div>
-
-             <!-- 记忆深度 (Max History) -->
-             <div class="tuning-slider-container">
-                <div class="tuning-slider-header">
-                   <div class="tuning-slider-label">📚 记忆深度 (Context Size)</div>
-                   <div class="tuning-slider-value" id="tuningHistoryValue">10 轮</div>
-                </div>
-                <div class="tuning-slider-desc" style="margin-bottom: 6px;">AI 单次对话能记住的上下文轮数。调大更聪明，但消耗更多算力。</div>
-                <input type="range" id="tuningHistory" class="tuning-slider" min="0" max="50" step="1" value="10">
-             </div>
-
-          </div>
-          <div style="padding: 16px 24px; border-top: 1px solid var(--border-light); background: var(--bg-panel); display: flex; justify-content: flex-end; gap: 12px;">
-             <button id="resetTuningBtn" class="btn btn-default" style="border-radius: 10px;">恢复默认</button>
-             <button id="saveTuningBtn" class="btn btn-primary" style="border-radius: 10px; padding: 0 24px;">保存设定</button>
-          </div>
-        </div>
-     </div>
 
     <!-- OCR 识别结果浮窗 -->
     <div id="ocrResultModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);">
@@ -306,17 +260,6 @@ export async function render(container) {
             window.__toast.info('已退出专家模式');
     });
     const chatInput = document.getElementById('chatInput');
-    // --- Tuning Modal 逻辑 ---
-    const tuningModalBtn = document.getElementById('tuningModalBtn');
-    const tuningModal = document.getElementById('tuningModal');
-    const closeTuningModalBtn = document.getElementById('closeTuningModalBtn');
-    const tuningTemp = document.getElementById('tuningTemp');
-    const tuningTempValue = document.getElementById('tuningTempValue');
-    const tuningHistory = document.getElementById('tuningHistory');
-    const tuningHistoryValue = document.getElementById('tuningHistoryValue');
-    const tuningSystemPrompt = document.getElementById('tuningSystemPrompt');
-    const saveTuningBtn = document.getElementById('saveTuningBtn');
-    const resetTuningBtn = document.getElementById('resetTuningBtn');
     const plusMenuBtn = document.getElementById('plusMenuBtn');
     const plusMenu = document.getElementById('plusMenu');
     if (plusMenuBtn && plusMenu) {
@@ -336,39 +279,6 @@ export async function render(container) {
             if (plusMenu)
                 plusMenu.style.display = 'none';
         });
-    });
-    // 初始化 sessionConfig
-    window.sessionConfig = window.sessionConfig || { temp: 1.0, maxHistory: 10, systemPrompt: '' };
-    const openTuningModal = () => {
-        tuningTemp.value = window.sessionConfig.temp;
-        tuningTempValue.textContent = parseFloat(window.sessionConfig.temp).toFixed(1);
-        tuningHistory.value = window.sessionConfig.maxHistory;
-        tuningHistoryValue.textContent = window.sessionConfig.maxHistory + ' 轮';
-        tuningSystemPrompt.value = window.sessionConfig.systemPrompt || '';
-        tuningModal.style.display = 'flex';
-    };
-    tuningModalBtn.addEventListener('click', openTuningModal);
-    closeTuningModalBtn.addEventListener('click', () => tuningModal.style.display = 'none');
-    tuningTemp.addEventListener('input', (e) => {
-        tuningTempValue.textContent = parseFloat(e.target.value).toFixed(1);
-    });
-    tuningHistory.addEventListener('input', (e) => {
-        tuningHistoryValue.textContent = e.target.value + ' 轮';
-    });
-    saveTuningBtn.addEventListener('click', () => {
-        window.sessionConfig.temp = parseFloat(tuningTemp.value);
-        window.sessionConfig.maxHistory = parseInt(tuningHistory.value);
-        window.sessionConfig.systemPrompt = tuningSystemPrompt.value.trim();
-        tuningModal.style.display = 'none';
-        if (window.__toast)
-            window.__toast.success('🧠 思考设定已保存，将在下一次对话生效');
-    });
-    resetTuningBtn.addEventListener('click', () => {
-        tuningTemp.value = 1.0;
-        tuningTempValue.textContent = '1.0';
-        tuningHistory.value = 10;
-        tuningHistoryValue.textContent = '10 轮';
-        tuningSystemPrompt.value = '';
     });
     // --- Mention Popup (@呼叫专家) 逻辑 ---
     let mentionActive = false;
@@ -1090,8 +1000,9 @@ async function loadModels() {
         (res || []).forEach(m => uniqueMap.set(m.id, m));
         models = Array.from(uniqueMap.values());
         const activeRes = await api.model.getActiveModel();
-        if (activeRes && activeRes.id) {
-            activeModelId = activeRes.id;
+        const activeId = activeRes?.id || activeRes?.modelId;
+        if (activeRes && activeId) {
+            activeModelId = activeId;
         }
         else if (models.length > 0) {
             activeModelId = models[0].id;
@@ -1444,7 +1355,10 @@ async function sendMessage() {
     if (attachmentData) {
         const isImage = attachmentData.startsWith('data:image/') && !attachmentData.startsWith('data:image/svg+xml');
         if (isImage) {
-            userHtml += `<div style="margin-top: 8px;"><img src="${attachmentData}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+            const safeAttachment = safeImgSrc(attachmentData);
+            if (safeAttachment) {
+                userHtml += `<div style="margin-top: 8px;"><img src="${safeAttachment}" style="max-height: 120px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+            }
         }
         else {
             const svgIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`;
@@ -1498,6 +1412,24 @@ async function sendMessage() {
         }
         const prompt = (activeExpert ? activeExpert.prompt : '') + extraPrompt;
         await api.chat.sendMessageStream(activeConvId, text, attachmentData, activeModelId, prompt, temp, isAgentModeEnabled, (parsed) => {
+            // T2/S5：沙盒确认回灌 —— 收到后端授权请求，弹窗并回传用户决策
+            if (parsed.type === 'requires_confirmation') {
+                window.__toast?.info('⚠️ 助手请求执行命令，等待您授权…');
+                showSandboxConfirm(parsed.command, parsed.message).then((decision) => {
+                    api.sandbox.executeCommand(parsed.command, {
+                        confirmed: decision.confirmed,
+                        permanent: decision.permanent,
+                        confirmationId: parsed.confirmationId,
+                    });
+                    if (decision.confirmed) {
+                        window.__toast?.success(decision.permanent ? '✅ 已授权（已记住 30 天）' : '✅ 已授权执行一次');
+                    }
+                    else {
+                        window.__toast?.warn('🚫 已拒绝执行');
+                    }
+                });
+                return;
+            }
             if (parsed.type === 'error') {
                 let errorMsg = parsed.message || '未知错误';
                 if (errorMsg.toLowerCase().includes('401') || errorMsg.toLowerCase().includes('key') || errorMsg.toLowerCase().includes('auth')) {

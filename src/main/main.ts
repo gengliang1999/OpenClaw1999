@@ -19,6 +19,9 @@ const nodeCrypto = require('crypto');
 const apiToken = nodeCrypto.randomBytes(32).toString('hex');
 process.env.OPENCLAW_API_TOKEN = apiToken;
 
+// [P1/I6] 日志脱敏工具（与后端共享模块，避免密钥/敏感路径明文落盘）
+const { redactForLog } = require('../backend/security-utils');
+
 // 注册自定义协议特权 scheme，保障本地静态文件同源 ES Modules 安全加载
 protocol.registerSchemesAsPrivileged([
   {
@@ -27,7 +30,6 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       standard: true,
       supportFetchAPI: true,
-      bypassCSP: true,
       corsEnabled: true,
       stream: true,
     }
@@ -416,6 +418,13 @@ app.whenReady().then(async () => {
     }
     const { net } = require('electron');
     const pathToFile = path.normalize(filePath);
+    // [P0/T1] 目录穿越防护：仅允许访问 dist 渲染目录，拒绝 .. 越权路径
+    const allowedRoot = path.resolve(__dirname, '..');
+    const resolved = path.resolve(pathToFile);
+    if (resolved !== allowedRoot && !resolved.startsWith(allowedRoot + path.sep)) {
+      console.warn(`[安全拦截] 拒绝访问越权路径: ${request.url}`);
+      return new Response('Forbidden', { status: 403 });
+    }
     return net.fetch(`file://${pathToFile}`);
   });
 
@@ -479,17 +488,23 @@ app.whenReady().then(async () => {
     fs.mkdirSync(logDir, { recursive: true });
   }
 
-  // 重定向 console.log 到物理日志文件（异步写保护将在后续迭代追加，目前保留文件追加）
+  // 重定向 console.log 到物理日志文件（落盘前脱敏敏感字段，终端输出保持原文）
   const logFilePath = path.join(logDir, 'openclaw.log');
   const originalConsoleLog = console.log;
   const originalConsoleError = console.error;
   console.log = function(...args) {
     originalConsoleLog(...args);
-    try { fs.appendFileSync(logFilePath, `[INFO] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8'); } catch(e) {}
+    try {
+      const line = `[INFO] ${new Date().toISOString()} ${args.join(' ')}`;
+      fs.appendFileSync(logFilePath, redactForLog(line) + '\n', 'utf8');
+    } catch (e) {}
   };
   console.error = function(...args) {
     originalConsoleError(...args);
-    try { fs.appendFileSync(logFilePath, `[ERROR] ${new Date().toISOString()} ${args.join(' ')}\n`, 'utf8'); } catch(e) {}
+    try {
+      const line = `[ERROR] ${new Date().toISOString()} ${args.join(' ')}`;
+      fs.appendFileSync(logFilePath, redactForLog(line) + '\n', 'utf8');
+    } catch (e) {}
   };
 
   const { ModelManager } = require('../backend/model-manager');
@@ -530,12 +545,15 @@ app.whenReady().then(async () => {
     const memVecStore = new LocalVectorStore(path.join(dataDir, 'memories_vectors.json'));
     await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
       const embedding = await modelManager.getEmbedding(content);
-      await store.addDocuments([{
-        id: require('crypto').randomUUID(),
-        content,
-        metadata: { source: content, memoryId, timestamp: new Date().toISOString() },
-        embedding
-      }]);
+      // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量，仅 BM25 召回
+      if (Array.isArray(embedding) && embedding.length > 0) {
+        await store.addDocuments([{
+          id: require('crypto').randomUUID(),
+          content,
+          metadata: { source: content, memoryId, timestamp: new Date().toISOString() },
+          embedding
+        }]);
+      }
     });
   });
 
@@ -601,7 +619,7 @@ app.whenReady().then(async () => {
     queueManager,
     folderWatcher,
     jobQueue
-  }, () => mainWindow);
+  }, () => mainWindow, apiToken);
 
   createMainWindow();
   createFloatWindow();

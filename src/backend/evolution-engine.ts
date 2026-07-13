@@ -4,16 +4,27 @@ import * as path from 'path';
 
 export class EvolutionEngine {
   private skillsDir: string;
+  private proposalsDir: string;
   private memoryStore: any;
   private modelManager: any;
 
-  constructor(baseDataDir: string, memoryStore: any, modelManager: any) {
+  /**
+   * 是否将反思生成的代码自动落盘。
+   * 安全约束（P0/T5）：默认 false —— 仅返回文本，绝不自动写盘/加载可执行代码。
+   * 仅在用户显式开启后方写入隔离区（.agents/skill-proposals），且绝不被任何 require/加载路径引用。
+   */
+  private autoPersistCode: boolean;
+
+  constructor(baseDataDir: string, memoryStore: any, modelManager: any, options: { autoPersistCode?: boolean } = {}) {
     this.skillsDir = path.join(baseDataDir, '.agents', 'skills');
+    // 隔离区：仅用于人工审阅，绝不可被加载路径引用
+    this.proposalsDir = path.join(baseDataDir, '.agents', 'skill-proposals');
     this.memoryStore = memoryStore;
     this.modelManager = modelManager;
+    this.autoPersistCode = options.autoPersistCode === true;
 
-    if (!fs.existsSync(this.skillsDir)) {
-      fs.mkdirSync(this.skillsDir, { recursive: true });
+    if (!fs.existsSync(this.proposalsDir)) {
+      fs.mkdirSync(this.proposalsDir, { recursive: true });
     }
   }
 
@@ -24,7 +35,7 @@ export class EvolutionEngine {
    */
   async evolve(errorContext: string, taskGoal: string): Promise<string> {
     console.log('[自我进化引擎] 触发反思机制...');
-    
+
     const prompt = `
 [自我进化系统核心指令]
 你刚才在尝试完成目标: "${taskGoal}" 时遇到了阻碍或报错:
@@ -52,18 +63,24 @@ export async function execute(sandbox, args) {
     if (codeMatch) {
       const code = codeMatch[1].trim();
       const skillId = 'skill_' + Date.now();
-      const skillPath = path.join(this.skillsDir, `${skillId}.ts`);
-      
-      fs.writeFileSync(skillPath, code, 'utf-8');
-      
-      // 保存一条全局突触记忆，宣告技能进化成功
-      this.memoryStore.addMemory(
-        `我已经学会了如何处理 "${taskGoal}"，并将技能固化在 ${skillId}.ts 中，下次遇到类似问题请直接调用该脚本。`,
-        'Self-Evolution',
-        '["system-auto"]'
-      );
 
-      return `> 🧬 **[系统进化完成]** 经过深度反思，我已将报错的解决方案提炼为物理级永久技能，固化在: \`${skillId}.ts\`。`;
+      // 仅当用户显式开启 autoPersistCode 时才落盘到隔离区（绝不被加载路径引用）
+      if (this.autoPersistCode) {
+        const proposalPath = path.join(this.proposalsDir, `${skillId}.ts`);
+        fs.writeFileSync(proposalPath, code, 'utf-8');
+
+        // 保存一条全局突触记忆，宣告技能进化成功（待人工审阅，未自动加载）
+        this.memoryStore.addMemory(
+          `生成技能提案 ${skillId}.ts，等待人工审阅（未自动加载）`,
+          'Self-Evolution',
+          '["system-pending"]'
+        );
+
+        return `🧬 已生成技能提案（待人工审阅）: ${skillId}.ts`;
+      }
+
+      // 默认：仅返回文本，绝不落盘
+      return `🧬 反思生成以下修复脚本（未自动保存）:\n\`\`\`typescript\n${code}\n\`\`\``;
     }
 
     return `> 🧬 **[系统进化中止]** 反思过程未能生成有效的底层代码。`;

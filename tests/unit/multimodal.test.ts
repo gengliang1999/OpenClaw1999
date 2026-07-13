@@ -19,6 +19,10 @@ describe('Multi-modal message conversion', () => {
   });
 
   afterAll(() => {
+    // 先关闭存储，清除节流写盘定时器，避免 afterAll 删目录后仍有 pending save 触发 ENOENT 告警
+    if (store && typeof store.close === 'function') {
+      try { store.close(); } catch (e) { /* 忽略关闭时的写盘异常 */ }
+    }
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
     }
@@ -76,24 +80,24 @@ describe('Multi-modal message conversion', () => {
   });
 
   it('多模态消息在双脑分发时，若本地模型不支持视觉则不应分发给本地 (Regression Test)', async () => {
+    const ProviderFactory = require('../../dist/backend/providers/ProviderFactory');
     const ModelManagerClass = require('../../dist/backend/model-manager.js').ModelManager;
     const modelMgr = new ModelManagerClass(testDir);
-    
+
     modelMgr.models = [
       { id: 'cloud-model', type: 'cloud', provider: 'OpenAI', modelName: 'gpt-4o' },
       { id: 'local-text-only', type: 'local', provider: 'Ollama', modelName: 'llama3', isCold: false }
     ];
     modelMgr.activeModelId = 'cloud-model';
 
+    // 在真实分发边界（ProviderFactory.getProvider）拦截，验证路由「决策」而非真实联网
     let selectedModel = null;
-    modelMgr._chatCloudStream = jest.fn().mockImplementation(async (model, messages, options, onChunk) => {
-      selectedModel = model;
-      return 'Cloud reply';
-    });
-    modelMgr._chatLocalStream = jest.fn().mockImplementation(async (model, messages, options, onChunk) => {
-      selectedModel = model;
-      return 'Local reply';
-    });
+    const spy = jest.spyOn(ProviderFactory.ProviderFactory, 'getProvider').mockImplementation((model) => ({
+      chatStream: async (m) => {
+        selectedModel = m;
+        return 'Provider reply';
+      }
+    }));
 
     const payloadMessages = [
       { role: 'user', content: [
@@ -104,12 +108,14 @@ describe('Multi-modal message conversion', () => {
 
     await modelMgr.chatStream(payloadMessages, { modelId: 'cloud-model', agentMode: false }, () => {});
     expect(selectedModel.id).toBe('cloud-model');
+    spy.mockRestore();
   });
 
   it('多模态消息在双脑分发时，若本地模型支持视觉则应该分发给本地 (Regression Test)', async () => {
+    const ProviderFactory = require('../../dist/backend/providers/ProviderFactory');
     const ModelManagerClass = require('../../dist/backend/model-manager.js').ModelManager;
     const modelMgr = new ModelManagerClass(testDir);
-    
+
     modelMgr.models = [
       { id: 'cloud-model', type: 'cloud', provider: 'OpenAI', modelName: 'gpt-4o' },
       { id: 'local-vision-capable', type: 'local', provider: 'Ollama', modelName: 'qwen2-vl', isCold: false }
@@ -117,14 +123,12 @@ describe('Multi-modal message conversion', () => {
     modelMgr.activeModelId = 'cloud-model';
 
     let selectedModel = null;
-    modelMgr._chatCloudStream = jest.fn().mockImplementation(async (model, messages, options, onChunk) => {
-      selectedModel = model;
-      return 'Cloud reply';
-    });
-    modelMgr._chatLocalStream = jest.fn().mockImplementation(async (model, messages, options, onChunk) => {
-      selectedModel = model;
-      return 'Local reply';
-    });
+    const spy = jest.spyOn(ProviderFactory.ProviderFactory, 'getProvider').mockImplementation((model) => ({
+      chatStream: async (m) => {
+        selectedModel = m;
+        return 'Provider reply';
+      }
+    }));
 
     const payloadMessages = [
       { role: 'user', content: [
@@ -135,6 +139,7 @@ describe('Multi-modal message conversion', () => {
 
     await modelMgr.chatStream(payloadMessages, { modelId: 'cloud-model', agentMode: false }, () => {});
     expect(selectedModel.id).toBe('local-vision-capable');
+    spy.mockRestore();
   });
 
   it('文档解析接口应当在面对Office文档类型时，正常调用parseOffice并可调用toText提取出纯文本 (Regression Test)', async () => {

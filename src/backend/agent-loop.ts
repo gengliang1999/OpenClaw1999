@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { EventEmitter } from 'events';
+import { confirmationBus, ConfirmationResult } from './confirmation-bus';
 
 export interface AgentContext {
   convId: string;
@@ -15,7 +16,7 @@ export interface AgentDependencies {
   memoryStore: any;
   evolutionEngine?: any;
   onChunk: (chunk: string) => void;
-  onRequiresConfirmation: (cmd: string, riskLevel: string, msg: string) => void;
+  onRequiresConfirmation: (cmd: string, riskLevel: string, msg: string, confirmationId: string) => void;
 }
 
 /**
@@ -129,9 +130,39 @@ export class AgentLoop extends EventEmitter {
           const execResult = await sandbox.execute(cmdToExecute, { timeout: 15000 });
           
           if (execResult.needsConfirmation) {
-            onRequiresConfirmation(cmdToExecute, execResult.riskLevel, execResult.message || '高危系统命令');
-            memoryStore.saveMessage(context.convId, 'assistant', finalMergedResponse);
-            return finalMergedResponse;
+            // S5：挂起等待用户确认，避免直接 return 导致 Agent 循环断裂（同上下文续跑，非从零重跑）
+            const decision = await this._awaitConfirmation(
+              cmdToExecute,
+              execResult.riskLevel,
+              execResult.message || '高危系统命令'
+            );
+
+            if (decision.decision === 'rejected' || decision.decision === 'timeout') {
+              onChunk(`\n\n> 🚫 **[Agent 观察]** 命令被拒绝执行，正在重新思考策略...\n\n`);
+              context.messages.push({ role: 'assistant', content: accumulatedReply });
+              context.messages.push({
+                role: 'user',
+                content: `[Agent Observation]:\n用户拒绝了命令 \`${cmdToExecute}\` 的执行（风险：${execResult.riskLevel}）。请据此调整策略，或向用户说明情况。`,
+              });
+              continue;
+            }
+
+            // 确认：本地执行命令，结果作为 observation 回灌，续跑循环
+            onChunk(`\n\n> 🤖 **[Agent 执行]** 正在运行沙盒指令: \`${cmdToExecute}\` ...\n`);
+            const confirmedResult = await sandbox.executeConfirmed(
+              cmdToExecute,
+              decision.permanent,
+              { timeout: 15000 }
+            );
+            let outputText = confirmedResult.stdout || confirmedResult.stderr || '执行成功，无终端输出';
+            if (outputText.length > 2000) outputText = outputText.slice(0, 2000) + '\n... (内容过长已截断)';
+            onChunk(`> ✅ **[Agent 观察]** 执行完成，正在思考下一步...\n\n`);
+            context.messages.push({ role: 'assistant', content: accumulatedReply });
+            context.messages.push({
+              role: 'user',
+              content: `[Agent Observation]:\n命令已执行（风险：${execResult.riskLevel}）。\nstdout:\n${outputText}\nstderr:\n${confirmedResult.stderr || ''}\n退出码: ${confirmedResult.exitCode ?? -1}\n请基于结果继续。`,
+            });
+            continue;
           }
 
           onChunk(`\n\n> 🤖 **[Agent 执行]** 正在运行沙盒指令: \`${cmdToExecute}\` ...\n`);
@@ -166,5 +197,15 @@ export class AgentLoop extends EventEmitter {
     }
 
     return finalMergedResponse + "\n\n> 🛑 [系统中断] Agent 思考已达到最大深度限制，强制停止。";
+  }
+
+  /**
+   * S5：生成 confirmationId 并挂起等待用户确认决策。
+   * 通过 onRequiresConfirmation 回调把请求下发渲染层，返回 Promise 由 ConfirmationBus 唤醒。
+   */
+  private async _awaitConfirmation(cmd: string, riskLevel: string, message: string): Promise<ConfirmationResult> {
+    const { id, promise } = confirmationBus.wait();
+    this.deps.onRequiresConfirmation(cmd, riskLevel, message, id);
+    return promise;
   }
 }

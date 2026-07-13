@@ -16,6 +16,9 @@ describe('记忆修改、导入与去重机制单元测试', () => {
   });
 
   afterAll(() => {
+    if (store && typeof store.close === 'function') {
+      try { store.close(); } catch (e) { /* 忽略关闭时的写盘异常 */ }
+    }
     if (fs.existsSync(testDir)) {
       fs.rmSync(testDir, { recursive: true, force: true });
     }

@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('openClaw', {
   apiToken,
   
   /** 全链路原生 IPC 通信通道 */
-  apiCall: (url, options) => ipcRenderer.invoke('api:call', { url, options }),
+  apiCall: (url, options) => ipcRenderer.invoke('api:call', { url, options: { ...(options || {}), __token: apiToken } }),
   apiCallStream: (payload) => ipcRenderer.invoke('api:chat:stream', payload),
   abortStream: () => ipcRenderer.invoke('api:chat:abort'),
   onChatChunk: (callback) => ipcRenderer.on('api:chat:chunk', (event, data) => callback(data)),

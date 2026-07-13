@@ -202,6 +202,7 @@ const toast = {
     success: (msg, d) => showToast(msg, 'success', d),
     error: (msg, d) => showToast(msg, 'error', d),
     warning: (msg, d) => showToast(msg, 'warning', d),
+    warn: (msg, d) => showToast(msg, 'warning', d),
     info: (msg, d) => showToast(msg, 'info', d),
 };
 // 绑定全局以便非模块代码调用
@@ -282,7 +283,24 @@ export function showSandboxConfirm(command, details = '') {
         footer.style.borderTop = '1px solid var(--border-light, #444)';
         footer.style.display = 'flex';
         footer.style.justifyContent = 'flex-end';
+        footer.style.alignItems = 'center';
         footer.style.gap = '12px';
+        // S5：永久授权勾选
+        const permanentWrap = document.createElement('label');
+        permanentWrap.style.display = 'flex';
+        permanentWrap.style.alignItems = 'center';
+        permanentWrap.style.gap = '6px';
+        permanentWrap.style.marginRight = 'auto';
+        permanentWrap.style.cursor = 'pointer';
+        permanentWrap.style.fontSize = '13px';
+        permanentWrap.style.color = 'var(--text-secondary, #aaa)';
+        const permanentChk = document.createElement('input');
+        permanentChk.type = 'checkbox';
+        permanentChk.style.cursor = 'pointer';
+        const permanentLabel = document.createElement('span');
+        permanentLabel.textContent = '记住此命令（永久授权，30 天）';
+        permanentWrap.appendChild(permanentChk);
+        permanentWrap.appendChild(permanentLabel);
         const btnReject = document.createElement('button');
         btnReject.textContent = '拒绝执行';
         btnReject.className = 'btn btn-default';
@@ -312,12 +330,13 @@ export function showSandboxConfirm(command, details = '') {
         };
         btnReject.addEventListener('click', () => {
             closeModal();
-            resolve(false);
+            resolve({ confirmed: false, permanent: false });
         });
         btnAllow.addEventListener('click', () => {
             closeModal();
-            resolve(true);
+            resolve({ confirmed: true, permanent: !!permanentChk.checked });
         });
+        footer.appendChild(permanentWrap);
         footer.appendChild(btnReject);
         footer.appendChild(btnAllow);
         modal.appendChild(header);

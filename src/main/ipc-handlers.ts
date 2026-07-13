@@ -9,15 +9,55 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { openClawInstaller } from '../backend/openclaw-installer';
 import { openClawDaemon } from '../backend/openclaw-daemon';
+import { confirmationBus } from '../backend/confirmation-bus';
 
-export function registerApiIpc(dependencies, mainWindowRef) {
+export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
   const { memoryStore, modelManager, sandbox, permissionManager, automation, baseDataDir, globalConfigPath, dataDir, queueManager, folderWatcher, jobQueue } = dependencies;
+  const EXPECTED_TOKEN = expectedToken;
+
+  // ================== P0/T1：来源白名单校验 ==================
+  function assertOrigin(event: any) {
+    const url = (event.senderFrame && event.senderFrame.url) ? event.senderFrame.url : event.sender.getURL();
+    if (!url.startsWith('claw://') && !url.startsWith('file://')) {
+      throw new Error('FORBIDDEN: invalid origin ' + url);
+    }
+  }
+
+  // ================== P0/T2：路由 → 资源-动作矩阵（RBAC 网关） ==================
+  const ROUTE_PERMISSIONS: Record<string, { resource: string; action: string }> = {
+    '/sandbox/execute':       { resource: 'sandbox',    action: 'execute' },
+    '/sandbox/audit':         { resource: 'sandbox',    action: 'read' },
+    '/sandbox/audit/clear':   { resource: 'sandbox',    action: 'write' },
+    '/sandbox/permissions':   { resource: 'sandbox',    action: 'write' },
+    '/knowledge/ingest-url':  { resource: 'skill',      action: 'write' },
+    '/knowledge/sources':     { resource: 'skill',      action: 'write' },
+    '/automation/screenshot': { resource: 'automation', action: 'execute' },
+    '/settings':              { resource: 'settings',   action: 'write' },
+    '/models':                { resource: 'model',      action: 'write' },
+    '/permissions':           { resource: 'settings',   action: 'write' },
+    '/permissions/roles':     { resource: 'settings',   action: 'read' },
+  };
+
+  function assertPermission(url: string, method: string) {
+    const perm = ROUTE_PERMISSIONS[url];
+    if (perm && !permissionManager.checkPermission(perm.resource, perm.action)) {
+      throw new Error('FORBIDDEN: insufficient permission for ' + url);
+    }
+  }
 
   // 统一的 API 原生 IPC 通道分发器
   ipcMain.handle('api:call', async (event, { url, options = {} }) => {
     const method = options.method || 'GET';
     const body = options.body || {};
-    
+
+    // ================== P0/T1+T2：统一安全网关 ==================
+    assertOrigin(event);                                  // ① 来源白名单（claw:// | file://）
+    const token = (options as any).__token;
+    if (token !== EXPECTED_TOKEN) {                       // ② 令牌校验（preload 自动注入）
+      throw new Error('FORBIDDEN: invalid api token');
+    }
+    assertPermission(url, method);                        // ③ RBAC 资源-动作授权
+
     try {
       // ================== 系统配置 ==================
       if (url === '/system/global-config') {
@@ -302,15 +342,18 @@ export function registerApiIpc(dependencies, mainWindowRef) {
               setImmediate(async () => {
                 try {
                   const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
-                  await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
-                    const embedding = await modelManager.getEmbedding(content);
+                await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
+                  const embedding = await modelManager.getEmbedding(content);
+                  // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
+                  if (Array.isArray(embedding) && embedding.length > 0) {
                     await store.addDocuments([{
                       id: require('crypto').randomUUID(),
                       content,
                       metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
                       embedding
                     }]);
-                  });
+                  }
+                });
                 } catch (e) {}
               });
             }
@@ -335,12 +378,15 @@ export function registerApiIpc(dependencies, mainWindowRef) {
               await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
                 await store.removeBySource(oldMemory.content);
                 const embedding = await modelManager.getEmbedding(content);
-                await store.addDocuments([{
-                  id: require('crypto').randomUUID(),
-                  content,
-                  metadata: { source: content, memoryId: id, timestamp: new Date().toISOString() },
-                  embedding
-                }]);
+                // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
+                if (Array.isArray(embedding) && embedding.length > 0) {
+                  await store.addDocuments([{
+                    id: require('crypto').randomUUID(),
+                    content,
+                    metadata: { source: content, memoryId: id, timestamp: new Date().toISOString() },
+                    embedding
+                  }]);
+                }
               });
             } catch (e) {}
           });
@@ -385,12 +431,15 @@ export function registerApiIpc(dependencies, mainWindowRef) {
             const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
             await memVecStore.load();
             const embedding = await modelManager.getEmbedding(content);
-            await memVecStore.addDocuments([{
-              id: require('crypto').randomUUID(),
-              content,
-              metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
-              embedding
-            }]);
+            // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
+            if (Array.isArray(embedding) && embedding.length > 0) {
+              await memVecStore.addDocuments([{
+                id: require('crypto').randomUUID(),
+                content,
+                metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
+                embedding
+              }]);
+            }
             console.log('[主进程] 手动添加记忆并向量化成功:', content);
           } catch (e: any) {
             console.error('[主进程] 记忆向量化失败:', e.message);
@@ -1225,13 +1274,33 @@ export function registerApiIpc(dependencies, mainWindowRef) {
       }
 
       if (url === '/sandbox/execute') {
-        const { command, confirmed, permanent, cwd, timeout } = body;
+        const { command, confirmed, permanent, cwd, timeout, confirmationId } = body;
         if (!command) throw new Error('命令不能为空');
+        // S5：Agent 模式确认回灌——若存在 confirmationId，说明是渲染端对挂起确认的回应，
+        // 直接唤醒 agent-loop，由它在本地执行（避免此处二次执行）。
+        if (confirmationId) {
+          const ok = confirmationBus.resolve(confirmationId, {
+            decision: confirmed ? 'confirmed' : 'rejected',
+            permanent: !!permanent,
+          });
+          return { acknowledged: true, resolved: ok };
+        }
         if (confirmed) {
           return sandbox.executeConfirmed(command, permanent, { cwd, timeout });
         } else {
           return sandbox.execute(command, { cwd, timeout });
         }
+      }
+
+      // S6：独立防篡改审计（读取受 RBAC sandbox:read 保护；清空需 sandbox:write）
+      if (url === '/sandbox/audit') {
+        const page = parseInt(getQueryParam(url, 'page')) || 1;
+        const pageSize = parseInt(getQueryParam(url, 'pageSize')) || 50;
+        return sandbox.getAudit(page, pageSize);
+      }
+      if (url === '/sandbox/audit/clear') {
+        sandbox.clearAudit();
+        return { success: true };
       }
 
       if (url === '/sandbox/permissions') {

@@ -102,7 +102,7 @@ export const api = {
   },
   // ===== ɳ����� =====
   sandbox: {
-    executeCommand: (command, options) => api.post('/sandbox/execute', { command, ...options }),
+    executeCommand: (command, options = {}) => api.post('/sandbox/execute', { command, confirmed: false, permanent: false, ...options }),
     getPermissions: () => api.get('/sandbox/permissions'),
     grantPermission: (pattern, permanent) => api.post('/sandbox/permissions', { pattern, permanent }),
     revokePermission: (id) => api.delete(`/sandbox/permissions/${id}`),
@@ -159,6 +159,21 @@ export function escapeHtml(unsafe) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * I4：校验 <img src> 类 URL 是否安全。
+ * 允许：data:image（排除 svg，因其可含脚本）/ https?:// / file://（本地资源）。
+ * 禁止：javascript: / vbscript: / data:image/svg+xml 等。
+ * @returns 安全 URL 原样返回，不安全返回 null（调用方应丢弃或降级显示）
+ */
+export function safeImgSrc(src) {
+  if (!src || typeof src !== 'string') return null;
+  const s = src.trim();
+  if (/^data:image\/(?!svg)[a-z0-9.+-]+;/.test(s)) return s;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^file:\/\//i.test(s)) return s;
+  return null;
 }
 
 /**

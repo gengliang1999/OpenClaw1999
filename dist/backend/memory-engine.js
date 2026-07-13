@@ -43,8 +43,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MemoryEngine = void 0;
+exports.MemoryEngine = exports.EXPECTED_EMBEDDING_DIM = void 0;
 const path = __importStar(require("path"));
+/** 预期嵌入向量维度（nomic-embed-text 为 768）。写入前校验，不一致拒写。 */
+exports.EXPECTED_EMBEDDING_DIM = 768;
 class MemoryEngine {
     modelManager;
     memoryStore;
@@ -138,16 +140,18 @@ class MemoryEngine {
     async reconcileAndStore(fact, category) {
         const { vectorDbManager } = require('./vector-db-manager');
         const dbPath = path.join(this.dataDir, 'memories_vectors.json');
-        // 1. 语义检索已有记忆，找到最相似的
+        // 1. 语义检索已有记忆，找到最相似的（嵌入不可用则退化为直接新增）
         let topMatch = null;
         try {
             const embedding = await this.modelManager.getEmbedding(fact);
-            await vectorDbManager.executeRead(dbPath, async (memVecStore) => {
-                const candidates = await memVecStore.search(embedding, fact, 1);
-                if (candidates && candidates.length > 0 && candidates[0].score > 0.75) {
-                    topMatch = candidates[0];
-                }
-            });
+            if (embedding && Array.isArray(embedding) && embedding.length === exports.EXPECTED_EMBEDDING_DIM) {
+                await vectorDbManager.executeRead(dbPath, async (memVecStore) => {
+                    const candidates = await memVecStore.search(embedding, fact, 1);
+                    if (candidates && candidates.length > 0 && candidates[0].score > 0.75) {
+                        topMatch = candidates[0];
+                    }
+                });
+            }
         }
         catch (e) { }
         // 2. 如果没有高度相似的旧记忆，直接新增
@@ -215,6 +219,12 @@ class MemoryEngine {
     async _vectorizeMemory(vecStore, fact, memoryId) {
         try {
             const embedding = await this.modelManager.getEmbedding(fact);
+            // fail-fast：嵌入失败或维度异常时不写入随机/非法向量，仅 BM25 关键词召回
+            if (!embedding || !Array.isArray(embedding) || embedding.length !== exports.EXPECTED_EMBEDDING_DIM) {
+                console.warn(`[记忆引擎] ⚠️ 嵌入不可用或维度异常（${embedding ? embedding.length : 'null'}），跳过向量化，仅 BM25 召回，记忆标记为 pending_vectorization`);
+                this.memoryStore.tagMemory?.(memoryId, 'pending_vectorization');
+                return;
+            }
             await vecStore.addDocuments([{
                     id: require('crypto').randomUUID(),
                     content: fact,
@@ -290,18 +300,23 @@ class MemoryEngine {
                 const { vectorDbManager } = require('./vector-db-manager');
                 const dbPath = path.join(this.dataDir, 'episodes_vectors.json');
                 const embedding = await this.modelManager.getEmbedding(result.summary);
-                await vectorDbManager.executeWrite(dbPath, async (episodeVecStore) => {
-                    await episodeVecStore.addDocuments([{
-                            id: require('crypto').randomUUID(),
-                            content: result.summary,
-                            metadata: {
-                                conversationId,
-                                topics: result.topics,
-                                timestamp: new Date().toISOString()
-                            },
-                            embedding
-                        }]);
-                });
+                if (embedding && Array.isArray(embedding) && embedding.length === exports.EXPECTED_EMBEDDING_DIM) {
+                    await vectorDbManager.executeWrite(dbPath, async (episodeVecStore) => {
+                        await episodeVecStore.addDocuments([{
+                                id: require('crypto').randomUUID(),
+                                content: result.summary,
+                                metadata: {
+                                    conversationId,
+                                    topics: result.topics,
+                                    timestamp: new Date().toISOString()
+                                },
+                                embedding
+                            }]);
+                    });
+                }
+                else {
+                    console.warn('[记忆引擎] 情景摘要嵌入不可用，已保存文本摘要但未写入向量（BM25 可召回）。');
+                }
                 console.log(`[记忆引擎] 📖 情景摘要已生成：「${result.summary.slice(0, 60)}...」`);
             }
         }
@@ -318,11 +333,19 @@ class MemoryEngine {
     async unifiedRetrieval(query, knowledgeCategory = '默认知识库') {
         const { vectorDbManager } = require('./vector-db-manager');
         const results = [];
-        let queryEmbedding;
+        let queryEmbedding = null;
         try {
-            queryEmbedding = await this.modelManager.getEmbedding(query);
+            const emb = await this.modelManager.getEmbedding(query);
+            if (emb && Array.isArray(emb) && emb.length === exports.EXPECTED_EMBEDDING_DIM) {
+                queryEmbedding = emb;
+            }
         }
         catch (e) {
+            return results;
+        }
+        // 嵌入不可用：明确降级为 BM25 关键词召回，绝不参与向量排序
+        if (!queryEmbedding) {
+            console.warn('[记忆引擎] 嵌入模型不可用，统一检索降级为 BM25 关键词召回，未污染向量排序。');
             return results;
         }
         // 三路并发检索
@@ -479,6 +502,33 @@ class MemoryEngine {
             if (result === 'inserted' || result === 'updated') {
                 await this.extractAndStoreEntities(mem.fact, 'auto');
             }
+        }
+    }
+    /**
+     * 启动时一次性扫描存量记忆向量库，清理维度异常的孤儿向量（触发重算/删除）。
+     * 旧版随机 3 维向量、维度不匹配的向量将被识别为孤儿并移除，避免污染召回。
+     * @returns 被清理的孤儿向量条数
+     */
+    async cleanupOrphanVectors() {
+        const fs = require('fs');
+        const dbPath = path.join(this.dataDir, 'memories_vectors.json');
+        if (!fs.existsSync(dbPath))
+            return 0;
+        try {
+            const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+            if (!Array.isArray(data))
+                return 0;
+            const valid = data.filter((d) => d && Array.isArray(d.embedding) && d.embedding.length === exports.EXPECTED_EMBEDDING_DIM);
+            const orphans = data.length - valid.length;
+            if (orphans > 0) {
+                fs.writeFileSync(dbPath, JSON.stringify(valid), 'utf8');
+                console.warn(`[记忆引擎] 🧹 启动时清理 ${orphans} 条维度异常的孤儿向量（维度 != ${exports.EXPECTED_EMBEDDING_DIM}），已触发重算/删除。`);
+            }
+            return orphans;
+        }
+        catch (e) {
+            console.error('[记忆引擎] 孤儿向量清理失败（非致命）:', e.message);
+            return 0;
         }
     }
 }
