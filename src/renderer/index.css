@@ -2862,3 +2862,37 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* --- 侧边栏底部控制按钮 --- */
+.sidebar-bottom-btn {
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  background: transparent;
+}
+.sidebar-bottom-btn:hover {
+  background: var(--bg-hover) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color);
+  transform: translateY(-1px);
+}
+.sidebar-bottom-btn:active {
+  transform: translateY(0);
+  background: var(--bg-active) !important;
+}
+.sidebar-bottom-btn svg, 
+.sidebar-bottom-btn .nav-icon {
+  transition: transform 0.2s ease;
+}
+.sidebar-bottom-btn:hover svg, 
+.sidebar-bottom-btn:hover .nav-icon {
+  transform: scale(1.1);
+}

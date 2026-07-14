@@ -138,16 +138,17 @@ function renderShell() {
         <div id="sidebarTrashBtn" style="display: none; margin: 2px 4px 4px 4px; padding: 6px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
           🗑️ 垃圾篓
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding-right: 6px;" class="sidebar-bottom-controls">
+        <div style="display: flex; align-items: center; justify-content: space-around; padding: 6px; margin: 4px 6px; background: rgba(0,0,0,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border-light); transition: all 0.25s;" class="sidebar-bottom-controls">
           <!-- 主题切换按钮 -->
-          <div id="themeToggleBtn" style="cursor: pointer; padding: 4px; border-radius: 6px; color: var(--text-secondary); transition: all 0.2s;" title="切换亮/暗模式">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <div id="themeToggleBtn" class="sidebar-bottom-btn" title="切换亮/暗模式">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
           </div>
-          <div class="sidebar-nav-item" data-route="settings" title="设置" style="margin-bottom: 0; flex: 1; padding-left: 8px;">
+          <!-- 通用设置按钮 (纯图标化并保留路由代理类名) -->
+          <div class="sidebar-nav-item sidebar-bottom-btn" data-route="settings" title="设置">
             <div class="nav-icon">${ROUTES.find(r => r.path === 'settings').icon}</div>
-            <span class="nav-label">设置</span>
           </div>
-          <div id="sidebarBottomToggleBtn" class="sidebar-bottom-toggle" title="展开/收起侧边栏">
+          <!-- 展开/收起侧边栏按钮 -->
+          <div id="sidebarBottomToggleBtn" class="sidebar-bottom-btn sidebar-bottom-toggle" title="展开/收起侧边栏">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
           </div>
         </div>

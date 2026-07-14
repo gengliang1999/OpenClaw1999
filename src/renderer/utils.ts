@@ -62,6 +62,23 @@ export const api = {
     permanentDelete: (trashId) => api.delete(`/chat/trash/${trashId}`),
     emptyTrash: () => api.delete('/chat/trash'),
     clearHistory: (conversationId) => api.delete(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
+    optimizePromptStream: (text, modelId, onData) => {
+      if (window.openClaw && window.openClaw.onOptimizeChunk) {
+        window.openClaw.offOptimizeChunk();
+        window.openClaw.onOptimizeChunk((data: any) => {
+          if (data.type === 'done' || data.type === 'error') {
+            window.openClaw.offOptimizeChunk();
+          }
+          if (onData) onData(data);
+        });
+        window.openClaw.apiOptimizeStream({ text, modelId }).catch((err: any) => {
+          console.error('[优化提示词流管道异常]', err);
+          window.openClaw.offOptimizeChunk();
+          if (onData) onData({ type: 'error', message: err.message });
+        });
+      }
+      return Promise.resolve();
+    },
   },
   // ===== ģ����� =====
   model: {

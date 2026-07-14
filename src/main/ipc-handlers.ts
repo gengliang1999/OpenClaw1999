@@ -1634,6 +1634,71 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
     }
     return { success: false };
   });
+
+  // 流式提示词优化句柄
+  ipcMain.handle('api:chat:optimize-stream', async (event, payload) => {
+    const { text, modelId } = payload;
+    const mainWindow = mainWindowRef();
+    if (!mainWindow) throw new Error('主窗口未就绪');
+
+    const systemPrompt = `你是一个世界顶尖的提示词工程专家，擅长将普通用户的简短、模糊需求重构成高度专业、执行力极强的提示词（Prompt）。请执行以下步骤来理解并优化用户的原始输入：
+
+1. 意图深度分析与分类：
+   - 在 <thought> 标签内简短说明你的分析（不超过100字）：识别用户输入是属于“工具/特定角色/自动化办公/系统级操控/复杂编程类”还是“内容创作/日常润色/知识问答类”，并梳理其缺失的关键背景、限制条件和改进方向。
+
+2. 提示词自适应优化原则：
+   根据意图分类，在 <optimized_prompt> 标签内输出重构后的提示词，必须符合以下两个场景之一的规范：
+
+   【场景 A：工具/特定角色/自动化办公/系统级操控/复杂编程类】
+   吸收“字节 Trae”多阶段任务拆解及“马维斯/Workbuddy”的核心思想，将模糊意图转化为极具工程遵循性、有边界的控制指令。必须使用 Markdown 框架重写：
+   - ## Role (角色设定): 赋予大模型极其专业且符合该场景的顶尖专家身份。
+   - ## Profile (画像设定): 设定思考模式、技术偏好与专业素养。
+   - ## Context (环境上下文): 明确该任务所处的软件环境、当前代码上下文，并提示用户将 # 相关文件或路径填入此处。
+   - ## Multi-Phase Workflow (多阶段渐进式工作流 - Trae 核心):
+     - 如果任务十分复杂或庞大，绝对禁止要求模型一次性生成所有成果。你必须强制重构为“分阶段渐进式 Todo 列表”（如 Phase 1, Phase 2, Phase 3...）。
+     - 在每个阶段的末尾，默认追加强制性控制契约：“此阶段执行完毕并输出结果后，请立即在此处暂停，向我请示确认。禁止擅自执行下一阶段的代码或指令编写。”
+   - ## Variables (变量插槽): 若需求缺少物理路径、配置等，使用 [变量名，如：待整理的文件夹路径] 格式标记占位符，引导用户在使用此提示词前手动替换。
+   - ## Constraints & Safety (约束与技术防线): 
+     1. 制定强约束条件（格式要求、禁止行为、边界场景处理）。
+     2. 涉及编程任务时，强制写入技术契约（如：代码高内聚低耦合、强类型约束、包含详尽异常捕获、禁止污染全局变量等）。
+     3. 涉及高危文件操作，必须写入物理防线（如：“仅提供修改预览或详细方案建议，在获得我口头确认前，严禁直接执行写入、覆盖或删除操作”）。
+     4. 默认追加一句人机回环追问防错声明：“如果在执行本任务时遇到任何关键参数缺失或逻辑冲突，请务必立即暂停并向我提问确认，不要擅自做出任何主观假设。”
+
+   【场景 B：即兴创作/文章润色/日常问答类】
+   对于非流程化的创作，扩充为细节饱满、要求具体的段落化指令，涵盖：
+   - 明确的上下文背景与应用场景。
+   - 指定具体的目标受众、语气风格（如专业、通俗、幽默、严谨）。
+   - 细化文章或回答的结构层次，避免笼统要求。
+   - 规定内容深度、避免的常见雷区或无意义的官话。
+
+3. 输出格式控制：
+   - 只能且必须输出包含 <thought>...</thought> 和 <optimized_prompt>...</optimized_prompt> 两个标签的内容，不要输出 any 其他的解释或多余的引导语。
+   - 优化后的提示词内容必须全部使用简体中文（除非用户原意图有翻译或特定外语要求）。
+   - <optimized_prompt> 内部的内容应当可直接复制使用。`;
+
+    try {
+      await modelManager.chatStream(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text }
+        ],
+        { modelId, temperature: 0.2 },
+        (chunk) => {
+          if (!mainWindow.webContents.isDestroyed()) {
+            mainWindow.webContents.send('api:chat:optimize-chunk', { type: 'chunk', content: chunk });
+          }
+        }
+      );
+      if (!mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('api:chat:optimize-chunk', { type: 'done' });
+      }
+    } catch (err: any) {
+      console.error('[优化提示词 IPC 异常]：', err);
+      if (!mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('api:chat:optimize-chunk', { type: 'error', message: err.message });
+      }
+    }
+  });
 }
 
 // 辅助方法：从 URL 字符串解析查询参数

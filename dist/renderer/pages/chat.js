@@ -36,6 +36,185 @@ export async function render(container) {
         activeExpert = null;
     }
     container.innerHTML = `
+    <style>
+      /* 高级零延迟 CSS 气泡 Tooltip 体系 */
+      [data-tooltip] {
+        position: relative !important;
+      }
+
+      [data-tooltip]::after {
+        content: attr(data-tooltip) !important;
+        position: absolute !important;
+        bottom: 125% !important;
+        left: 50% !important;
+        transform: translate(-50%, 4px) scale(0.95) !important;
+        background: rgba(15, 23, 42, 0.96) !important;
+        color: #ffffff !important;
+        padding: 5px 9px !important;
+        font-size: 11px !important;
+        font-weight: 500 !important;
+        border-radius: 6px !important;
+        white-space: nowrap !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+        z-index: 10000 !important;
+      }
+
+      [data-tooltip]:hover::after {
+        opacity: 1 !important;
+        transform: translate(-50%, 0) scale(1) !important;
+      }
+
+      /* 工具栏通用高质感按钮微交互 */
+      .toolbar-action-btn {
+        height: 32px;
+        min-width: 32px;
+        border-radius: 10px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        padding: 4px 8px !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01) !important;
+        box-sizing: border-box !important;
+        border: 1px solid transparent !important;
+      }
+
+      .toolbar-action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+      }
+
+      .toolbar-action-btn:active {
+        transform: translateY(0);
+      }
+
+      /* 莫兰迪暖透微色彩配置 */
+      
+      /* 模型选择 */
+      #modelModalBtn {
+        background: rgba(0, 122, 255, 0.05) !important;
+        border-color: rgba(0, 122, 255, 0.1) !important;
+        color: var(--primary) !important;
+      }
+      #modelModalBtn:hover {
+        background: rgba(0, 122, 255, 0.08) !important;
+        border-color: rgba(0, 122, 255, 0.2) !important;
+      }
+      #activeModelLabel {
+        max-width: 80px !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+        display: inline-block !important;
+        vertical-align: bottom !important;
+      }
+
+      /* 思考深度 */
+      .depth-select-container {
+        background: rgba(0, 217, 255, 0.04) !important;
+        border-color: rgba(0, 217, 255, 0.1) !important;
+        color: #00b0ff !important;
+      }
+      .depth-select-container:hover {
+        background: rgba(0, 217, 255, 0.08) !important;
+        border-color: rgba(0, 217, 255, 0.2) !important;
+      }
+
+      /* 智能代理 */
+      #agentModeBtn {
+        background: rgba(128, 128, 128, 0.04) !important;
+        border-color: rgba(128, 128, 128, 0.08) !important;
+        color: var(--text-secondary) !important;
+      }
+      #agentModeBtn:hover {
+        background: rgba(128, 128, 128, 0.08) !important;
+        border-color: rgba(128, 128, 128, 0.15) !important;
+      }
+      #agentModeBtn.active {
+        background: rgba(76, 175, 80, 0.08) !important;
+        border-color: rgba(76, 175, 80, 0.2) !important;
+        color: #4CAF50 !important;
+      }
+      #agentModeBtn.active:hover {
+        background: rgba(76, 175, 80, 0.12) !important;
+        border-color: rgba(76, 175, 80, 0.3) !important;
+      }
+
+      /* 提示词优化 */
+      #optimizePromptBtn {
+        background: rgba(162, 89, 255, 0.04) !important;
+        border-color: rgba(162, 89, 255, 0.08) !important;
+        color: #a259ff !important;
+      }
+      #optimizePromptBtn:hover {
+        background: rgba(162, 89, 255, 0.1) !important;
+        border-color: rgba(162, 89, 255, 0.2) !important;
+      }
+
+      /* 语音输入 */
+      #voiceBtn {
+        background: rgba(128, 128, 128, 0.03) !important;
+        border-color: rgba(128, 128, 128, 0.06) !important;
+        color: var(--text-secondary) !important;
+      }
+
+      /* 顶部 Header 独立管理组按钮 */
+      .header-action-btn {
+        height: 28px !important;
+        width: 28px !important;
+        border-radius: 8px !important;
+        background: var(--bg-hover) !important;
+        border: 1px solid var(--border-light) !important;
+        color: var(--text-secondary) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.01) !important;
+        box-sizing: border-box !important;
+      }
+      
+      .header-action-btn:hover {
+        background: var(--border-light) !important;
+        color: var(--text-primary) !important;
+        transform: translateY(-1px);
+      }
+
+      .header-action-btn:active {
+        transform: translateY(0);
+      }
+
+      #clearMemoryBtn.header-action-btn:hover {
+        background: rgba(255, 59, 48, 0.08) !important;
+        border-color: rgba(255, 59, 48, 0.2) !important;
+        color: #ff3b30 !important;
+      }
+
+      #tokenCircleBtn.header-action-btn:hover {
+        background: rgba(255, 152, 0, 0.08) !important;
+        border-color: rgba(255, 152, 0, 0.2) !important;
+        color: #ff9800 !important;
+      }
+
+      /* 顶栏右侧按钮气泡防溢出与边界阻挡修复 (向下弹出) */
+      .header-action-btn[data-tooltip]::after {
+        bottom: auto !important;
+        top: 125% !important;
+        left: auto !important;
+        right: 0 !important;
+        transform: translate(0, -4px) scale(0.95) !important;
+      }
+      
+      .header-action-btn[data-tooltip]:hover::after {
+        opacity: 1 !important;
+        transform: translate(0, 0) scale(1) !important;
+      }
+    </style>
     <div style="display: flex; flex-direction: column; background: var(--bg-app); position: absolute; inset: 0;">
 
       <!-- 顶部 Header -->
@@ -54,11 +233,20 @@ export async function render(container) {
         <div style="flex: 1;"></div>
 
         <!-- 右侧区域 -->
-        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 8px; align-items: center;">
-          <div id="computeIndicator" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--bg-hover); border: 1px solid var(--border-light); border-radius: 12px; opacity: 0.5; transition: all 0.3s; font-size: 11px; font-weight: 700; letter-spacing: 1px;">
-            <div id="computeLight" style="width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; box-shadow: 0 0 8px #4CAF50; transition: all 0.3s;"></div>
-            <span id="computeLabel" style="color: #4CAF50; transition: all 0.3s;">STANDBY</span>
+        <div style="flex: 1; display: flex; justify-content: flex-end; gap: 10px; align-items: center;">
+          <!-- 顶部管理组 -->
+          <div style="display: flex; gap: 6px; align-items: center; position: relative;">
+            <!-- 上下文压缩 (多层堆叠图标) -->
+            <button id="tokenCircleBtn" class="header-action-btn" data-tooltip="压缩上下文">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: #ff9800;"><path d="m12 4-10 5 10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 13 10 5 10-5"/></svg>
+            </button>
+            
+            <!-- 清空上下文 (垃圾桶图标) -->
+            <button id="clearMemoryBtn" class="header-action-btn" data-tooltip="清空上下文记忆">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: #ff3b30;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
           </div>
+
         </div>
       </div>
 
@@ -105,8 +293,8 @@ export async function render(container) {
             <div class="doubao-input-tools">
               
               <!-- 左侧：附件与设定 -->
-              <div style="display: flex; gap: 4px; position: relative;">
-                <button id="plusMenuBtn" class="btn-icon" title="附加操作">
+              <div style="display: flex; gap: 6px; position: relative; align-items: center;">
+                <button id="plusMenuBtn" class="btn-icon" data-tooltip="附加操作">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
                 </button>
                 <!-- 隐藏的+号悬浮菜单 -->
@@ -121,15 +309,15 @@ export async function render(container) {
                   </button>
                 </div>
 
-                <!-- 🤖 选择模型 -->
-                <button id="modelModalBtn" class="btn-ghost" title="\u5207\u6362\u5927\u6a21\u578b" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg>
-                  <span id="activeModelLabel" style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">\u9009\u62e9\u6a21\u578b</span>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;"><path d="m6 9 6 6 6-6"/></svg>
+                <!-- 切换大模型 -->
+                <button id="modelModalBtn" class="toolbar-action-btn" data-tooltip="切换大模型">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                  <span id="activeModelLabel">选择模型</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5; margin-left: 4px;"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
 
                 <!-- 思考深度 -->
-                <div class="btn-ghost" title="思考深度" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; display: flex; align-items: center; gap: 4px;">
+                <div class="toolbar-action-btn depth-select-container" data-tooltip="思考深度" style="gap: 4px;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #00d9ff;"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
                   <select id="depthSelect" style="background:transparent; border:none; color:inherit; outline:none; cursor:pointer;">
                     <option value="auto">自动</option>
@@ -140,47 +328,25 @@ export async function render(container) {
                   </select>
                 </div>
 
-                <!-- 清空上下文 -->
-                <button id="clearMemoryBtn" class="btn-ghost" title="清空上下文记忆" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px;">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px; color: #ff3b30;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                  清空上下文
-                </button>
-
-
                 <!-- 代理模式 (Agent Tool Calling) 开关 -->
-                <button id="agentModeBtn" class="btn-ghost" title="让 AI 在后台自动调用本地读取工具与系统组件" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--text-secondary);">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  智能代理: <span id="agentModeStatus">关</span>
-                </button>
-                
-                <!-- 新建对话 -->
-                <button id="newChatBtn" class="btn-ghost" title="新建对话" style="border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; color: var(--primary);">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px; vertical-align: -2px;"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  新对话
+                <button id="agentModeBtn" class="toolbar-action-btn" data-tooltip="智能代理: 关">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M9 1v3"/><path d="M15 1v3"/><path d="M9 20v3"/><path d="M15 20v3"/><path d="M20 9h3"/><path d="M20 15h3"/><path d="M1 9h3"/><path d="M1 15h3"/></svg>
                 </button>
               </div>
 
               <!-- 右侧：发送组 -->
               <div style="display: flex; align-items: center; gap: 8px;">
-                <button id="tokenCircleBtn" class="btn-ghost" title="上下文压缩" style="display: flex; align-items: center; gap: 6px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: var(--text-secondary); height: 32px;">
-                  <div style="position: relative; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
-                    <svg viewBox="0 0 36 36" style="position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg);">
-                      <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-color)" stroke-width="4"></circle>
-                      <circle id="tokenCircleFill" cx="18" cy="18" r="15" fill="none" stroke="var(--primary)" stroke-width="4" stroke-dasharray="94 94" stroke-dashoffset="94" stroke-linecap="round" style="transition: stroke-dashoffset 0.4s ease;"></circle>
-                    </svg>
-                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color: inherit; z-index: 1;"><path d="M12 3v8"/><path d="M8 7l4 4 4-4"/><path d="M12 21v-8"/><path d="M16 17l-4-4-4 4"/></svg>
-                  </div>
-                  压缩
+                <!-- 语音输入 -->
+                <button id="voiceBtn" class="toolbar-action-btn" data-tooltip="语音输入" style="opacity: 0.5;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
                 </button>
 
-                <button id="optimizePromptBtn" class="btn-ghost" title="提示词优化" style="display: flex; align-items: center; gap: 5px; border-radius: 12px; padding: 4px 10px; font-size: 13px; color: #a259ff; height: 32px; background: rgba(162, 89, 255, 0.08);">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg>
-                  魔法优化
+                <!-- 提示词优化 -->
+                <button id="optimizePromptBtn" class="toolbar-action-btn" data-tooltip="提示词优化">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v2"/><path d="M4 4h2"/><path d="M19 19v2"/><path d="M18 20h2"/></svg>
                 </button>
-                <button id="voiceBtn" class="btn-ghost" title="语音输入" style="display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 12px; color: var(--text-secondary);">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
-                </button>
-                <button id="sendBtn" class="doubao-send-btn" title="发送 (Enter)">
+
+                <button id="sendBtn" class="doubao-send-btn" data-tooltip="发送 (Enter)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                 </button>
               </div>
@@ -232,22 +398,18 @@ export async function render(container) {
     </div>
   `;
     // --- 基础事件 ---
-    document.getElementById('newChatBtn').addEventListener('click', createNewChat);
     document.getElementById('agentModeBtn').addEventListener('click', () => {
         isAgentModeEnabled = !isAgentModeEnabled;
         const btn = document.getElementById('agentModeBtn');
-        const statusText = document.getElementById('agentModeStatus');
         if (isAgentModeEnabled) {
-            btn.style.color = '#ff9800';
-            btn.style.background = 'rgba(255, 152, 0, 0.1)';
-            statusText.textContent = '开';
+            btn.classList.add('active');
+            btn.setAttribute('data-tooltip', '智能代理: 开');
             if (window.__toast)
                 window.__toast.success('⚡ 智能代理模式已开启');
         }
         else {
-            btn.style.color = 'var(--text-secondary)';
-            btn.style.background = 'transparent';
-            statusText.textContent = '关';
+            btn.classList.remove('active');
+            btn.setAttribute('data-tooltip', '智能代理: 关');
             if (window.__toast)
                 window.__toast.info('⚡ 智能代理模式已关闭');
         }
@@ -401,10 +563,16 @@ export async function render(container) {
                 window.__toast.info('请先输入需要优化的原始需求');
             return;
         }
+        const originalText = text;
+        let accumulated = '';
         // 禁用按钮并显示施法中状态
         const originalHtml = btn.innerHTML;
-        btn.innerHTML = `<svg style="animation: spin 1s linear infinite;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> <span style="font-size: 13px">魔法注入中...</span>`;
+        btn.innerHTML = `<svg style="animation: spin 1s linear infinite;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
         btn.disabled = true;
+        input.readOnly = true; // 优化中设为只读，防止用户再次输入冲突
+        const sendBtn = document.getElementById('sendBtn');
+        if (sendBtn)
+            sendBtn.disabled = true; // 禁用发送按钮，防止发送未完成内容
         input.value = ''; // 清空输入框准备流式写入
         // 检查是否存在 spin 动画，如果没有则动态注入
         if (!document.getElementById('spinKeyframe')) {
@@ -415,11 +583,20 @@ export async function render(container) {
         }
         try {
             await new Promise((resolve, reject) => {
-                const { promise } = api.chat.optimizePromptStream(text, activeModelId, (parsed) => {
+                api.chat.optimizePromptStream(text, activeModelId, (parsed) => {
                     if (parsed.type === 'chunk') {
-                        input.value += parsed.content;
-                        input.dispatchEvent(new Event('input')); // 触发自适应高度调整
-                        input.scrollTop = input.scrollHeight; // 滚动到底部
+                        accumulated += parsed.content;
+                        const startIndex = accumulated.indexOf('<optimized_prompt>');
+                        if (startIndex !== -1) {
+                            let promptContent = accumulated.substring(startIndex + '<optimized_prompt>'.length);
+                            const endIndex = promptContent.indexOf('</optimized_prompt>');
+                            if (endIndex !== -1) {
+                                promptContent = promptContent.substring(0, endIndex);
+                            }
+                            input.value = promptContent.trim();
+                            input.dispatchEvent(new Event('input')); // 触发自适应高度调整
+                            input.scrollTop = input.scrollHeight; // 滚动到底部
+                        }
                     }
                     else if (parsed.type === 'error') {
                         reject(new Error(parsed.message));
@@ -428,20 +605,29 @@ export async function render(container) {
                         resolve();
                     }
                 });
-                promise.catch(reject);
             });
+            // 兜底校验：如果生成结束输入框内容仍为空，将积累的原始内容清洗后写入或回退
+            if (!input.value.trim()) {
+                const cleaned = accumulated.replace(/<[^>]*>/g, '').trim();
+                input.value = cleaned || originalText;
+                input.dispatchEvent(new Event('input'));
+            }
             input.focus();
             if (window.__toast)
-                window.__toast.success('✨ 提示词已注入大模型灵魂！');
+                window.__toast.success('✨ 提示词智能优化完成！');
         }
         catch (err) {
             if (window.__toast)
                 window.__toast.error('优化失败: ' + err.message);
-            input.value = text; // 失败则回退为原文本
+            input.value = originalText; // 失败则回退为原文本，保护输入安全
+            input.dispatchEvent(new Event('input'));
         }
         finally {
             btn.innerHTML = originalHtml;
             btn.disabled = false;
+            input.readOnly = false; // 恢复可编辑状态
+            if (sendBtn)
+                sendBtn.disabled = false; // 恢复发送按钮
         }
     });
     document.getElementById('sendBtn').addEventListener('click', sendMessage);
@@ -1451,32 +1637,6 @@ async function sendMessage() {
                 activeConvId = parsed.id;
             }
             if (parsed.content) {
-                // --- 动态指示灯控制 ---
-                const computeInd = document.getElementById('computeIndicator');
-                const computeLight = document.getElementById('computeLight');
-                const computeLabel = document.getElementById('computeLabel');
-                if (computeInd && computeLight && computeLabel) {
-                    computeInd.style.opacity = '1';
-                    if (parsed.content.includes('[双脑路由生效]') || parsed.content.includes('思考')) {
-                        computeLight.style.background = '#00f2fe';
-                        computeLight.style.boxShadow = '0 0 12px #00f2fe';
-                        computeLabel.style.color = '#00f2fe';
-                        computeLabel.innerText = 'LOCAL ROUTER';
-                    }
-                    else if (parsed.content.includes('Cloud-Reasoner') || parsed.content.includes('深度推理')) {
-                        computeLight.style.background = '#ff0844';
-                        computeLight.style.boxShadow = '0 0 15px #ff0844';
-                        computeLabel.style.color = '#ff0844';
-                        computeLabel.innerText = 'CLOUD REASONER';
-                    }
-                    else if (parsed.content.includes('[Agent')) {
-                        computeLight.style.background = '#ff9500';
-                        computeLight.style.boxShadow = '0 0 12px #ff9500';
-                        computeLabel.style.color = '#ff9500';
-                        computeLabel.innerText = 'SANDBOX EXEC';
-                    }
-                }
-                // -------------------
                 fullResponse += parsed.content;
                 // 如果目前只收到毫无意义的空字符或换行，暂不更新 DOM，保留加载动画
                 if (!fullResponse.trim()) {
@@ -1523,17 +1683,6 @@ async function sendMessage() {
         isGenerating = false;
         sendBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`;
         sendBtn.classList.remove('is-stop');
-        // 结束时恢复指示灯状态
-        const computeInd = document.getElementById('computeIndicator');
-        const computeLight = document.getElementById('computeLight');
-        const computeLabel = document.getElementById('computeLabel');
-        if (computeInd && computeLight && computeLabel) {
-            computeLight.style.background = '#4CAF50';
-            computeLight.style.boxShadow = '0 0 8px #4CAF50';
-            computeLabel.style.color = '#4CAF50';
-            computeLabel.innerText = 'STANDBY';
-            setTimeout(() => { computeInd.style.opacity = '0.5'; }, 1000);
-        }
         let finalDisplayResponse = fullResponse.replace(/\[SAVE_MEMORY:[\s\S]*?\]/g, '');
         // [核心修复] 对最终结算的内容也进行思维链闭合折叠转换
         finalDisplayResponse = finalDisplayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {

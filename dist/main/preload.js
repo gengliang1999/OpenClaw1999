@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('openClaw', {
     abortStream: () => ipcRenderer.invoke('api:chat:abort'),
     onChatChunk: (callback) => ipcRenderer.on('api:chat:chunk', (event, data) => callback(data)),
     offChatChunk: () => ipcRenderer.removeAllListeners('api:chat:chunk'),
+    apiOptimizeStream: (payload) => ipcRenderer.invoke('api:chat:optimize-stream', payload),
+    onOptimizeChunk: (callback) => ipcRenderer.on('api:chat:optimize-chunk', (event, data) => callback(data)),
+    offOptimizeChunk: () => ipcRenderer.removeAllListeners('api:chat:optimize-chunk'),
     /** 接收引擎管理日志 */
     onCoreManagerLog: (callback) => ipcRenderer.on('api:core-manager:log', (event, data) => callback(data)),
     offCoreManagerLog: () => ipcRenderer.removeAllListeners('api:core-manager:log'),
