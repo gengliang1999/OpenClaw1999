@@ -29,10 +29,32 @@ class ContextAggregator {
         }
         let finalContent = message;
         if (attachment) {
-            finalContent = [
-                { type: 'text', text: message },
-                { type: 'image_url', image_url: { url: attachment } }
-            ];
+            const isTextAttachment = attachment.toLowerCase().endsWith('.txt') ||
+                attachment.toLowerCase().includes('temp_attachments');
+            if (isTextAttachment) {
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const cleanPath = attachment.replace(/^file:\/\/\//i, '').replace(/\//g, path.sep);
+                    if (fs.existsSync(cleanPath)) {
+                        const fileText = fs.readFileSync(cleanPath, 'utf8');
+                        const { ragEngine } = require('./rag-engine');
+                        const fileName = path.basename(cleanPath);
+                        ragEngine.addDocument(convId, fileName, fileText);
+                        console.log(`[对话枢纽] 成功将非图片富文本附件灌入 RagEngine: ${fileName}`);
+                    }
+                }
+                catch (e) {
+                    console.error('[对话枢纽] 读取非图片富文本附件灌入 RagEngine 失败:', e.message);
+                }
+                finalContent = message;
+            }
+            else {
+                finalContent = [
+                    { type: 'text', text: message },
+                    { type: 'image_url', image_url: { url: attachment } }
+                ];
+            }
         }
         memoryStore.saveMessage(convId, 'user', finalContent);
         // 2. 获取并压缩历史上下文（动态滑窗策略）
@@ -89,6 +111,17 @@ class ContextAggregator {
         const { RetrievalOrchestrator } = require('./retrieval-orchestrator');
         const orchestrator = new RetrievalOrchestrator(modelManager, memoryStore, dataDir);
         let augmentedSystemPrompt = systemPrompt || '你是一个有用的、无所不知的人工智能助手。';
+        // 无条件将标记为置顶（is_pinned = 1）的长期记忆作为常驻最高系统指令注入，防止遗忘
+        try {
+            const pinnedMemories = memoryStore.getPinnedMemories();
+            if (pinnedMemories && pinnedMemories.length > 0) {
+                const pinnedContext = pinnedMemories.map((m) => `- ${m.content}`).join('\n');
+                augmentedSystemPrompt += `\n\n[常驻系统契约指令（最高优先级，必须绝对遵守）：]\n${pinnedContext}`;
+            }
+        }
+        catch (e) {
+            console.warn('[DialogueOrchestrator] 获取置顶记忆失败:', e.message);
+        }
         if (historySummaryPrefix) {
             augmentedSystemPrompt += historySummaryPrefix;
         }
@@ -96,10 +129,10 @@ class ContextAggregator {
         augmentedSystemPrompt += retrievalAugmentation;
         const memoryEngine = new memory_engine_1.MemoryEngine(modelManager, memoryStore, dataDir);
         if (memoryEngine.supportsToolCall()) {
-            augmentedSystemPrompt += `\n\n[长期记忆能力]: 你拥有 save_memory 和 search_memory 工具，当你发现用户的持久性事实、偏好或习惯时，请主动调用 save_memory 工具保存。`;
+            augmentedSystemPrompt += `\n\n[长期记忆能力]: 你拥有 save_memory 和 search_memory 工具，当你发现用户或你自己（AI助手，例如用户给你起的名字、对你的角色定位）的持久性事实、偏好或习惯时，请主动调用 save_memory 工具保存。`;
         }
         else {
-            augmentedSystemPrompt += `\n\n[长期记忆能力]: 当你在对话中获取了关于用户的持久性事实、偏好或习惯时，请在回复的最后加上 \`[SAVE_MEMORY|分类] 事实内容\`。分类可选：个人信息、技术偏好、工作项目、兴趣爱好、通用。例如：\`[SAVE_MEMORY|技术偏好] 用户喜欢使用 TypeScript\`。`;
+            augmentedSystemPrompt += `\n\n[长期记忆能力]: 当你在对话中获取了关于用户或你自己（AI助手，例如用户给你起的名字、对你的角色定位或设定）的持久性事实、偏好或习惯时，请在回复的最后加上 \`[SAVE_MEMORY|分类] 事实内容\`。分类可选：个人信息、技术偏好、工作项目、兴趣爱好、通用。例如：\`[SAVE_MEMORY|技术偏好] 用户喜欢使用 TypeScript\` 或 \`[SAVE_MEMORY|个人信息] 用户把AI的名字起为小爪\`。`;
         }
         const toolPrompt = `\n\n[系统能力]: 你拥有沙盒环境执行能力。如果用户要求运行脚本、查看本地环境、读取文件、操作目录等，请直接输出 <execute>具体的系统命令</execute> 。你会自动收到命令执行结果，并基于结果继续回答。请不要在执行前编造执行结果。`;
         augmentedSystemPrompt += toolPrompt;

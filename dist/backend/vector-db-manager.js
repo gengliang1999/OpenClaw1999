@@ -62,9 +62,20 @@ class VectorDatabaseManager {
     async executeRead(dbPath, operation) {
         const store = await this.getStore(dbPath);
         const previousLock = this.locks.get(dbPath) || Promise.resolve();
-        // 等待前一个写锁完成，即使前一个锁抛错也忽略
-        await previousLock.catch(() => { });
-        return await operation(store);
+        let releaseLock;
+        const currentLock = new Promise(resolve => {
+            releaseLock = resolve;
+        });
+        const nextLock = previousLock.catch(() => { }).then(() => currentLock);
+        this.locks.set(dbPath, nextLock);
+        try {
+            // 等待前一个读/写锁释放
+            await previousLock.catch(() => { });
+            return await operation(store);
+        }
+        finally {
+            releaseLock(); // 释放锁
+        }
     }
     /**
      * 主动清理内存中的句柄

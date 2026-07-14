@@ -1091,8 +1091,14 @@ export async function render(container) {
   window.__onConvDeleted = (convId) => {
     if (convId === activeConvId) {
       activeConvId = null;
-      (document.getElementById('chatMessages') as any).innerHTML = '';
-      (document.getElementById('chatTitle') as any).textContent = '新对话';
+      const chatMessages = document.getElementById('chatMessages');
+      if (chatMessages) {
+        chatMessages.innerHTML = '';
+      }
+      const chatTitle = document.getElementById('chatTitle');
+      if (chatTitle) {
+        chatTitle.textContent = '新对话';
+      }
     }
   };
 
@@ -1502,7 +1508,6 @@ function appendMessage(role, id = null) {
     </div>
     <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${role === 'user' ? 'flex-end' : 'flex-start'};">
       <div class="msg-content-box" style="background: ${role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
-        <span class="cursor" style="display: ${role === 'ai' ? 'inline-block' : 'none'}; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite;"></span>
       </div>
     </div>
   `;
@@ -1678,7 +1683,7 @@ async function sendMessage() {
           displayResponse += '\n```';
         }
 
-        aiBox.innerHTML = parseMarkdown(displayResponse) + '<span class="cursor" style="display: inline-block; width: 8px; height: 16px; background: currentColor; animation: blink 1s step-end infinite; margin-left: 4px;"></span>';
+        aiBox.innerHTML = parseMarkdown(displayResponse);
         scrollToBottom();
       }
     });
@@ -1740,6 +1745,7 @@ async function sendMessage() {
 
 function scrollToBottom() {
   const container = (document.getElementById('chatMessages') as any);
+  if (!container) return;
   container.scrollTop = container.scrollHeight;
 }
 

@@ -38,16 +38,20 @@ class VectorStore {
     /**
      * 添加向量数据
      */
-    async addDocuments(docs) {
+    async addDocuments(docs, shouldSave = true) {
         this.documents.push(...docs);
-        await this.save();
+        if (shouldSave) {
+            await this.save();
+        }
     }
     /**
      * 移除特定来源的文档
      */
-    async removeBySource(sourceId) {
+    async removeBySource(sourceId, shouldSave = true) {
         this.documents = this.documents.filter(doc => doc.metadata?.source !== sourceId);
-        await this.save();
+        if (shouldSave) {
+            await this.save();
+        }
     }
     /**
      * 计算余弦相似度 (Cosine Similarity)

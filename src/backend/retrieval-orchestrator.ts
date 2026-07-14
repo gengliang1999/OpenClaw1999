@@ -28,6 +28,7 @@ export class RetrievalOrchestrator {
     const gathered: { [key: string]: string[] } = {
       '用户记忆': [],
       '知识库': [],
+      '自进化知识': [],
       '历史对话': [],
       '实体图谱': []
     };
@@ -59,10 +60,10 @@ export class RetrievalOrchestrator {
     }
 
     // 3. 执行 Token 字符预算滑动分配算法
-    // 基础比例：知识库 50% (7500c), 用户记忆 20% (3000c), 历史对话 15% (2250c), 实体图谱 15% (2250c)
     const budgetRatios: { [key: string]: number } = {
-      '知识库': 0.50,
-      '用户记忆': 0.20,
+      '知识库': 0.40,
+      '自进化知识': 0.15,
+      '用户记忆': 0.15,
       '历史对话': 0.15,
       '实体图谱': 0.15
     };
@@ -144,6 +145,9 @@ export class RetrievalOrchestrator {
 
     if (formattedBlocks['用户记忆']) {
       promptAugmentation += `\n\n[用户相关的长期记忆（仅供参考）：]\n${formattedBlocks['用户记忆']}`;
+    }
+    if (formattedBlocks['自进化知识']) {
+      promptAugmentation += `\n\n[系统进化知识（由用户先前记忆晋升而来，可作决策参考）：]\n${formattedBlocks['自进化知识']}`;
     }
     if (formattedBlocks['知识库']) {
       promptAugmentation += `\n\n[参考知识库（RAG 检索到的相关文档）：]\n${formattedBlocks['知识库']}`;

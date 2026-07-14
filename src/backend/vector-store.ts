@@ -44,17 +44,21 @@ export class VectorStore {
   /**
    * 添加向量数据
    */
-  async addDocuments(docs: VectorDocument[]) {
+  async addDocuments(docs: VectorDocument[], shouldSave = true) {
     this.documents.push(...docs);
-    await this.save();
+    if (shouldSave) {
+      await this.save();
+    }
   }
 
   /**
    * 移除特定来源的文档
    */
-  async removeBySource(sourceId: string) {
+  async removeBySource(sourceId: string, shouldSave = true) {
     this.documents = this.documents.filter(doc => doc.metadata?.source !== sourceId);
-    await this.save();
+    if (shouldSave) {
+      await this.save();
+    }
   }
 
   /**

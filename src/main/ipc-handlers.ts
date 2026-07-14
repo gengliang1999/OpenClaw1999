@@ -14,6 +14,7 @@ import { confirmationBus } from '../backend/confirmation-bus';
 export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
   const { memoryStore, modelManager, sandbox, permissionManager, automation, baseDataDir, globalConfigPath, dataDir, queueManager, folderWatcher, jobQueue } = dependencies;
   const EXPECTED_TOKEN = expectedToken;
+  const { vectorDbManager } = require('../backend/vector-db-manager');
 
   // ================== P0/T1：来源白名单校验 ==================
   function assertOrigin(event: any) {
@@ -67,12 +68,13 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
             config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
           }
           return {
-            customDataDir: config.customDataDir || baseDataDir,
-            customDownloadDir: config.customDownloadDir || baseDataDir,
-            customLogDir: config.customLogDir || baseDataDir
+            customDataDir: config.customDataDir || '',
+            customDownloadDir: config.customDownloadDir || '',
+            customLogDir: config.customLogDir || '',
+            customMemoryDbPath: config.customMemoryDbPath || ''
           };
         } else if (method === 'POST') {
-          const { customDataDir, customDownloadDir, customLogDir } = body;
+          const { customDataDir, customDownloadDir, customLogDir, customMemoryDbPath } = body;
           let config: any = {};
           if (fs.existsSync(globalConfigPath)) {
             config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
@@ -80,9 +82,125 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           if (customDataDir !== undefined) config.customDataDir = customDataDir;
           if (customDownloadDir !== undefined) config.customDownloadDir = customDownloadDir;
           if (customLogDir !== undefined) config.customLogDir = customLogDir;
+          if (customMemoryDbPath !== undefined) config.customMemoryDbPath = customMemoryDbPath;
           fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
           return { success: true, message: '全局配置已保存，重启生效', config };
         }
+      }
+
+      // ================== 记忆文件自定义路径管理 ==================
+      if (url === '/system/memory/select-db' && method === 'POST') {
+        const { dialog } = require('electron');
+        const result = await dialog.showSaveDialog(mainWindowRef(), {
+          title: '选择或创建记忆数据库文件',
+          defaultPath: path.join(dataDir, 'memory.db'),
+          filters: [
+            { name: 'SQLite 数据库', extensions: ['db'] }
+          ],
+          buttonLabel: '确定'
+        });
+        if (result.canceled || !result.filePath) {
+          return { success: false, message: '操作已取消' };
+        }
+        
+        const newPath = result.filePath;
+        let config: any = {};
+        if (fs.existsSync(globalConfigPath)) {
+          config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+        }
+        config.customMemoryDbPath = newPath;
+        
+        let recent = config.recentMemoryDbs || [];
+        if (!recent.includes(newPath)) {
+          recent.unshift(newPath);
+        } else {
+          recent = recent.filter((p: string) => p !== newPath);
+          recent.unshift(newPath);
+        }
+        config.recentMemoryDbs = recent.slice(0, 5);
+        fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
+
+        return { success: true, filePath: newPath };
+      }
+
+      if (url === '/system/memory/recent-dbs' && method === 'GET') {
+        let config: any = {};
+        if (fs.existsSync(globalConfigPath)) {
+          config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+        }
+        let recent = config.recentMemoryDbs || [];
+        recent = recent.filter((p: string) => fs.existsSync(p));
+        if (recent.length !== (config.recentMemoryDbs || []).length) {
+          config.recentMemoryDbs = recent;
+          fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
+        }
+        return { success: true, recent };
+      }
+
+      if (url === '/system/memory/switch-db' && method === 'POST') {
+        const { dbPath } = body;
+        if (!dbPath) throw new Error('数据库路径不能为空');
+        if (!fs.existsSync(dbPath)) throw new Error('指定的数据库物理文件不存在');
+
+        let config: any = {};
+        if (fs.existsSync(globalConfigPath)) {
+          config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+        }
+        config.customMemoryDbPath = dbPath;
+        
+        let recent = config.recentMemoryDbs || [];
+        if (!recent.includes(dbPath)) {
+          recent.unshift(dbPath);
+        } else {
+          recent = recent.filter((p: string) => p !== dbPath);
+          recent.unshift(dbPath);
+        }
+        config.recentMemoryDbs = recent.slice(0, 5);
+        fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
+        
+        return { success: true };
+      }
+
+      if (url === '/system/memory/rename-db' && method === 'POST') {
+        const { oldPath, newName } = body;
+        if (!oldPath || !newName) throw new Error('参数缺失');
+        if (!fs.existsSync(oldPath)) throw new Error('原数据库文件不存在');
+        
+        const newDbPath = path.join(path.dirname(oldPath), newName.endsWith('.db') ? newName : `${newName}.db`);
+        if (fs.existsSync(newDbPath)) throw new Error('新文件名已存在，请换一个名称');
+
+        fs.renameSync(oldPath, newDbPath);
+
+        const oldDir = path.dirname(oldPath);
+        const oldBase = path.basename(oldPath, path.extname(oldPath));
+        const oldVecPath = path.join(oldDir, `${oldBase}_vectors.json`);
+        const oldEpPath = path.join(oldDir, `${oldBase}_episodes.json`);
+
+        const newDir = path.dirname(newDbPath);
+        const newBase = path.basename(newDbPath, path.extname(newDbPath));
+        const newVecPath = path.join(newDir, `${newBase}_vectors.json`);
+        const newEpPath = path.join(newDir, `${newBase}_episodes.json`);
+
+        if (fs.existsSync(oldVecPath)) {
+          fs.renameSync(oldVecPath, newVecPath);
+        }
+        if (fs.existsSync(oldEpPath)) {
+          fs.renameSync(oldEpPath, newEpPath);
+        }
+
+        let config: any = {};
+        if (fs.existsSync(globalConfigPath)) {
+          config = JSON.parse(fs.readFileSync(globalConfigPath, 'utf8'));
+        }
+        if (config.customMemoryDbPath === oldPath) {
+          config.customMemoryDbPath = newDbPath;
+        }
+        let recent = config.recentMemoryDbs || [];
+        recent = recent.map((p: string) => p === oldPath ? newDbPath : p);
+        config.recentMemoryDbs = recent.filter((p: string) => fs.existsSync(p));
+        fs.writeFileSync(globalConfigPath, JSON.stringify(config, null, 2), 'utf8');
+
+        return { success: true, newPath: newDbPath };
       }
 
       // ================== 系统后台作业队列 ==================
@@ -164,6 +282,10 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
               }
             });
             memoryStore.deleteConversation(id);
+            try {
+              const { ragEngine } = require('../backend/rag-engine');
+              ragEngine.clearForConversation(id);
+            } catch (e) {}
             return { success: true };
           } else if (method === 'PUT') {
             if (!body.title) throw new Error('标题不能为空');
@@ -304,7 +426,36 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
 
         // 0. 记忆导出与导入备份
         if (url === '/memory/export' && method === 'POST') {
-          const result = memoryStore.getAllMemories(1, 1000000);
+          const memoriesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM memories")) || [];
+          const episodesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM memory_episodes")) || [];
+          const entitiesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM entities")) || [];
+          const relationsList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM entity_relations")) || [];
+          let vectorsList = [];
+
+          const currentMemoriesDbPath = memoryStore.dbPath;
+          let currentMemoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+          if (currentMemoriesDbPath && !currentMemoriesDbPath.endsWith('memory.db')) {
+            const dbDir = path.dirname(currentMemoriesDbPath);
+            const dbName = path.basename(currentMemoriesDbPath, path.extname(currentMemoriesDbPath));
+            currentMemoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+          }
+
+          try {
+            await vectorDbManager.executeRead(currentMemoriesVectorsPath, async (store: any) => {
+              vectorsList = store.documents || [];
+            });
+          } catch (e: any) {
+            console.error('[主进程] 导出读取向量失败:', e.message);
+          }
+
+          const exportObj = {
+            memories: memoriesList,
+            episodes: episodesList,
+            entities: entitiesList,
+            relations: relationsList,
+            vectors: vectorsList
+          };
+
           const { dialog } = require('electron');
           const { canceled, filePath } = await dialog.showSaveDialog(mainWindowRef(), {
             title: '导出记忆神经元备份',
@@ -312,11 +463,12 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
             filters: [{ name: 'JSON 备份文件', extensions: ['json'] }]
           });
           if (canceled || !filePath) return { success: false, message: '操作已取消' };
-          fs.writeFileSync(filePath, JSON.stringify(result.items, null, 2), 'utf8');
+          fs.writeFileSync(filePath, JSON.stringify(exportObj, null, 2), 'utf8');
           return { success: true, filePath };
         }
 
         if (url === '/memory/import' && method === 'POST') {
+          const { overwrite = false } = body;
           const { dialog } = require('electron');
           const { canceled, filePaths } = await dialog.showOpenDialog(mainWindowRef(), {
             title: '导入记忆神经元备份',
@@ -324,41 +476,108 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
             properties: ['openFile']
           });
           if (canceled || filePaths.length === 0) return { success: false, message: '操作已取消' };
+          
           const rawData = fs.readFileSync(filePaths[0], 'utf8');
-          const list = JSON.parse(rawData);
-          if (!Array.isArray(list)) throw new Error('无效的记忆备份格式');
+          const parsedData = JSON.parse(rawData);
+          
+          const list = Array.isArray(parsedData) ? parsedData : (parsedData.memories || []);
+          const episodes = parsedData.episodes || [];
+          const entities = parsedData.entities || [];
+          const relations = parsedData.relations || [];
+          const vectors = parsedData.vectors || [];
+
+          const currentMemoriesDbPath = memoryStore.dbPath;
+          let currentMemoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+          if (currentMemoriesDbPath && !currentMemoriesDbPath.endsWith('memory.db')) {
+            const dbDir = path.dirname(currentMemoriesDbPath);
+            const dbName = path.basename(currentMemoriesDbPath, path.extname(currentMemoriesDbPath));
+            currentMemoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+          }
+
+          if (overwrite) {
+            memoryStore.db.run("DELETE FROM memories");
+            memoryStore.db.run("DELETE FROM memory_episodes");
+            memoryStore.db.run("DELETE FROM entities");
+            memoryStore.db.run("DELETE FROM entity_relations");
+            memoryStore._save();
+
+            await vectorDbManager.executeWrite(currentMemoriesVectorsPath, async (store: any) => {
+              store.documents = [];
+            }, false);
+          }
+
           let importedCount = 0;
           for (const item of list) {
             const content = item.content;
             const category = item.category || '通用';
-            const tags = item.tags || [];
-            if (!content) continue;
-            const exists = memoryStore.db.exec('SELECT id FROM memories WHERE content = ? LIMIT 1', [content]);
-            if (exists && exists.length > 0 && exists[0].values.length > 0) continue;
-            const memory = memoryStore.addMemory(content, category, tags);
-            if (jobQueue) {
-              jobQueue.enqueue('memory-vectorization', { memoryId: memory.id, content, category });
-            } else {
-              setImmediate(async () => {
-                try {
-                  const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
-                await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
-                  const embedding = await modelManager.getEmbedding(content);
-                  // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
-                  if (Array.isArray(embedding) && embedding.length > 0) {
-                    await store.addDocuments([{
-                      id: require('crypto').randomUUID(),
-                      content,
-                      metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
-                      embedding
-                    }]);
-                  }
-                });
-                } catch (e) {}
-              });
+            let tags = [];
+            try {
+              tags = typeof item.tags === 'string' ? JSON.parse(item.tags) : (item.tags || []);
+            } catch (e) {
+              tags = [];
             }
-            importedCount++;
+            if (!content) continue;
+
+            let exists = false;
+            if (!overwrite) {
+              const check = memoryStore.db.exec('SELECT id FROM memories WHERE content = ? LIMIT 1', [content]);
+              exists = check && check.length > 0 && check[0].values.length > 0;
+            }
+            if (!exists) {
+              memoryStore.addMemory(content, category, tags);
+              importedCount++;
+            }
           }
+
+          if (overwrite) {
+            for (const ep of episodes) {
+              memoryStore.db.run('INSERT INTO memory_episodes (id, conversation_id, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [ep.id, ep.conversation_id, ep.summary, ep.created_at, ep.updated_at]);
+            }
+            for (const ent of entities) {
+              memoryStore.db.run('INSERT INTO entities (id, name, type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?)', [ent.id, ent.name, ent.type, ent.description, ent.first_mentioned_at]);
+            }
+            for (const rel of relations) {
+              memoryStore.db.run('INSERT INTO entity_relations (id, source_id, target_id, relation_type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?, ?)', [rel.id, rel.source_id, rel.target_id, rel.relation_type, rel.description, rel.first_mentioned_at]);
+            }
+          } else {
+            for (const ep of episodes) {
+              const check = memoryStore.db.exec('SELECT id FROM memory_episodes WHERE id = ? LIMIT 1', [ep.id]);
+              if (!(check && check.length > 0 && check[0].values.length > 0)) {
+                memoryStore.db.run('INSERT INTO memory_episodes (id, conversation_id, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [ep.id, ep.conversation_id, ep.summary, ep.created_at, ep.updated_at]);
+              }
+            }
+            for (const ent of entities) {
+              const check = memoryStore.db.exec('SELECT id FROM entities WHERE name = ? LIMIT 1', [ent.name]);
+              if (!(check && check.length > 0 && check[0].values.length > 0)) {
+                memoryStore.db.run('INSERT INTO entities (id, name, type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?)', [ent.id, ent.name, ent.type, ent.description, ent.first_mentioned_at]);
+              }
+            }
+            for (const rel of relations) {
+              const check = memoryStore.db.exec('SELECT id FROM entity_relations WHERE source_id = ? AND target_id = ? AND relation_type = ? LIMIT 1', [rel.source_id, rel.target_id, rel.relation_type]);
+              if (!(check && check.length > 0 && check[0].values.length > 0)) {
+                memoryStore.db.run('INSERT INTO entity_relations (id, source_id, target_id, relation_type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?, ?)', [rel.id, rel.source_id, rel.target_id, rel.relation_type, rel.description, rel.first_mentioned_at]);
+              }
+            }
+          }
+          memoryStore._save();
+
+          try {
+            await vectorDbManager.executeWrite(currentMemoriesVectorsPath, async (store: any) => {
+              if (overwrite) {
+                store.documents = vectors;
+              } else {
+                for (const vec of vectors) {
+                  const checkExist = store.documents.some((doc: any) => doc.content === vec.content);
+                  if (!checkExist) {
+                    store.documents.push(vec);
+                  }
+                }
+              }
+            }, false);
+          } catch (e: any) {
+            console.error('[主进程] 导入写入向量库失败:', e.message);
+          }
+
           return { success: true, importedCount };
         }
 
@@ -374,18 +593,18 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           memoryStore._save();
           setImmediate(async () => {
             try {
-              const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
+              const embedding = await modelManager.getEmbedding(content);
               await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
-                await store.removeBySource(oldMemory.content);
-                const embedding = await modelManager.getEmbedding(content);
-                // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
+                await store.removeBySource(oldMemory.content, false);
                 if (Array.isArray(embedding) && embedding.length > 0) {
                   await store.addDocuments([{
                     id: require('crypto').randomUUID(),
                     content,
                     metadata: { source: content, memoryId: id, timestamp: new Date().toISOString() },
                     embedding
-                  }]);
+                  }], false);
+                } else {
+                  memoryStore.tagMemory(id, 'pending_vectorization');
                 }
               });
             } catch (e) {}
@@ -426,19 +645,20 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
 
           const memory = memoryStore.addMemory(content, category, tags);
           
-          // 同步写入向量库
+          // 同步写入向量库 (加并发锁保护，并将 Embedding 提到锁外部执行)
           try {
-            const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
-            await memVecStore.load();
             const embedding = await modelManager.getEmbedding(content);
-            // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量
             if (Array.isArray(embedding) && embedding.length > 0) {
-              await memVecStore.addDocuments([{
-                id: require('crypto').randomUUID(),
-                content,
-                metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
-                embedding
-              }]);
+              await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
+                await store.addDocuments([{
+                  id: require('crypto').randomUUID(),
+                  content,
+                  metadata: { source: content, memoryId: memory.id, timestamp: new Date().toISOString() },
+                  embedding
+                }], false); // 传入 false 避免二次物理写盘
+              });
+            } else {
+              memoryStore.tagMemory(memory.id, 'pending_vectorization');
             }
             console.log('[主进程] 手动添加记忆并向量化成功:', content);
           } catch (e: any) {
@@ -468,9 +688,9 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           const memory = memoryStore.getMemory(id);
           if (memory) {
             try {
-              const memVecStore = new VectorStore(path.join(dataDir, 'memories_vectors.json'));
-              await memVecStore.load();
-              await memVecStore.removeBySource(memory.content);
+              await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store: any) => {
+                await store.removeBySource(memory.content, false); // 传入 false 避免二次落盘
+              });
               console.log('[主进程] 成功从向量库移除记忆分块:', memory.content);
             } catch (e: any) {
               console.error('[主进程] 从向量库移除记忆分块失败:', e.message);
@@ -496,6 +716,108 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           memoryStore._save();
           console.log(`[主进程] 成功切换记忆置顶状态: ID=${id}, isPinned=${isPinned}`);
           return { success: true, isPinned };
+        }
+
+        // 6. 生成记忆晋升的扩写草稿 (POST /memory/promote/generate)
+        if (url === '/memory/promote/generate' && method === 'POST') {
+          const { memoryId, targetCategory = '默认知识库' } = body;
+          if (!memoryId) throw new Error('memoryId 不能为空');
+
+          const memory = memoryStore.getMemory(memoryId);
+          if (!memory) throw new Error('未找到该记忆条目');
+
+          const prompt = [
+            {
+              role: 'system',
+              content: '你是一个系统自进化知识库整理专家。请将以下零碎的用户记忆事实，扩写为一篇格式工整、条理清晰的 Markdown 格式知识草稿。要求：保留原始记忆中的核心名词、姓名、称呼或技术习惯；补充必要的场景说明或推荐建议，不要胡乱捏造不存在的物理路径或机密。直接输出 Markdown 正文，不要用 ```markdown 或任何 markdown 外层文字包装。'
+            },
+            { role: 'user', content: `记忆事实：「${memory.content}」，分类标签：「${memory.category}」` }
+          ];
+
+          try {
+            const draftMarkdown = await modelManager.chat(prompt, { temperature: 0.3 });
+            return { success: true, draftMarkdown: draftMarkdown.trim() };
+          } catch (e: any) {
+            console.error('[主进程] 扩写记忆草稿失败:', e.message);
+            throw new Error('大模型扩写失败: ' + e.message);
+          }
+        }
+
+        // 7. 确认记忆晋升为隔离知识库 (POST /memory/promote/confirm)
+        if (url === '/memory/promote/confirm' && method === 'POST') {
+          const { memoryId } = body;
+          const draftMarkdown = body.draftMarkdown || body.markdownContent;
+          if (!memoryId) throw new Error('memoryId 不能为空');
+          if (!draftMarkdown || !draftMarkdown.trim()) throw new Error('草稿内容不能为空');
+
+          const memory = memoryStore.getMemory(memoryId);
+          if (!memory) throw new Error('未找到该记忆条目');
+
+          // 物理隔离知识库存放地址
+          const knowledgeDir = path.join(dataDir, 'knowledge');
+          if (!fs.existsSync(knowledgeDir)) {
+            fs.mkdirSync(knowledgeDir, { recursive: true });
+          }
+          const promotedPath = path.join(knowledgeDir, 'promoted_memories.json');
+
+          // 将 Markdown 草稿进行高维向量提取并物理写入 promoted_memories.json 向量库
+          try {
+            const embedding = await modelManager.getEmbedding(draftMarkdown);
+            if (Array.isArray(embedding) && embedding.length > 0) {
+              await vectorDbManager.executeWrite(promotedPath, async (store: any) => {
+                await store.addDocuments([{
+                  id: require('crypto').randomUUID(),
+                  content: draftMarkdown,
+                  metadata: {
+                    source: draftMarkdown,
+                    memoryId,
+                    timestamp: new Date().toISOString(),
+                    parentContent: draftMarkdown
+                  },
+                  embedding
+                }], false);
+              });
+              console.log('[主进程] 成功将记忆晋升草稿向量化并写入 promoted_memories.json');
+            } else {
+              throw new Error('无法提取有效的向量，请检查 Embedding 引擎连接');
+            }
+          } catch (e: any) {
+            console.error('[主进程] 记忆晋升向量化写入失败:', e.message);
+            throw new Error('写入向量库失败: ' + e.message);
+          }
+
+          // 在 SQLite 中给该条记忆追加 promoted 标签
+          let tagsArray = [];
+          try {
+            tagsArray = typeof memory.tags === 'string' ? JSON.parse(memory.tags) : (memory.tags || []);
+          } catch (e) {}
+          if (!tagsArray.includes('promoted')) {
+            tagsArray.push('promoted');
+            memoryStore.db.run(
+              'UPDATE memories SET tags = ?, updated_at = ? WHERE id = ?',
+              [JSON.stringify(tagsArray), new Date().toISOString(), memoryId]
+            );
+            memoryStore._save();
+          }
+
+          return { success: true };
+        }
+
+        // 8. 清空所有记忆 (POST /memory/clear-all)
+        if (url === '/memory/clear-all' && method === 'POST') {
+          memoryStore.db.run('DELETE FROM memories');
+          memoryStore._save();
+
+          const vectorPath = path.join(dataDir, 'memory_vectors.json');
+          if (fs.existsSync(vectorPath)) {
+            try {
+              fs.writeFileSync(vectorPath, JSON.stringify([], null, 2));
+            } catch (e) {
+              console.error('[主进程] 清空向量文件失败:', e.message);
+            }
+          }
+          console.log('[主进程] 已成功重置清空全部长期记忆及向量索引');
+          return { success: true };
         }
       }
 

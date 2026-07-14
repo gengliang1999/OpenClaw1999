@@ -10,7 +10,7 @@ let globalConfig: any = {};
 
 export async function render(container) {
   try {
-    settings = (await api.get("/api/settings")) || {};
+    settings = (await api.get("/settings")) || {};
   } catch(e) {
     settings = {};
   }
@@ -59,8 +59,15 @@ export async function render(container) {
                 </div>
                 <button class="btn btn-secondary" id="changeLogDirBtn" style="border-radius: 8px;">更改目录</button>
               </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="flex: 1;">
+                  <div style="font-weight: 500; font-size: 15px;">记忆数据库保存路径 (支持中文物理路径与命名)</div>
+                  <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px; word-break: break-all;">当前: ${globalConfig.customMemoryDbPath || '默认 (根数据目录下 memory.db)'}</div>
+                </div>
+                <button class="btn btn-secondary" id="changeMemoryDbBtn" style="border-radius: 8px;">更改路径</button>
+              </div>
               <div style="font-size: 12px; color: var(--warning); background: rgba(255,165,0,0.1); padding: 12px; border-radius: 8px;">
-                ⚠️ 提示：更改用户数据地址后，原有的聊天记录不会自动迁移。重启软件后生效。
+                ⚠️ 提示：更改用户数据地址或记忆文件保存路径后，原有的聊天记录不会自动迁移。重启软件后生效。
               </div>
            </div>
         </div>
@@ -168,23 +175,18 @@ export async function render(container) {
     changeDataDirBtn.addEventListener('click', async () => {
       try {
         const result = await window.openClaw.system.selectDirectory();
-        if (result && !result.canceled && result.filePaths.length > 0) {
-          const newPath = result.filePaths[0];
+        if (result) {
+          const newPath = result;
           const confirmRes = confirm(`确定要将数据存放地址更改为：\n${newPath}\n\n更改后需要重启应用才能生效！`);
           if (confirmRes) {
             await api.post('/system/global-config', { customDataDir: newPath });
-            if (window.__toast) window.__toast.success('配置已保存，应用即将重启...');
-            setTimeout(async () => {
-              if (window.openClaw && window.openClaw.system && window.openClaw.system.restart) {
-                await window.openClaw.system.restart();
-              } else {
-                window.location.reload();
-              }
-            }, 1500);
+            // 即时刷新页面显示
+            render(container);
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to change data dir', e);
+        if (window.__toast) window.__toast.error('保存用户数据目录失败: ' + (e.message || '未知错误'));
       }
     });
   }
@@ -193,20 +195,17 @@ export async function render(container) {
     changeDownloadDirBtn.addEventListener('click', async () => {
       try {
         const result = await window.openClaw.system.selectDirectory();
-        if (result && !result.canceled && result.filePaths.length > 0) {
-          const newPath = result.filePaths[0];
-          await api.post('/system/global-config', { customDownloadDir: newPath });
-          if (window.__toast) window.__toast.success('配置已保存，应用即将重启生效...');
-          setTimeout(async () => {
-            if (window.openClaw && window.openClaw.system && window.openClaw.system.restart) {
-              await window.openClaw.system.restart();
-            } else {
-              window.location.reload();
-            }
-          }, 1500);
+        if (result) {
+          const newPath = result;
+          const confirmRes = confirm(`确定要将下载与沙盒目录更改为：\n${newPath}\n\n更改后需要重启应用才能生效！`);
+          if (confirmRes) {
+            await api.post('/system/global-config', { customDownloadDir: newPath });
+            render(container);
+          }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to change download dir', e);
+        if (window.__toast) window.__toast.error('保存下载目录失败: ' + (e.message || '未知错误'));
       }
     });
   }
@@ -215,20 +214,34 @@ export async function render(container) {
     changeLogDirBtn.addEventListener('click', async () => {
       try {
         const result = await window.openClaw.system.selectDirectory();
-        if (result && !result.canceled && result.filePaths.length > 0) {
-          const newPath = result.filePaths[0];
-          await api.post('/system/global-config', { customLogDir: newPath });
-          if (window.__toast) window.__toast.success('配置已保存，应用即将重启生效...');
-          setTimeout(async () => {
-            if (window.openClaw && window.openClaw.system && window.openClaw.system.restart) {
-              await window.openClaw.system.restart();
-            } else {
-              window.location.reload();
-            }
-          }, 1500);
+        if (result) {
+          const newPath = result;
+          const confirmRes = confirm(`确定要将日志目录更改为：\n${newPath}\n\n更改后需要重启应用才能生效！`);
+          if (confirmRes) {
+            await api.post('/system/global-config', { customLogDir: newPath });
+            render(container);
+          }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('Failed to change log dir', e);
+        if (window.__toast) window.__toast.error('保存日志目录失败: ' + (e.message || '未知错误'));
+      }
+    });
+  }
+
+  const changeMemoryDbBtn = (document.getElementById('changeMemoryDbBtn') as any);
+  if (changeMemoryDbBtn) {
+    changeMemoryDbBtn.addEventListener('click', async () => {
+      try {
+        const result = await api.post('/system/memory/select-db', {});
+        if (result && result.filePath) {
+          if (window.__toast) window.__toast.success('记忆数据库路径已保存，重启后生效');
+          // 即时刷新页面显示
+          render(container);
+        }
+      } catch (e: any) {
+        console.error('Failed to change memory db path', e);
+        if (window.__toast) window.__toast.error('修改记忆保存路径失败: ' + (e.message || '未知错误'));
       }
     });
   }

@@ -87,3 +87,30 @@ A change can pass one axis and fail the other:
 - Code that does exactly what the issue asked but breaks the project's conventions → **Spec pass, Standards fail.**
 
 Reporting them separately stops one axis from masking the other.
+
+## Why QA & Issue Tracking Integration
+
+When code review uncovers significant spec drift or baseline smells, you must record those findings as durable, actionable GitHub issues using the project's domain language.
+
+### Rules for Filing Issues
+
+1. **No file paths or line numbers** — these go stale rapidly. Write descriptions from the user's perspective.
+2. **Describe behaviors, not code** — write "the sync service fails to apply the patch" instead of "applyPatch() throws on line 42".
+3. **Prefer many thin issues over few thick ones** — each should be independently fixable and verifiable.
+4. **Mark blocking relationships honestly** — if issue B cannot be tested until issue A is fixed, explicitly specify the blocker.
+5. **Durable template**:
+   ```markdown
+   ## What happened
+   [Describe the actual behavior in plain language]
+
+   ## What I expected
+   [Describe the expected behavior]
+
+   ## Steps to reproduce
+   1. [Concrete, numbered steps using domain terms]
+   2. [Include relevant inputs, flags, or configuration]
+
+   ## Additional context
+   [Observations from code exploration, omitting internal paths]
+   ```
+

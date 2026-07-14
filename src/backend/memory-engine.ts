@@ -29,11 +29,8 @@ export class MemoryEngine {
    * 检测当前模型是否支持 Tool Call (Function Calling)
    */
   supportsToolCall(): boolean {
-    const active = this.modelManager.getActiveModel?.();
-    if (!active) return false;
-    // 云端大模型一般支持 Function Calling
-    const cloudProviders = ['OpenAI', 'Anthropic', 'Google', 'DeepSeek'];
-    return cloudProviders.some(p => (active.provider || '').includes(p));
+    // 现阶段模型接口未真正打通 API 侧的 Function Calling 载荷传递与拦截器，统一退化为正则 Fallback 提取
+    return false;
   }
 
   /**
@@ -327,13 +324,79 @@ export class MemoryEngine {
         queryEmbedding = emb;
       }
     } catch (e) {
-      return results;
+      console.warn('[记忆引擎] 获取 Embedding 抛出异常，触发词法降级检索');
     }
 
-    // 嵌入不可用：明确降级为 BM25 关键词召回，绝不参与向量排序
+    // 嵌入不可用：明确降级为词法检索
     if (!queryEmbedding) {
-      console.warn('[记忆引擎] 嵌入模型不可用，统一检索降级为 BM25 关键词召回，未污染向量排序。');
-      return results;
+      console.warn('[记忆引擎] 嵌入模型不可用，统一检索降级为词法模糊检索，未污染向量排序。');
+      
+      // 1. 长期记忆模糊降级
+      try {
+        const searchQueries = [query];
+        if (query.includes('名字') || query.includes('昵称') || query.includes('谁') || query.includes('叫什么') || query.includes('称呼') || query.includes('你叫')) {
+          searchQueries.push('名字');
+          searchQueries.push('昵称');
+        }
+        if (query.includes('喜欢') || query.includes('偏好') || query.includes('习惯') || query.includes('爱吃') || query.includes('讨厌')) {
+          searchQueries.push('喜欢');
+          searchQueries.push('偏好');
+          searchQueries.push('习惯');
+        }
+        
+        const uniqueHits = new Map();
+        for (const sq of searchQueries) {
+          const sqlHits = this.memoryStore.searchMemory(sq, 5);
+          for (const h of sqlHits) {
+            uniqueHits.set(h.id, h);
+          }
+        }
+
+        for (const h of uniqueHits.values()) {
+          let tagsArray = [];
+          try {
+            tagsArray = typeof h.tags === 'string' ? JSON.parse(h.tags) : (h.tags || []);
+          } catch (e) {}
+          if (!tagsArray.includes('promoted')) {
+            results.push({ content: h.content, source: '用户记忆', score: 0.5 });
+          }
+        }
+      } catch (e) {}
+
+      // 2. 情景记忆模糊降级
+      try {
+        const searchQueries = [query];
+        if (query.includes('名字') || query.includes('昵称') || query.includes('谁') || query.includes('叫什么') || query.includes('称呼') || query.includes('你叫')) {
+          searchQueries.push('名字');
+          searchQueries.push('昵称');
+        }
+        const uniqueEpHits = new Map();
+        for (const sq of searchQueries) {
+          const resultsEp = this.memoryStore.db.exec(
+            'SELECT * FROM memory_episodes WHERE summary LIKE ? OR topics_json LIKE ? ORDER BY created_at DESC LIMIT 3',
+            [`%${sq}%`, `%${sq}%`]
+          );
+          const epHits = this.memoryStore._parseResults(resultsEp);
+          for (const h of epHits) {
+            uniqueEpHits.set(h.id, h);
+          }
+        }
+        for (const h of uniqueEpHits.values()) {
+          results.push({ content: h.summary, source: '历史对话', score: 0.4 });
+        }
+      } catch (e) {}
+
+      // 3. 实体关系查询
+      try {
+        const entityHits = this.memoryStore.queryEntityRelations(query);
+        if (entityHits && entityHits.length > 0) {
+          const entityContext = entityHits.map((e: any) => `${e.subject} -[${e.predicate}]-> ${e.object}`).join('；');
+          results.push({ content: `[实体关系] ${entityContext}`, source: '实体图谱', score: 1.1 });
+        }
+      } catch (e) {}
+
+      results.sort((a, b) => b.score - a.score);
+      return results.slice(0, 8);
     }
 
     // 三路并发检索
@@ -460,6 +523,23 @@ export class MemoryEngine {
       } catch (e) {}
     })());
 
+    // 路径 D: 晋升知识库 (从 memories_vectors 晋升而来的核心知识)
+    tasks.push((async () => {
+      try {
+        const promotedPath = path.join(this.dataDir, 'knowledge', 'promoted_memories.json');
+        const fs = require('fs');
+        if (!fs.existsSync(promotedPath)) return;
+
+        await vectorDbManager.executeRead(promotedPath, async (promotedStore: any) => {
+          const hits = await promotedStore.search(queryEmbedding, query, 3);
+          for (const h of (hits || [])) {
+            const content = h.doc.metadata?.parentContent || h.doc.content;
+            results.push({ content, source: '自进化知识', score: h.score * 0.9 });
+          }
+        });
+      } catch (e) {}
+    })());
+
     // 路径 C: 情景记忆摘要
     tasks.push((async () => {
       try {
@@ -474,6 +554,40 @@ export class MemoryEngine {
     })());
 
     await Promise.all(tasks);
+
+    // 混合词法检索双保险降级补充：如果向量相似度排序没有召回，通过包含关键字的词法匹配安全召回
+    try {
+      const searchQueries = [query];
+      if (query.includes('名字') || query.includes('昵称') || query.includes('谁') || query.includes('叫什么') || query.includes('称呼') || query.includes('你叫')) {
+        searchQueries.push('名字');
+        searchQueries.push('昵称');
+      }
+      if (query.includes('喜欢') || query.includes('偏好') || query.includes('习惯') || query.includes('爱吃') || query.includes('讨厌')) {
+        searchQueries.push('喜欢');
+        searchQueries.push('偏好');
+        searchQueries.push('习惯');
+      }
+
+      const uniqueHits = new Map();
+      for (const sq of searchQueries) {
+        const sqlHits = this.memoryStore.searchMemory(sq, 5);
+        for (const h of sqlHits) {
+          uniqueHits.set(h.id, h);
+        }
+      }
+
+      for (const h of uniqueHits.values()) {
+        let tagsArray = [];
+        try {
+          tagsArray = typeof h.tags === 'string' ? JSON.parse(h.tags) : (h.tags || []);
+        } catch (e) {}
+        if (!tagsArray.includes('promoted')) {
+          if (!results.some(r => r.content === h.content && r.source === '用户记忆')) {
+            results.push({ content: h.content, source: '用户记忆', score: 0.8 });
+          }
+        }
+      }
+    } catch (e) {}
 
     // 实体关系补充查询
     try {

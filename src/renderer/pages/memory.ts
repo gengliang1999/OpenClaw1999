@@ -12,38 +12,53 @@ let currentPage = 1;
 let currentSearch = '';
 
 export async function render(container) {
+  let globalConfig: any = {};
+  let recentDbs: string[] = [];
+  try {
+    globalConfig = (await api.get('/system/global-config')) || {};
+    const recentRes = await api.get('/system/memory/recent-dbs');
+    if (recentRes && recentRes.success) {
+      recentDbs = recentRes.recent || [];
+    }
+  } catch (e) {
+    console.error('加载记忆文件配置失败', e);
+  }
+
   container.innerHTML = `
-    <div style="max-width: 1200px; margin: 0 auto; padding: 40px; display: flex; flex-direction: column; height: 100%; position: relative;">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; flex-direction: column; height: 100%; position: relative; box-sizing: border-box;">
       
       <!-- Ambient Background Glow -->
       <div style="position: absolute; top: -100px; left: -100px; width: 300px; height: 300px; background: radial-gradient(circle, rgba(108,99,255,0.15) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; filter: blur(40px); pointer-events: none;"></div>
       
-      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; flex-shrink: 0; animation: fadeInDown 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0; animation: fadeInDown 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);">
         <div>
-          <h2 style="font-size: 36px; font-weight: 800; margin: 0 0 8px 0; background: linear-gradient(135deg, var(--primary), #4facfe); background-size: 200% 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: gradientPulse 3s ease infinite;">🧠 核心记忆神经元</h2>
-          <p style="margin: 0; color: var(--text-secondary); font-size: 15px; letter-spacing: 0.5px;">正在同步 RAG 向量引擎... AI 会在这里无感提取并永久刻印您的偏好、事实与习惯。</p>
+          <h2 style="font-size: 22px; font-weight: 800; margin: 0 0 4px 0; background: linear-gradient(135deg, var(--primary), #4facfe); background-size: 200% 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: gradientPulse 3s ease infinite;">🧠 AI 的永久记忆</h2>
+          <p style="margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; letter-spacing: 0.5px;">
+            <span style="color: var(--text-primary); font-weight: 600;">这里存放着 AI 记住的关于你的所有事情。</span>
+            <span style="opacity: 0.75; margin-left: 6px;">💡 提示：点击卡片上的【📌 置顶】按钮可让该设定常驻对话。</span>
+          </p>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center;">
-          <div style="position: relative; width: 260px;">
-            <input type="text" id="searchMemoryInput" placeholder="输入输入向量特征..." class="input" style="width: 100%; padding: 12px 16px 12px 40px; border-radius: 12px; border: 1px solid var(--border-light); background: var(--bg-card); backdrop-filter: blur(10px); color: var(--text-primary); font-size: 14px; outline: none; transition: all 0.3s;" onfocus="this.style.border='1px solid var(--primary)'; this.style.boxShadow='0 0 15px rgba(0,122,255,0.2)'" onblur="this.style.border='1px solid var(--border-light)'; this.style.boxShadow='none'">
-            <span style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 16px; opacity: 0.7;">📡</span>
+        <div style="display: flex; gap: 6px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 12px; backdrop-filter: blur(10px); box-shadow: var(--shadow-sm); flex-shrink: 0;">
+          <div style="position: relative; width: 200px; flex-shrink: 0;">
+            <input type="text" id="searchMemoryInput" placeholder="🔍 搜索记忆..." class="input" style="width: 100%; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-primary); font-size: 13px; outline: none; transition: all 0.3s; box-sizing: border-box;" onfocus="this.style.border='1px solid var(--primary)'; this.style.boxShadow='0 0 10px rgba(0,122,255,0.15)'" onblur="this.style.border='1px solid var(--border-light)'; this.style.boxShadow='none'">
           </div>
-          <button id="addMemoryBtn" class="btn btn-primary" style="padding: 12px 20px; border-radius: 12px; border: 1px solid var(--primary); background: var(--primary-light); color: var(--primary); cursor: pointer; font-weight: 600; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='var(--primary)'; this.style.color='#fff'; this.style.boxShadow='0 0 20px rgba(0,122,255,0.4)'" onmouseout="this.style.background='var(--primary-light)'; this.style.color='var(--primary)'; this.style.boxShadow='none'">+ 手动刻印</button>
-          <button id="importMemoryBtn" class="btn" style="padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📥 导入</button>
-          <button id="exportMemoryBtn" class="btn" style="padding: 12px 16px; border-radius: 12px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; transition: all 0.2s; backdrop-filter: blur(4px);" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📤 导出</button>
+          <button id="addMemoryBtn" class="btn btn-primary" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--primary); background: var(--primary-light); color: var(--primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--primary)'; this.style.color='#fff'; this.style.boxShadow='0 0 15px rgba(0,122,255,0.3)'" onmouseout="this.style.background='var(--primary-light)'; this.style.color='var(--primary)'; this.style.boxShadow='none'">+ 添加</button>
+          <button id="importMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📥 导入</button>
+          <button id="exportMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📤 导出</button>
+          <button id="clearMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,59,48,0.3); background: rgba(255,59,48,0.05); color: #ff3b30; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='#ff3b30'; this.style.color='#fff'; this.style.boxShadow='0 0 15px rgba(255,59,48,0.3)'" onmouseout="this.style.background='rgba(255,59,48,0.05)'; this.style.color='#ff3b30'; this.style.boxShadow='none'">🧹 清空</button>
         </div>
       </div>
 
       <div style="flex: 1; overflow-y: auto; padding: 8px 4px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
-        <div id="memoryList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+        <div id="memoryList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
           <!-- List renders here -->
         </div>
       </div>
       
       <div style="padding: 24px 0 0 0; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
-        <div style="display: flex; gap: 16px; align-items: center; background: var(--bg-card); backdrop-filter: blur(12px); padding: 8px 20px; border-radius: 16px; border: 1px solid var(--border-light); box-shadow: 0 4px 16px rgba(0,0,0,0.1);">
+        <div style="display: flex; gap: 16px; align-items: center; background: rgba(255,255,255,0.02); backdrop-filter: blur(16px); padding: 8px 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
           <button id="prevPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-secondary)'">&lt; 向上回溯</button>
-          <span id="pageInfo" style="font-size: 14px; font-weight: 600; color: var(--text-primary); background: var(--bg-hover); padding: 4px 12px; border-radius: 8px;">Node 1</span>
+          <span id="pageInfo" style="font-size: 14px; font-weight: 600; color: var(--text-primary); background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 8px;">Node 1</span>
           <button id="nextPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-secondary)'">深度下潜 &gt;</button>
         </div>
       </div>
@@ -69,17 +84,40 @@ export async function render(container) {
   });
 
   (document.getElementById('addMemoryBtn') as any).addEventListener('click', async () => {
-    const content = await asyncPrompt('请输入要让助手强制刻印在突触中的事实：');
+    const content = await asyncPrompt('请输入你想让 AI 永久记住的事情：');
     if (content && content.trim()) {
       addMemory(content.trim());
     }
   });
 
+  (document.getElementById('clearMemoryBtn') as any).addEventListener('click', async () => {
+    if (await asyncConfirm('危险警告：此操作将清空当前数据库内的全部记忆，清空后 AI 将不再记得这些事。是否确定执行？')) {
+      try {
+        await api.post('/memory/clear-all');
+        if (window.__toast) window.__toast.success('已成功清空 AI 的全部记忆');
+        else alert('已成功清空 AI 的全部记忆！');
+        currentPage = 1;
+        loadData();
+      } catch (e: any) {
+        if (window.__toast) window.__toast.error('重置失败: ' + e.message);
+        else alert('重置失败: ' + e.message);
+      }
+    }
+  });
+
   (document.getElementById('importMemoryBtn') as any).addEventListener('click', async () => {
     try {
-      const res = await api.post('/memory/import', {});
+      const chooseMode = await asyncConfirmCustom(
+        '请选择导入记忆的冲突处理策略',
+        '合并追加 (推荐)：将备份内容合并入当前记忆，并自动向量排重',
+        '完全覆写：彻底清除当前数据库的所有记忆及向量，并装载该备份内容'
+      );
+      if (chooseMode === null) return;
+      
+      const overwrite = chooseMode === 'overwrite';
+      const res = await api.post('/memory/import', { overwrite });
       if (res && res.success) {
-        alert(`成功导入 ${res.importedCount} 条核心记忆！向量提炼已在后台异步执行...`);
+        alert(`成功导入 ${res.importedCount} 条核心记忆及对应的高维向量！`);
         currentPage = 1;
         loadData();
       } else if (res && res.message) {
@@ -94,7 +132,7 @@ export async function render(container) {
     try {
       const res = await api.post('/memory/export', {});
       if (res && res.success) {
-        alert(`成功导出记忆备份至: ${res.filePath}`);
+        alert(`核心记忆及高维向量已成功安全打包导出至:\n${res.filePath}`);
       } else if (res && res.message) {
         if (window.__toast) window.__toast.info(res.message);
       }
@@ -112,14 +150,48 @@ async function loadData() {
   
   try {
     let res;
+    let total = 0;
     if (currentSearch) {
       res = await api.memory.searchMemory(currentSearch, 20);
       memories = res || [];
+      total = memories.length;
     } else {
       res = await api.memory.getMemories(currentPage, 20);
       memories = res?.data || [];
+      total = res?.total || 0;
     }
+
+    // 强制按是否置顶（is_pinned = 1）进行前置升排序，第二维度按创建时间倒序
+    memories.sort((a: any, b: any) => {
+      const aPinned = a.is_pinned === 1 || a.isPinned ? 1 : 0;
+      const bPinned = b.is_pinned === 1 || b.isPinned ? 1 : 0;
+      if (aPinned !== bPinned) {
+        return bPinned - aPinned;
+      }
+      const aTime = new Date(a.created_at || a.createdAt).getTime();
+      const bTime = new Date(b.created_at || b.createdAt).getTime();
+      return bTime - aTime;
+    });
     
+    // 动态控制底部分页器的显示与置灰
+    const totalPages = Math.ceil(total / 20);
+    const paginationContainer = document.getElementById('prevPageBtn')?.parentElement;
+    if (paginationContainer) {
+      paginationContainer.style.display = totalPages <= 1 ? 'none' : 'flex';
+    }
+
+    const prevBtn = document.getElementById('prevPageBtn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('nextPageBtn') as HTMLButtonElement;
+    if (prevBtn && nextBtn) {
+      prevBtn.disabled = currentPage <= 1;
+      prevBtn.style.opacity = currentPage <= 1 ? '0.4' : '1';
+      prevBtn.style.cursor = currentPage <= 1 ? 'not-allowed' : 'pointer';
+
+      nextBtn.disabled = currentPage >= totalPages;
+      nextBtn.style.opacity = currentPage >= totalPages ? '0.4' : '1';
+      nextBtn.style.cursor = currentPage >= totalPages ? 'not-allowed' : 'pointer';
+    }
+
     (document.getElementById('pageInfo') as any).textContent = `Node ${currentPage}`;
     renderList();
   } catch (e) {
@@ -128,14 +200,40 @@ async function loadData() {
   }
 }
 
+function getTagHtml(tag: string) {
+  let bg = 'rgba(0,122,255,0.1)';
+  let border = 'rgba(0,122,255,0.2)';
+  let color = 'var(--primary)';
+  let displayText = tag;
+
+  if (tag === 'auto') {
+    bg = 'rgba(0,122,255,0.08)';
+    border = 'rgba(0,122,255,0.15)';
+    color = 'var(--primary)';
+    displayText = '🤖 自动';
+  } else if (tag === 'promoted') {
+    bg = 'rgba(255,159,10,0.08)';
+    border = 'rgba(255,159,10,0.15)';
+    color = '#ff9f0a';
+    displayText = '🚀 晋升';
+  } else {
+    bg = 'rgba(52,199,89,0.08)';
+    border = 'rgba(52,199,89,0.15)';
+    color = '#30d158';
+    displayText = (tag === 'User Node' || tag === 'Manual Override' || tag === 'manual') ? '✍️ 手动' : `✍️ ${tag}`;
+  }
+
+  return `<span style="display: inline-block; padding: 4px 8px; background: ${bg}; color: ${color}; border-radius: 6px; font-size: 11.5px; font-weight: 600; border: 1px solid ${border}; white-space: nowrap; flex-shrink: 0;">${escapeHtml(displayText)}</span>`;
+}
+
 function renderList() {
   const container = (document.getElementById('memoryList') as any);
   if (memories.length === 0) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; padding: 80px 20px; text-align: center; color: var(--text-muted);">
         <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">📭</div>
-        <div style="font-size: 18px; font-weight: 500;">${currentSearch ? '未检测到匹配的特征码序列' : '突触库空载'}</div>
-        <div style="font-size: 14px; margin-top: 8px;">在聊天时下达的规则，将自动凝结为神经元结构</div>
+        <div style="font-size: 18px; font-weight: 500;">未检索到任何记忆事实</div>
+        <div style="font-size: 14px; margin-top: 8px;">在聊天时发给 AI 的设定或规则，会被自动记住并整理在这里</div>
       </div>
     `;
     return;
@@ -148,69 +246,132 @@ function renderList() {
        const parsedTags = typeof m.tags === 'string' ? JSON.parse(m.tags) : (m.tags || []);
        isPromoted = parsedTags.includes('promoted');
        const showTags = parsedTags.length > 0 ? parsedTags : ['User Node'];
-       tagsHtml = showTags.map(t => `<span style="display: inline-block; padding: 4px 10px; background: rgba(0,242,254, 0.1); color: #00f2fe; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid rgba(0,242,254,0.2);">${escapeHtml(t)}</span>`).join(' ');
+       tagsHtml = showTags.map(t => getTagHtml(t)).join(' ');
     } catch(e) {
-       tagsHtml = `<span style="display: inline-block; padding: 4px 10px; background: rgba(0,242,254, 0.1); color: #00f2fe; border-radius: 6px; font-size: 12px; font-weight: 600; border: 1px solid rgba(0,242,254,0.2);">User Node</span>`;
+       tagsHtml = getTagHtml('User Node');
     }
 
     const isEvolution = m.type === 'Self-Evolution';
     const mainColor = isEvolution ? '#ff3b30' : 'var(--primary)';
     
-    // 生成晋升/已晋升的按钮结构
+    // 生成排重晋升按钮
     const promoteBtn = isPromoted 
-      ? `<span style="background: rgba(52, 199, 89, 0.15); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.3); padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight:600; flex-shrink:0;">已晋升</span>`
-      : `<button class="promote-btn" onclick="window._promoteMemory('${m.id}')" style="background: rgba(0,122,255,0.1); border: none; color: var(--primary); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; opacity: 0; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,122,255,0.2)'" onmouseout="this.style.background='rgba(0,122,255,0.1)'">🚀 晋升</button>`;
+      ? `<span style="background: rgba(52, 199, 89, 0.15); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.3); padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight:600; flex-shrink:0;" title="已晋升">🚀</span>`
+      : `<button class="promote-btn" onclick="window._promoteMemory('${m.id}')" style="background: rgba(0,122,255,0.1); border: none; color: var(--primary); border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,122,255,0.2)'" onmouseout="this.style.background='rgba(0,122,255,0.1)'" title="晋升脑皮层">🚀</button>`;
+
+    const isPinned = m.is_pinned === 1 || m.isPinned;
+    const pinBtn = `<button class="pin-btn" onclick="window._togglePinMemory('${m.id}', ${isPinned ? 0 : 1})" style="background: ${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}; border: none; color: ${isPinned ? '#ff9f0a' : 'var(--text-muted)'}; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="${isPinned ? '取消置顶' : '置顶常驻'}" onmouseover="this.style.background='rgba(255,159,10,0.25)'" onmouseout="this.style.background='${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}'">${isPinned ? '📌' : '📍'}</button>`;
+
+    // 动态提取标题和预览正文逻辑
+    let cardTitle = '';
+    let cardPreview = '';
+    const contentLines = m.content.split('\n').map(l => l.trim()).filter(Boolean);
+    if (contentLines.length > 1) {
+      cardTitle = contentLines[0];
+      cardPreview = contentLines.slice(1).join('\n');
+    } else {
+      if (m.content.length <= 25) {
+        cardTitle = m.content;
+        cardPreview = '';
+      } else {
+        cardTitle = m.content.substring(0, 15) + '...';
+        cardPreview = m.content;
+      }
+    }
+
+    const shadowColor = 'rgba(255, 159, 10, 0.15)';
+    const shadowColorHover = 'rgba(255, 159, 10, 0.26)';
+    const cardBorder = isPinned ? '1px solid rgba(255, 159, 10, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)';
+    const cardShadow = isPinned 
+      ? `0 8px 30px ${shadowColor}, 0 2px 8px rgba(0, 0, 0, 0.3)` 
+      : '0 8px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15)';
+    const hoverBorderColor = isPinned ? 'rgba(255, 159, 10, 0.85)' : 'rgba(255, 255, 255, 0.18)';
+    const hoverShadow = isPinned 
+      ? `0 14px 44px ${shadowColorHover}, 0 4px 16px rgba(0, 0, 0, 0.45)` 
+      : '0 14px 44px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.25)';
+    const outBorderColor = isPinned ? 'rgba(255, 159, 10, 0.45)' : 'rgba(255, 255, 255, 0.08)';
+    const outShadow = cardShadow;
+
+    // 更改置顶后的动画背景色及过渡呼吸效果
+    const cardBg = isPinned 
+      ? 'linear-gradient(135deg, rgba(255, 159, 10, 0.06) 0%, rgba(255, 255, 255, 0.03) 100%)' 
+      : 'rgba(255, 255, 255, 0.04)';
+    const hoverBg = isPinned 
+      ? 'linear-gradient(135deg, rgba(255, 159, 10, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%)' 
+      : 'rgba(255, 255, 255, 0.07)';
+    const outBg = cardBg;
+
+    const dateObj = new Date(m.created_at || m.createdAt);
+    const shortTime = `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+
+    const previewHtml = cardPreview
+      ? `<div class="card-content-wrapper" style="color: var(--text-secondary); font-size: 13px; line-height: 1.55; word-break: break-word; padding-left: 10px; max-height: 48px; overflow: hidden; transition: max-height 0.3s ease; white-space: pre-wrap;">${escapeHtml(cardPreview)}</div>`
+      : '';
+    const toggleHtml = cardPreview
+      ? `<div class="expand-toggle-btn" style="padding-left: 10px; font-size: 11.5px; color: var(--primary); cursor: pointer; display: none; align-items: center; gap: 4px; font-weight: 600; margin-top: 4px;">展开全文 ▾</div>`
+      : '';
 
     return `
-      <div class="memory-card" style="position: relative; background: var(--bg-card); backdrop-filter: blur(12px); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--border-light); overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: default; box-shadow: var(--shadow-sm); animation: fadeInUp 0.4s ease forwards; animation-delay: ${idx * 0.05}s; opacity: 0; transform: translateY(10px);" 
-           onmouseover="this.style.transform='translateY(-4px) scale(1.02)'; this.style.borderColor='${mainColor}'; this.style.boxShadow='var(--shadow-md)'" 
-           onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.borderColor='var(--border-light)'; this.style.boxShadow='var(--shadow-sm)'">
+      <div class="memory-card" style="position: relative; background: ${cardBg}; backdrop-filter: blur(16px); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; border: ${cardBorder}; overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: default; box-shadow: ${cardShadow}; animation: fadeInUp 0.4s ease forwards; animation-delay: ${idx * 0.05}s; opacity: 0; transform: translateY(10px);" 
+           onmouseover="this.style.transform='translateY(-4px) scale(1.01)'; this.style.borderColor='${hoverBorderColor}'; this.style.boxShadow='${hoverShadow}'; this.style.background='${hoverBg}'" 
+           onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.borderColor='${outBorderColor}'; this.style.boxShadow='${outShadow}'; this.style.background='${outBg}'">
         
-        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${isEvolution ? 'linear-gradient(to bottom, #ff3b30, #ff9f0a)' : 'linear-gradient(to bottom, var(--primary), #5856d6)'};"></div>
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${isPinned ? 'linear-gradient(to bottom, #ff9f0a, #ffcc00)' : (isEvolution ? 'linear-gradient(to bottom, #ff3b30, #ff9f0a)' : 'linear-gradient(to bottom, var(--primary), #5856d6)')};"></div>
         
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; padding-left: 12px;">
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-left: 10px; width: 100%; min-height: 24px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
             ${tagsHtml}
+            <span style="font-size: 10.5px; color: var(--text-muted); opacity: 0.7; font-family: monospace;">${shortTime}</span>
           </div>
-          <div style="display: flex; gap: 8px; flex-shrink: 0;">
+          <div class="card-actions" style="display: flex; gap: 4px; align-items: center; opacity: 0.75; transition: opacity 0.2s;">
+            ${pinBtn}
             ${promoteBtn}
-            <button class="edit-btn" onclick="window._editMemory('${m.id}')" style="background: rgba(0,242,254,0.1); border: none; color: #00f2fe; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; opacity: 0; transition: all 0.2s;" title="修改记忆" onmouseover="this.style.background='rgba(0,242,254,0.2)'" onmouseout="this.style.background='rgba(0,242,254,0.1)'">
-              编辑
-            </button>
-            <button class="del-btn" onclick="window._deleteMemory('${m.id}')" style="background: rgba(255,59,48,0.1); border: none; color: #ff3b30; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; opacity: 0; transition: all 0.2s;" title="抹除神经元" onmouseover="this.style.background='rgba(255,59,48,0.2)'" onmouseout="this.style.background='rgba(255,59,48,0.1)'">
-              抹除
-            </button>
+            <button class="edit-btn" onclick="window._editMemory('${m.id}')" style="background: rgba(0,242,254,0.1); border: none; color: #00f2fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="修改记忆">✏️</button>
+            <button class="del-btn" onclick="window._deleteMemory('${m.id}')" style="background: rgba(255,59,48,0.1); border: none; color: #ff3b30; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="抹除记忆">🗑️</button>
           </div>
         </div>
         
-        <div style="color: var(--text-primary); font-size: 15px; line-height: 1.6; word-break: break-word; flex: 1; padding-left: 12px;">
-          ${escapeHtml(m.content)}
-        </div>
-        
-        <div style="color: var(--text-muted); font-size: 12px; margin-top: auto; padding-top: 12px; border-top: 1px dashed var(--border-light); padding-left: 12px; font-family: monospace;">
-          [TS_STAMP]: ${new Date(m.created_at || m.createdAt).getTime()} // ${new Date(m.created_at || m.createdAt).toLocaleString()}
+        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 4px;">
+          <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px; padding-left: 10px; word-break: break-word;">
+            📌 ${escapeHtml(cardTitle)}
+          </div>
+          ${previewHtml}
+          ${toggleHtml}
         </div>
       </div>
     `;
   }).join('');
 
-  container.querySelectorAll('.memory-card').forEach(card => {
+  container.querySelectorAll('.memory-card').forEach((card) => {
+    // 鼠标悬停显示控制按钮
     card.addEventListener('mouseover', () => {
-      const delBtn = card.querySelector('.del-btn');
-      if(delBtn) delBtn.style.opacity = '1';
-      const promoteBtn = card.querySelector('.promote-btn');
-      if(promoteBtn) promoteBtn.style.opacity = '1';
-      const editBtn = card.querySelector('.edit-btn');
-      if(editBtn) editBtn.style.opacity = '1';
+      const actions = card.querySelector('.card-actions') as HTMLElement;
+      if (actions) actions.style.opacity = '1';
     });
     card.addEventListener('mouseout', () => {
-      const delBtn = card.querySelector('.del-btn');
-      if(delBtn) delBtn.style.opacity = '0';
-      const promoteBtn = card.querySelector('.promote-btn');
-      if(promoteBtn) promoteBtn.style.opacity = '0';
-      const editBtn = card.querySelector('.edit-btn');
-      if(editBtn) editBtn.style.opacity = '0';
+      const actions = card.querySelector('.card-actions') as HTMLElement;
+      if (actions) actions.style.opacity = '0.75';
     });
+
+    // 折叠与展开交互绑定
+    const wrapper = card.querySelector('.card-content-wrapper') as HTMLElement;
+    const toggleBtn = card.querySelector('.expand-toggle-btn') as HTMLElement;
+    if (wrapper && toggleBtn) {
+      if (wrapper.scrollHeight > 48) {
+        toggleBtn.style.display = 'flex';
+      }
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isCollapsed = wrapper.style.maxHeight === '48px' || wrapper.style.maxHeight === '';
+        if (isCollapsed) {
+          wrapper.style.maxHeight = '1000px';
+          toggleBtn.innerHTML = '收起全文 ▴';
+        } else {
+          wrapper.style.maxHeight = '48px';
+          toggleBtn.innerHTML = '展开全文 ▾';
+        }
+      });
+    }
   });
 }
 
@@ -423,3 +584,72 @@ function asyncConfirm(message: string): Promise<boolean> {
     document.body.appendChild(overlay);
   });
 }
+
+function asyncConfirmCustom(titleText: string, mergeText: string, overwriteText: string): Promise<'merge' | 'overwrite' | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--bg-card);padding:24px;border-radius:16px;width:480px;max-width:90%;box-shadow:var(--shadow-lg);border:1px solid var(--border-light);box-sizing:border-box;';
+    
+    const title = document.createElement('div');
+    title.textContent = titleText;
+    title.style.cssText = 'margin-bottom:16px;font-size:16px;font-weight:bold;color:var(--text-primary);';
+    
+    const desc = document.createElement('div');
+    desc.style.cssText = 'font-size:13px;color:var(--text-secondary);margin-bottom:20px;line-height:1.6;display:flex;flex-direction:column;gap:12px;';
+    desc.innerHTML = `
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;border:1px solid var(--border-light);">
+        <input type="radio" name="importMode" value="merge" checked style="margin-top:3px;">
+        <div>
+          <div style="font-weight:600;color:var(--primary);">合并追加模式 (推荐)</div>
+          <div style="font-size:12px;opacity:0.8;margin-top:2px;">${mergeText}</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;background:rgba(255,59,48,0.02);padding:12px;border-radius:8px;border:1px solid rgba(255,59,48,0.2);">
+        <input type="radio" name="importMode" value="overwrite" style="margin-top:3px;">
+        <div>
+          <div style="font-weight:600;color:#ff3b30;">完全覆写模式 (高危)</div>
+          <div style="font-size:12px;opacity:0.8;margin-top:2px;">${overwriteText}</div>
+        </div>
+      </label>
+    `;
+    
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex;justify-content:flex-end;gap:12px;';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = 'padding:8px 16px;border-radius:8px;border:1px solid var(--border-light);background:transparent;color:var(--text-primary);cursor:pointer;font-size:13px;';
+    const okBtn = document.createElement('button');
+    okBtn.textContent = '开始导入';
+    okBtn.style.cssText = 'padding:8px 16px;border-radius:8px;border:none;background:var(--primary);color:white;cursor:pointer;font-weight:600;font-size:13px;';
+    
+    cancelBtn.onclick = () => { document.body.removeChild(overlay); resolve(null); };
+    okBtn.onclick = () => {
+      const selected = (box.querySelector('input[name="importMode"]:checked') as HTMLInputElement).value as any;
+      document.body.removeChild(overlay);
+      resolve(selected);
+    };
+    
+    btnRow.appendChild(cancelBtn);
+    btnRow.appendChild(okBtn);
+    box.appendChild(title);
+    box.appendChild(desc);
+    box.appendChild(btnRow);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  });
+}
+
+// 置顶/取消置顶核心切换事件
+window._togglePinMemory = async (id: string, pinState: number) => {
+  try {
+    await api.put(`/memory/${id}/pin`, { isPinned: pinState === 1 });
+    if (window.__toast) window.__toast.success(pinState === 1 ? '已成功置顶常驻该记忆' : '已成功取消该记忆的常驻置顶');
+    else alert(pinState === 1 ? '已置顶常驻该记忆！' : '已取消常驻置顶！');
+    loadData();
+  } catch (e: any) {
+    if (window.__toast) window.__toast.error('置顶操作失败: ' + e.message);
+    else alert('置顶操作失败: ' + e.message);
+  }
+};

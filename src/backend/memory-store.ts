@@ -12,10 +12,11 @@ const { v4: uuidv4 } = require('uuid');
 class MemoryStore {
   /**
    * @param {string} dataDir - 数据存储目录
+   * @param {string|null} customDbPath - 自定义数据库文件物理路径
    */
-  constructor(dataDir) {
-    this.dataDir = dataDir;
-    this.dbPath = path.join(dataDir, 'memory.db');
+  constructor(dataDir, customDbPath = null) {
+    this.dataDir = customDbPath ? path.dirname(customDbPath) : dataDir;
+    this.dbPath = customDbPath ? customDbPath : path.join(dataDir, 'memory.db');
     this.db = null;
     this._initialized = false;
     this._saveTimer = null; // 节流写盘定时器
@@ -154,9 +155,22 @@ class MemoryStore {
       const buffer = Buffer.from(data);
       const tmpPath = this.dbPath + '.tmp';
       fs.writeFileSync(tmpPath, buffer);
-      fs.renameSync(tmpPath, this.dbPath);
+
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          fs.renameSync(tmpPath, this.dbPath);
+          break;
+        } catch (renameErr) {
+          retries--;
+          if (retries === 0) throw renameErr;
+          // 睡眠 30ms 后重试
+          const execSync = require('child_process').execSync;
+          try { execSync('choice /t 1 /d y /n >nul', { timeout: 30 }); } catch (e) {}
+        }
+      }
     } catch (error) {
-      console.error('[记忆存储] 数据库保存失败:', error);
+      console.error('[记忆存储] 数据库物理存盘发生异常（已拦截以防崩溃）:', error);
     }
   }
 
@@ -189,9 +203,18 @@ class MemoryStore {
       'INSERT INTO memories (id, content, category, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       [id, content, category, JSON.stringify(tags), now, now]
     );
-    this._save();
+    this._debouncedSave();
 
     return { id, content, category, tags, created_at: now, updated_at: now };
+  }
+
+  /**
+   * 获取所有置顶/锁定的长期记忆（人设常驻指令）
+   * @returns {Array} 置顶记忆列表
+   */
+  getPinnedMemories() {
+    const results = this.db.exec('SELECT * FROM memories WHERE is_pinned = 1 ORDER BY updated_at DESC');
+    return this._parseResults(results, 'memories');
   }
 
   /**
@@ -240,7 +263,7 @@ class MemoryStore {
 
   deleteMemory(id) {
     this.db.run('DELETE FROM memories WHERE id = ?', [id]);
-    this._save();
+    this._debouncedSave();
   }
 
   /**
@@ -269,7 +292,7 @@ class MemoryStore {
       'INSERT INTO conversations (id, title, created_at, updated_at) VALUES (?, ?, ?, ?)',
       [id, title, now, now]
     );
-    this._save();
+    this._debouncedSave();
 
     return { id, title, created_at: now, updated_at: now };
   }
@@ -290,7 +313,7 @@ class MemoryStore {
   deleteConversation(conversationId) {
     this.db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
     this.db.run('DELETE FROM conversations WHERE id = ?', [conversationId]);
-    this._save();
+    this._debouncedSave();
   }
 
   /**
@@ -301,7 +324,7 @@ class MemoryStore {
   renameConversation(conversationId, newTitle) {
     const now = new Date().toISOString();
     this.db.run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [newTitle, now, conversationId]);
-    this._save();
+    this._debouncedSave();
   }
 
   /**
@@ -326,7 +349,7 @@ class MemoryStore {
 
     this.db.run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
     this.db.run('DELETE FROM conversations WHERE id = ?', [conversationId]);
-    this._save();
+    this._debouncedSave();
   }
 
   /**
@@ -626,7 +649,7 @@ class MemoryStore {
       'INSERT INTO memory_episodes (id, conversation_id, summary, topics_json, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, conversationId, summary, JSON.stringify(topics), now]
     );
-    this._save();
+    this._debouncedSave();
     return { id, conversationId, summary, topics };
   }
 
@@ -669,7 +692,59 @@ class MemoryStore {
       'UPDATE memories SET content = ?, updated_at = ? WHERE id = ?',
       [newContent, now, memoryId]
     );
-    this._save();
+    this._debouncedSave();
+  }
+
+  /**
+   * 给记忆标记特定的标签（如 pending_vectorization）
+   * @param {string} memoryId - 记忆 ID
+   * @param {string} tag - 要添加的标签
+   */
+  tagMemory(memoryId, tag) {
+    const mem = this.getMemory(memoryId);
+    if (!mem) return;
+    let tagsArray = [];
+    try {
+      tagsArray = typeof mem.tags === 'string' ? JSON.parse(mem.tags) : (mem.tags || []);
+      if (!Array.isArray(tagsArray)) tagsArray = [];
+    } catch (e) {
+      tagsArray = [];
+    }
+    if (!tagsArray.includes(tag)) {
+      tagsArray.push(tag);
+      const now = new Date().toISOString();
+      this.db.run(
+        'UPDATE memories SET tags = ?, updated_at = ? WHERE id = ?',
+        [JSON.stringify(tagsArray), now, memoryId]
+      );
+      this._debouncedSave();
+    }
+  }
+
+  /**
+   * 移除记忆的特定标签
+   * @param {string} memoryId - 记忆 ID
+   * @param {string} tag - 要移除的标签
+   */
+  untagMemory(memoryId, tag) {
+    const mem = this.getMemory(memoryId);
+    if (!mem) return;
+    let tagsArray = [];
+    try {
+      tagsArray = typeof mem.tags === 'string' ? JSON.parse(mem.tags) : (mem.tags || []);
+      if (!Array.isArray(tagsArray)) tagsArray = [];
+    } catch (e) {
+      tagsArray = [];
+    }
+    if (tagsArray.includes(tag)) {
+      tagsArray = tagsArray.filter(t => t !== tag);
+      const now = new Date().toISOString();
+      this.db.run(
+        'UPDATE memories SET tags = ?, updated_at = ? WHERE id = ?',
+        [JSON.stringify(tagsArray), now, memoryId]
+      );
+      this._debouncedSave();
+    }
   }
 
   // ===== 任务队列管理 =====
@@ -689,7 +764,7 @@ class MemoryStore {
       'INSERT INTO background_jobs (id, task_type, payload, status, retry_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [id, taskType, payloadStr, 'pending', 0, now, now]
     );
-    this._save();
+    this._debouncedSave();
 
     return { id, taskType, payload: payloadStr, status: 'pending', retry_count: 0, created_at: now, updated_at: now };
   }

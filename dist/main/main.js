@@ -80,6 +80,17 @@ function createMainWindow() {
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
     });
+    // [自愈按键守卫] 挂载开发期热键监听，实现 F5/Ctrl+R 重新加载、F12/Ctrl+Shift+I 唤起控制台
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if ((input.control && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+            mainWindow.webContents.reload();
+            event.preventDefault();
+        }
+        if ((input.control && input.shift && input.key.toLowerCase() === 'i') || input.key === 'F12') {
+            mainWindow.webContents.toggleDevTools();
+            event.preventDefault();
+        }
+    });
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
         console.log(`[RENDERER] ${message} (${sourceId}:${line})`);
     });
@@ -423,6 +434,7 @@ app.whenReady().then(async () => {
     let dataDir = baseDataDir;
     let downloadDir = baseDataDir;
     let logDir = path.join(baseDataDir, 'logs');
+    let customMemoryDbPath = null;
     const globalConfigPath = path.join(baseDataDir, 'global-config.json');
     if (fs.existsSync(globalConfigPath)) {
         try {
@@ -438,6 +450,9 @@ app.whenReady().then(async () => {
             }
             if (globalConfig.customLogDir) {
                 logDir = globalConfig.customLogDir;
+            }
+            if (globalConfig.customMemoryDbPath) {
+                customMemoryDbPath = globalConfig.customMemoryDbPath;
             }
         }
         catch (e) {
@@ -473,11 +488,19 @@ app.whenReady().then(async () => {
     const { PermissionManager } = require('../backend/permission-manager');
     const { AutomationController } = require('../backend/automation');
     const modelManager = new ModelManager(dataDir);
-    const memoryStore = new MemoryStore(dataDir);
+    const memoryStore = new MemoryStore(dataDir, customMemoryDbPath);
     const sandbox = new SandboxExecutor(downloadDir);
     const permissionManager = new PermissionManager(dataDir);
     const automation = new AutomationController(sandbox);
     await memoryStore.init();
+    // 自适应映射向量数据库同名同目录路径，保证中文命名及自定义路径绑定一致性
+    let memoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+    if (customMemoryDbPath) {
+        const dbDir = path.dirname(customMemoryDbPath);
+        const dbName = path.basename(customMemoryDbPath, path.extname(customMemoryDbPath));
+        memoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+    }
+    console.log('[主进程] 绑定长期记忆向量库物理路径为:', memoriesVectorsPath);
     console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
     // 初始化持久化任务队列与后台任务守护进程
     const { PersistentJobQueue } = require('../backend/persistent-job-queue');
@@ -485,7 +508,7 @@ app.whenReady().then(async () => {
     const { MemoryEngine } = require('../backend/memory-engine');
     const jobQueue = new PersistentJobQueue(memoryStore);
     const jobWorker = new BackgroundJobWorker(jobQueue, memoryStore);
-    const memoryEngine = new MemoryEngine(modelManager, memoryStore, dataDir);
+    const memoryEngine = new MemoryEngine(modelManager, memoryStore, memoryStore.dataDir);
     // 注册大模型异步记忆抽取任务处理器
     jobWorker.registerHandler('memory-extraction', async (payload) => {
         const { replyText } = payload;
@@ -496,19 +519,59 @@ app.whenReady().then(async () => {
     const { vectorDbManager } = require('../backend/vector-db-manager');
     jobWorker.registerHandler('memory-vectorization', async (payload) => {
         const { memoryId, content } = payload;
-        const memVecStore = new LocalVectorStore(path.join(dataDir, 'memories_vectors.json'));
-        await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store) => {
-            const embedding = await modelManager.getEmbedding(content);
-            // [P0/T7] 嵌入失败返回 null：不写入随机/非法向量，仅 BM25 召回
-            if (Array.isArray(embedding) && embedding.length > 0) {
+        // 锁外异步提取 Embedding，完美剥离网络 API 请求时间
+        const embedding = await modelManager.getEmbedding(content);
+        if (Array.isArray(embedding) && embedding.length > 0) {
+            await vectorDbManager.executeWrite(memoriesVectorsPath, async (store) => {
                 await store.addDocuments([{
                         id: require('crypto').randomUUID(),
                         content,
                         metadata: { source: content, memoryId, timestamp: new Date().toISOString() },
                         embedding
-                    }]);
+                    }], false); // 避免二次冗余落盘
+            });
+        }
+        else {
+            // 提炼失败，标记 pending 标签以防持久丢失，供后续自愈扫描
+            memoryStore.tagMemory(memoryId, 'pending_vectorization');
+            console.warn(`[主进程] 提炼记忆 Embedding 失败，已将记忆 ID ${memoryId} 标记为待补偿向量化`);
+        }
+    });
+    // 注册大模型记忆向量化待补偿自愈任务处理器
+    jobWorker.registerHandler('memory-vectorization-retry', async () => {
+        console.log('[自愈 Worker] 🧠 开始扫描本地 SQLite 中待补偿向量化的盲区记忆...');
+        try {
+            const results = memoryStore.db.exec("SELECT * FROM memories WHERE tags LIKE '%pending_vectorization%'");
+            const pendingMemories = memoryStore._parseResults(results);
+            if (pendingMemories.length === 0) {
+                console.log('[自愈 Worker] 🟢 未发现待补偿向量化的记忆');
+                return;
             }
-        });
+            console.log(`[自愈 Worker] ⏳ 发现 ${pendingMemories.length} 条待补偿记忆，开始逐条重试提取...`);
+            for (const mem of pendingMemories) {
+                try {
+                    const embedding = await modelManager.getEmbedding(mem.content);
+                    if (Array.isArray(embedding) && embedding.length > 0) {
+                        await vectorDbManager.executeWrite(memoriesVectorsPath, async (store) => {
+                            await store.addDocuments([{
+                                    id: require('crypto').randomUUID(),
+                                    content: mem.content,
+                                    metadata: { source: mem.content, memoryId: mem.id, timestamp: new Date().toISOString() },
+                                    embedding
+                                }], false);
+                        });
+                        memoryStore.untagMemory(mem.id, 'pending_vectorization');
+                        console.log(`[自愈 Worker] 🎉 记忆 ID ${mem.id} 补偿向量化成功，并已移去 SQLite 挂起标记`);
+                    }
+                }
+                catch (e) {
+                    console.warn(`[自愈 Worker] ⚠️ 记忆 ID ${mem.id} 补偿重试单条失败: ${e.message}`);
+                }
+            }
+        }
+        catch (err) {
+            console.error('[自愈 Worker] 补偿向量化流程异常:', err.message);
+        }
     });
     // 注册大模型记忆消重反刍任务处理器
     const { MemoryConsolidationPipeline } = require('../backend/memory-consolidation-pipeline');
@@ -517,8 +580,9 @@ app.whenReady().then(async () => {
         await consolidationPipeline.consolidate();
     });
     jobWorker.start();
-    // 启动时投递一次记忆整理任务
+    // 启动时投递一次记忆整理任务与向量化补偿自愈任务
     jobQueue.enqueue('memory-consolidation', {});
+    jobQueue.enqueue('memory-vectorization-retry', {});
     // 每 2 小时自动向队列投递一次记忆消重整理任务
     setInterval(() => {
         try {
@@ -526,6 +590,13 @@ app.whenReady().then(async () => {
         }
         catch (e) { }
     }, 2 * 60 * 60 * 1000);
+    // 每 10 分钟自动投递一次向量化补偿自愈任务
+    setInterval(() => {
+        try {
+            jobQueue.enqueue('memory-vectorization-retry', {});
+        }
+        catch (e) { }
+    }, 10 * 60 * 1000);
     // 挂载并启动知识蒸馏泵 (Nightly Knowledge Pump)
     const { VectorStore } = require('../backend/vector-store');
     const vectorStore = new VectorStore(path.join(dataDir, 'vectors.json'));
@@ -585,4 +656,12 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
     }
+});
+// 强退守卫：防止后台悬挂的 Job Worker / watch 句柄阻止 Electron 进程正常退出
+app.on('before-quit', () => {
+    try {
+        globalShortcut.unregisterAll();
+    }
+    catch (e) { }
+    process.exit(0);
 });
