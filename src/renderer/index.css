@@ -132,7 +132,7 @@ body {
 
 /* 侧边栏(macOS 访达风格) */
 .sidebar {
-  width: 200px; /* 默认固定宽度，保持修长美观 */
+  width: 150px; /* 默认固定宽度 */
   min-width: 90px;
   height: 100%;
   background: var(--bg-panel); /* Darken background */
@@ -146,6 +146,7 @@ body {
   transition: width 0.25s ease, padding 0.25s ease;
   overflow: visible;
   position: relative;
+  will-change: width;
 }
 
 /* 侧边栏拖拽白条把手 */
@@ -211,7 +212,7 @@ body {
 
 /* 收缩状态：只保留图标 */
 .sidebar.collapsed {
-  width: 52px !important;
+  width: 48px !important;
   padding-left: 2px;
   padding-right: 2px;
 }
@@ -340,15 +341,12 @@ body {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
+  font-size: 15px;
 }
 
 /* 隐藏滚动条 */
 .sidebar-nav-item.active .nav-icon {
   color: #fff;
-}
-
-.nav-icon {
-  font-size: 15px;
 }
 
 /* 主内容区 */
