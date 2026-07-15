@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ================== api.ts ==================
 
 export const api = {
@@ -20,9 +19,9 @@ export const api = {
 
   // ===== 业务接口 =====
   chat: {
-    sendMessage: (conversationId, message, modelId) => 
+    sendMessage: (conversationId: string, message: string, modelId: string) => 
       api.post('/chat', { conversationId, message, modelId }),
-    sendMessageStream: (conversationId, message, attachment, modelId, systemPrompt, temperature, agentMode, onData) => {
+    sendMessageStream: (conversationId: string, message: string, attachment: any, modelId: string, systemPrompt: string, temperature: number, agentMode: string, onData: (data: any) => void) => {
       if (window.openClaw && window.openClaw.onChatChunk) {
         // 先解绑历史监听，状态更新唯一性防竞态 Bug
         window.openClaw.offChatChunk();
@@ -48,21 +47,21 @@ export const api = {
         window.openClaw.abortStream();
       }
     },
-    deleteMessage: (messageId) => api.delete(`/chat/message/${messageId}`),
-    getHistory: (conversationId) => api.get(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
+    deleteMessage: (messageId: string) => api.delete(`/chat/message/${messageId}`),
+    getHistory: (conversationId?: string) => api.get(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
     getConversations: () => api.get('/chat/conversations'),
-    createConversation: (title) => api.post('/chat/conversations', { title }),
-    deleteConversation: (conversationId) => api.delete(`/chat/conversations/${conversationId}`),
-    renameConversation: (conversationId, title) => api.put(`/chat/conversations/${conversationId}`, { title }),
-    exportConversation: (conversationId) => api.get(`/chat/conversations/${conversationId}/export`),
-    moveToTrash: (conversationId) => api.post(`/chat/conversations/${conversationId}/trash`, {}),
+    createConversation: (title: string) => api.post('/chat/conversations', { title }),
+    deleteConversation: (conversationId: string) => api.delete(`/chat/conversations/${conversationId}`),
+    renameConversation: (conversationId: string, title: string) => api.put(`/chat/conversations/${conversationId}`, { title }),
+    exportConversation: (conversationId: string) => api.get(`/chat/conversations/${conversationId}/export`),
+    moveToTrash: (conversationId: string) => api.post(`/chat/conversations/${conversationId}/trash`, {}),
     getTrash: () => api.get('/chat/trash'),
     getTrashCount: () => api.get('/chat/trash/count'),
-    restoreFromTrash: (trashId) => api.post(`/chat/trash/${trashId}/restore`, {}),
-    permanentDelete: (trashId) => api.delete(`/chat/trash/${trashId}`),
+    restoreFromTrash: (trashId: string) => api.post(`/chat/trash/${trashId}/restore`, {}),
+    permanentDelete: (trashId: string) => api.delete(`/chat/trash/${trashId}`),
     emptyTrash: () => api.delete('/chat/trash'),
-    clearHistory: (conversationId) => api.delete(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
-    optimizePromptStream: (text, modelId, onData) => {
+    clearHistory: (conversationId?: string) => api.delete(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
+    optimizePromptStream: (text: string, modelId: string, onData: (data: any) => void) => {
       if (window.openClaw && window.openClaw.onOptimizeChunk) {
         window.openClaw.offOptimizeChunk();
         window.openClaw.onOptimizeChunk((data: any) => {
@@ -80,79 +79,79 @@ export const api = {
       return Promise.resolve();
     },
   },
-  // ===== ģ����� =====
+  // ===== 模型接口 =====
   model: {
     getModels: () => api.get('/models'),
-    setActiveModel: (modelId) => api.put('/models/active', { modelId }),
+    setActiveModel: (modelId: string) => api.put('/models/active', { modelId }),
     getActiveModel: () => api.get('/models/active'),
-    addModel: (config) => api.post('/models', config),
-    removeModel: (modelId) => api.delete(`/models/${modelId}`),
+    addModel: (config: any) => api.post('/models', config),
+    removeModel: (modelId: string) => api.delete(`/models/${modelId}`),
     getMarketplace: () => api.get('/models/marketplace'),
     syncLocalModels: () => api.post('/models/sync', {}),
-    preloadModel: (modelId) => api.post('/models/preload', { modelId }),
-    pullModel: (modelId) => api.post('/models/pull', { modelId }, { stream: true }),
+    preloadModel: (modelId: string) => api.post('/models/preload', { modelId }),
+    pullModel: (modelId: string) => api.post('/models/pull', { modelId }, { stream: true }),
     detectLocal: () => api.get('/models/local-detect'),
     getOllamaModels: () => api.get('/models/ollama/list'),
     getLMStudioModels: () => api.get('/models/lmstudio/list'),
-    addLocalModel: (provider, modelId, modelName, setDefault) => api.post('/models/local/add', { provider, modelId, modelName, setDefault }),
-    proxyFetchModels: (baseUrl, apiKey) => api.post('/models/proxy-fetch', { baseUrl, apiKey }),
-    proxyTest: (baseUrl, apiKey) => api.post('/models/proxy-test', { baseUrl, apiKey }),
-    deleteLocalModel: (provider, modelId) => api.delete(`/models/local/${provider}/${encodeURIComponent(modelId)}`),
+    addLocalModel: (provider: string, modelId: string, modelName: string, setDefault: boolean) => api.post('/models/local/add', { provider, modelId, modelName, setDefault }),
+    proxyFetchModels: (baseUrl: string, apiKey: string) => api.post('/models/proxy-fetch', { baseUrl, apiKey }),
+    proxyTest: (baseUrl: string, apiKey: string) => api.post('/models/proxy-test', { baseUrl, apiKey }),
+    deleteLocalModel: (provider: string, modelId: string) => api.delete(`/models/local/${provider}/${encodeURIComponent(modelId)}`),
   },
-  // ===== ������� =====
+  // ===== 记忆接口 =====
   memory: {
-    getMemories: (page, pageSize, category) => {
+    getMemories: (page?: number | string, pageSize?: number | string, category?: string) => {
       const params = new URLSearchParams();
-      if (page) params.set('page', page);
-      if (pageSize) params.set('pageSize', pageSize);
+      if (page) params.set('page', String(page));
+      if (pageSize) params.set('pageSize', String(pageSize));
       if (category) params.set('category', category);
       return api.get(`/memory?${params.toString()}`);
     },
-    addMemory: (content, category, tags) => api.post('/memory', { content, category, tags }),
-    deleteMemory: (id) => api.delete(`/memory/${id}`),
-    pinMemory: (id, isPinned) => api.put(`/memory/${id}/pin`, { isPinned }),
-    searchMemory: (query, limit) => api.get(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
+    addMemory: (content: string, category: string, tags: string[]) => api.post('/memory', { content, category, tags }),
+    deleteMemory: (id: string | number) => api.delete(`/memory/${id}`),
+    pinMemory: (id: string | number, isPinned: boolean) => api.put(`/memory/${id}/pin`, { isPinned }),
+    searchMemory: (query: string, limit?: number) => api.get(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
   },
-  // ===== �Զ������ =====
+  // ===== 自动化接口 =====
   automation: {
     captureScreen: () => api.post('/automation/screenshot', {}),
   },
-  // ===== ɳ����� =====
+  // ===== 沙盒接口 =====
   sandbox: {
-    executeCommand: (command, options = {}) => api.post('/sandbox/execute', { command, confirmed: false, permanent: false, ...options }),
+    executeCommand: (command: string, options: any = {}) => api.post('/sandbox/execute', { command, confirmed: false, permanent: false, ...options }),
     getPermissions: () => api.get('/sandbox/permissions'),
-    grantPermission: (pattern, permanent) => api.post('/sandbox/permissions', { pattern, permanent }),
-    revokePermission: (id) => api.delete(`/sandbox/permissions/${id}`),
-    getLogs: (page, pageSize) => api.get(`/sandbox/logs?page=${page || 1}&pageSize=${pageSize || 50}`),
+    grantPermission: (pattern: string, permanent: boolean) => api.post('/sandbox/permissions', { pattern, permanent }),
+    revokePermission: (id: string | number) => api.delete(`/sandbox/permissions/${id}`),
+    getLogs: (page?: number, pageSize?: number) => api.get(`/sandbox/logs?page=${page || 1}&pageSize=${pageSize || 50}`),
   },
-  // ===== ������� =====
+  // ===== 技能接口 =====
   skill: {
     getSkills: () => api.get('/skills'),
-    installSkill: (skillId) => api.post('/skills/install', { skillId }),
-    removeSkill: (skillId) => api.delete(`/skills/${skillId}`),
-    getMarketplace: (type, search) => {
+    installSkill: (skillId: string) => api.post('/skills/install', { skillId }),
+    removeSkill: (skillId: string) => api.delete(`/skills/${skillId}`),
+    getMarketplace: (type?: string, search?: string) => {
       const params = new URLSearchParams();
       if (type) params.set('type', type);
       if (search) params.set('search', search);
       return api.get(`/skills/marketplace?${params.toString()}`);
     },
   },
-  // ===== ������ =====
+  // ===== 插件接口 =====
   plugin: {
     getPlugins: () => api.get('/plugins'),
-    installPlugin: (pluginId) => api.post('/plugins/install', { pluginId }),
-    removePlugin: (pluginId) => api.delete(`/plugins/${pluginId}`),
+    installPlugin: (pluginId: string) => api.post('/plugins/install', { pluginId }),
+    removePlugin: (pluginId: string) => api.delete(`/plugins/${pluginId}`),
     getMarketplace: () => api.get('/plugins/marketplace'),
-    updatePluginConfig: (pluginId, config) => api.put(`/plugins/${pluginId}/config`, { config }),
-    connectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/connect`, {}),
-    disconnectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/disconnect`, {}),
+    updatePluginConfig: (pluginId: string, config: any) => api.put(`/plugins/${pluginId}/config`, { config }),
+    connectPlugin: (pluginId: string) => api.post(`/plugins/${pluginId}/connect`, {}),
+    disconnectPlugin: (pluginId: string) => api.post(`/plugins/${pluginId}/disconnect`, {}),
   },
-  // ===== ������� =====
+  // ===== 设置接口 =====
   settings: {
-    get: (key) => api.get(`/settings/${key}`),
-    set: (key, value) => api.put(`/settings/${key}`, { value }),
+    get: (key: string) => api.get(`/settings/${key}`),
+    set: (key: string, value: any) => api.put(`/settings/${key}`, { value }),
     getAll: () => api.get('/settings'),
-    updateAll: (settings) => api.put('/settings', settings),
+    updateAll: (settings: any) => api.put('/settings', settings),
   }
 };
 
@@ -168,7 +167,7 @@ export const api = {
  * @param {string} unsafe - 原始字符串
  * @returns {string} 转义后的安全字符串
  */
-export function escapeHtml(unsafe) {
+export function escapeHtml(unsafe: string): string {
   if (!unsafe) return '';
   return String(unsafe)
     .replace(/&/g, '&amp;')
@@ -184,7 +183,7 @@ export function escapeHtml(unsafe) {
  * 禁止：javascript: / vbscript: / data:image/svg+xml 等。
  * @returns 安全 URL 原样返回，不安全返回 null（调用方应丢弃或降级显示）
  */
-export function safeImgSrc(src) {
+export function safeImgSrc(src: string | null | undefined): string | null {
   if (!src || typeof src !== 'string') return null;
   const s = src.trim();
   if (/^data:image\/(?!svg)[a-z0-9.+-]+;/.test(s)) return s;
@@ -198,7 +197,7 @@ export function safeImgSrc(src) {
  * @param {string} dateStr - ISO 日期字符串
  * @returns {string} 格式化后的日期
  */
-export function formatDate(dateStr) {
+export function formatDate(dateStr: string): string {
   if (!dateStr) return '';
   try {
     return new Date(dateStr).toLocaleString('zh-CN', {
@@ -218,7 +217,7 @@ export function formatDate(dateStr) {
  * @param {number} ms - 毫秒数
  * @returns {Promise<void>}
  */
-export function sleep(ms) {
+export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -228,9 +227,9 @@ export function sleep(ms) {
  * @param {number} wait - 等待毫秒数
  * @returns {Function}
  */
-export function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
+export function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: any;
+  return function executedFunction(...args: Parameters<T>) {
     const later = () => {
       clearTimeout(timeout);
       func(...args);
@@ -252,7 +251,7 @@ export function debounce(func, wait) {
  * @param {string} md - Markdown 文本
  * @returns {string} HTML 字符串
  */
-export function parseMarkdown(md) {
+export function parseMarkdown(md: string): string {
   if (!md) return '';
   let html = escapeHtml(md);
 
@@ -276,4 +275,3 @@ export function parseMarkdown(md) {
 
   return html;
 }
-

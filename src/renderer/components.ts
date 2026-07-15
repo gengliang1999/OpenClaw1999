@@ -1,9 +1,18 @@
-// @ts-nocheck
 // ================== modal.ts ==================
 /**
  * 全局 Modal 模态框组件
  * 支持简单的标题、内容、确认/取消按钮
  */
+
+interface ShowModalOptions {
+  title?: string;
+  content?: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: (() => void) | null;
+  onCancel?: (() => void) | null;
+  danger?: boolean;
+}
 
 export function showModal({
   title = '提示',
@@ -13,9 +22,9 @@ export function showModal({
   onConfirm = null,
   onCancel = null,
   danger = false
-}) {
+}: ShowModalOptions = {}): Promise<boolean> {
   return new Promise((resolve) => {
-    const overlay = (document.createElement('div') as any);
+    const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.style.position = 'fixed';
     overlay.style.top = '0';
@@ -24,7 +33,7 @@ export function showModal({
     overlay.style.height = '100vh';
     overlay.style.background = 'rgba(0, 0, 0, 0.5)';
     overlay.style.backdropFilter = 'blur(6px)';
-    overlay.style.WebkitBackdropFilter = 'blur(6px)';
+    overlay.style.setProperty('-webkit-backdrop-filter', 'blur(6px)');
     overlay.style.zIndex = '100001';
     overlay.style.display = 'flex';
     overlay.style.justifyContent = 'center';
@@ -32,7 +41,7 @@ export function showModal({
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.2s ease';
 
-    const modal = (document.createElement('div') as any);
+    const modal = document.createElement('div');
     modal.className = 'modal-box';
     modal.style.background = 'var(--bg-card, #ffffff)';
     modal.style.borderRadius = '16px';
@@ -45,14 +54,14 @@ export function showModal({
     modal.style.color = 'var(--text-main, #333)';
 
     // header
-    const header = (document.createElement('h3') as any);
+    const header = document.createElement('h3');
     header.style.margin = '0 0 16px 0';
     header.style.fontSize = '20px';
     header.style.fontWeight = '600';
     header.textContent = title;
 
     // body
-    const body = (document.createElement('div') as any);
+    const body = document.createElement('div');
     body.style.fontSize = '15px';
     body.style.color = 'var(--text-secondary, #666)';
     body.style.lineHeight = '1.6';
@@ -60,12 +69,12 @@ export function showModal({
     body.innerHTML = content;
 
     // footer
-    const footer = (document.createElement('div') as any);
+    const footer = document.createElement('div');
     footer.style.display = 'flex';
     footer.style.justifyContent = 'flex-end';
     footer.style.gap = '12px';
 
-    const btnCancel = (document.createElement('button') as any);
+    const btnCancel = document.createElement('button');
     btnCancel.textContent = cancelText;
     btnCancel.className = 'btn btn-default';
     btnCancel.style.padding = '8px 16px';
@@ -75,7 +84,7 @@ export function showModal({
     btnCancel.style.color = 'var(--text-main, #333)';
     btnCancel.style.cursor = 'pointer';
 
-    const btnConfirm = (document.createElement('button') as any);
+    const btnConfirm = document.createElement('button');
     btnConfirm.textContent = confirmText;
     btnConfirm.className = danger ? 'btn btn-danger' : 'btn btn-primary';
     btnConfirm.style.padding = '8px 16px';
@@ -118,7 +127,7 @@ export function showModal({
 
     // 点击背景关闭
     overlay.addEventListener('click', (e) => {
-      if ((e.target as any) === overlay) {
+      if (e.target === overlay) {
         closeModal();
         resolve(false);
       }
@@ -137,9 +146,9 @@ export function showModal({
  * 现代风格的轻量级通知，支持不同的状态。
  */
 
-let toastContainer = null;
+let toastContainer: HTMLDivElement | null = null;
 
-const ICONS = {
+const ICONS: Record<string, string> = {
   success: '✅',
   error: '❌',
   warning: '⚠️',
@@ -148,7 +157,7 @@ const ICONS = {
 
 function ensureContainer() {
   if (!toastContainer || !document.body.contains(toastContainer)) {
-    toastContainer = (document.createElement('div') as any);
+    toastContainer = document.createElement('div');
     toastContainer.className = 'toast-container';
     
     // 内联基础样式，防止外部样式缺失时完全失效
@@ -165,10 +174,11 @@ function ensureContainer() {
   }
 }
 
-export function showToast(message, type = 'info', duration = 2000) {
+export function showToast(message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration: number = 2000): void {
   ensureContainer();
+  if (!toastContainer) return;
 
-  const toast = (document.createElement('div') as any);
+  const toast = document.createElement('div');
   toast.style.pointerEvents = 'auto';
   toast.style.display = 'flex';
   toast.style.alignItems = 'center';
@@ -176,7 +186,7 @@ export function showToast(message, type = 'info', duration = 2000) {
   toast.style.padding = '12px 16px';
   toast.style.background = 'rgba(30, 30, 30, 0.85)';
   toast.style.backdropFilter = 'blur(12px)';
-  toast.style.WebkitBackdropFilter = 'blur(12px)';
+  toast.style.setProperty('-webkit-backdrop-filter', 'blur(12px)');
   toast.style.color = '#fff';
   toast.style.borderRadius = '12px';
   toast.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2)';
@@ -198,8 +208,10 @@ export function showToast(message, type = 'info', duration = 2000) {
     <button class="toast-close-btn" style="background: transparent; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 16px; padding: 0; margin-left: 8px;">&times;</button>
   `;
 
-  const closeBtn = toast.querySelector('.toast-close-btn');
-  closeBtn.addEventListener('click', () => removeToast(toast));
+  const closeBtn = toast.querySelector('.toast-close-btn') as HTMLButtonElement | null;
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => removeToast(toast));
+  }
 
   toastContainer.appendChild(toast);
 
@@ -217,7 +229,7 @@ export function showToast(message, type = 'info', duration = 2000) {
   });
 }
 
-function removeToast(toast) {
+function removeToast(toast: HTMLDivElement): void {
   if (!toast || !toast.parentNode) return;
   toast.style.transform = 'translateX(120%)';
   toast.style.opacity = '0';
@@ -230,11 +242,11 @@ function removeToast(toast) {
 
 /** Toast 快捷方法对象 */
 const toast = {
-  success: (msg, d) => showToast(msg, 'success', d),
-  error: (msg, d) => showToast(msg, 'error', d),
-  warning: (msg, d) => showToast(msg, 'warning', d),
-  warn: (msg, d) => showToast(msg, 'warning', d),
-  info: (msg, d) => showToast(msg, 'info', d),
+  success: (msg: string, d?: number) => showToast(msg, 'success', d),
+  error: (msg: string, d?: number) => showToast(msg, 'error', d),
+  warning: (msg: string, d?: number) => showToast(msg, 'warning', d),
+  warn: (msg: string, d?: number) => showToast(msg, 'warning', d),
+  info: (msg: string, d?: number) => showToast(msg, 'info', d),
 };
 
 // 绑定全局以便非模块代码调用
@@ -249,9 +261,14 @@ export default toast;
 
 import { escapeHtml } from './utils.js';
 
-export function showSandboxConfirm(command, details = '') {
+interface SandboxConfirmResult {
+  confirmed: boolean;
+  permanent: boolean;
+}
+
+export function showSandboxConfirm(command: string, details: string = ''): Promise<SandboxConfirmResult> {
   return new Promise((resolve) => {
-    const overlay = (document.createElement('div') as any);
+    const overlay = document.createElement('div');
     overlay.className = 'modal-overlay sandbox-confirm-overlay';
     overlay.style.position = 'fixed';
     overlay.style.top = '0';
@@ -260,7 +277,7 @@ export function showSandboxConfirm(command, details = '') {
     overlay.style.height = '100vh';
     overlay.style.background = 'rgba(0, 0, 0, 0.6)';
     overlay.style.backdropFilter = 'blur(8px)';
-    overlay.style.WebkitBackdropFilter = 'blur(8px)';
+    overlay.style.setProperty('-webkit-backdrop-filter', 'blur(8px)');
     overlay.style.zIndex = '10001';
     overlay.style.display = 'flex';
     overlay.style.justifyContent = 'center';
@@ -268,7 +285,7 @@ export function showSandboxConfirm(command, details = '') {
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.25s ease';
 
-    const modal = (document.createElement('div') as any);
+    const modal = document.createElement('div');
     modal.className = 'modal-box';
     modal.style.background = 'var(--bg-card, #2c2c2e)';
     modal.style.borderRadius = '16px';
@@ -282,7 +299,7 @@ export function showSandboxConfirm(command, details = '') {
     modal.style.overflow = 'hidden';
 
     // Header
-    const header = (document.createElement('div') as any);
+    const header = document.createElement('div');
     header.style.padding = '20px 24px';
     header.style.background = 'linear-gradient(90deg, rgba(255, 59, 48, 0.1) 0%, transparent 100%)';
     header.style.borderBottom = '1px solid var(--border-light, #444)';
@@ -299,7 +316,7 @@ export function showSandboxConfirm(command, details = '') {
     `;
 
     // Body
-    const body = (document.createElement('div') as any);
+    const body = document.createElement('div');
     body.style.padding = '24px';
     
     body.innerHTML = `
@@ -318,7 +335,7 @@ export function showSandboxConfirm(command, details = '') {
     `;
 
     // Footer
-    const footer = (document.createElement('div') as any);
+    const footer = document.createElement('div');
     footer.style.padding = '16px 24px';
     footer.style.background = 'var(--bg-body, #1c1c1e)';
     footer.style.borderTop = '1px solid var(--border-light, #444)';
@@ -328,7 +345,7 @@ export function showSandboxConfirm(command, details = '') {
     footer.style.gap = '12px';
 
     // S5：永久授权勾选
-    const permanentWrap = (document.createElement('label') as any);
+    const permanentWrap = document.createElement('label');
     permanentWrap.style.display = 'flex';
     permanentWrap.style.alignItems = 'center';
     permanentWrap.style.gap = '6px';
@@ -336,15 +353,15 @@ export function showSandboxConfirm(command, details = '') {
     permanentWrap.style.cursor = 'pointer';
     permanentWrap.style.fontSize = '13px';
     permanentWrap.style.color = 'var(--text-secondary, #aaa)';
-    const permanentChk = (document.createElement('input') as any);
+    const permanentChk = document.createElement('input');
     permanentChk.type = 'checkbox';
     permanentChk.style.cursor = 'pointer';
-    const permanentLabel = (document.createElement('span') as any);
+    const permanentLabel = document.createElement('span');
     permanentLabel.textContent = '记住此命令（永久授权，30 天）';
     permanentWrap.appendChild(permanentChk);
     permanentWrap.appendChild(permanentLabel);
 
-    const btnReject = (document.createElement('button') as any);
+    const btnReject = document.createElement('button');
     btnReject.textContent = '拒绝执行';
     btnReject.className = 'btn btn-default';
     btnReject.style.padding = '10px 20px';
@@ -354,7 +371,7 @@ export function showSandboxConfirm(command, details = '') {
     btnReject.style.color = 'var(--text-main, #fff)';
     btnReject.style.cursor = 'pointer';
 
-    const btnAllow = (document.createElement('button') as any);
+    const btnAllow = document.createElement('button');
     btnAllow.textContent = '允许一次';
     btnAllow.className = 'btn btn-primary';
     btnAllow.style.padding = '10px 20px';
@@ -458,7 +475,7 @@ export function showPrompt(message: string, defaultValue: string = ''): Promise<
     footer.style.gap = '12px';
 
     const btnCancel = document.createElement('button');
-    btnCancel.textContent = 'ȡ��';
+    btnCancel.textContent = '取消';
     btnCancel.className = 'btn';
     btnCancel.style.padding = '8px 16px';
     btnCancel.style.borderRadius = '8px';
@@ -468,7 +485,7 @@ export function showPrompt(message: string, defaultValue: string = ''): Promise<
     btnCancel.style.cursor = 'pointer';
 
     const btnConfirm = document.createElement('button');
-    btnConfirm.textContent = 'ȷ��';
+    btnConfirm.textContent = '确定';
     btnConfirm.className = 'btn btn-primary';
     btnConfirm.style.padding = '8px 16px';
     btnConfirm.style.borderRadius = '8px';

@@ -478,7 +478,12 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           if (canceled || filePaths.length === 0) return { success: false, message: '操作已取消' };
           
           const rawData = fs.readFileSync(filePaths[0], 'utf8');
-          const parsedData = JSON.parse(rawData);
+          let parsedData: any;
+          try {
+            parsedData = JSON.parse(rawData);
+          } catch (e: any) {
+            return { success: false, message: '导入失败：备份文件内容为空或非合法的 JSON 格式' };
+          }
           
           const list = Array.isArray(parsedData) ? parsedData : (parsedData.memories || []);
           const episodes = parsedData.episodes || [];

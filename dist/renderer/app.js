@@ -138,7 +138,7 @@ function renderShell() {
         <div id="sidebarTrashBtn" style="display: none; margin: 2px 4px 4px 4px; padding: 6px 12px; border-radius: 10px; background: rgba(255,59,48,0.1); color: #ff3b30; text-align: center; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; border: 1px solid rgba(255,59,48,0.2);">
           🗑️ 垃圾篓
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-around; padding: 6px; margin: 4px 6px; background: rgba(0,0,0,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border-light); transition: all 0.25s;" class="sidebar-bottom-controls">
+        <div style="display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 6px 10px; margin: 4px 6px; background: rgba(0,0,0,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border-light); transition: all 0.25s;" class="sidebar-bottom-controls">
           <!-- 主题切换按钮 -->
           <div id="themeToggleBtn" class="sidebar-bottom-btn" title="切换亮/暗模式">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -416,6 +416,15 @@ async function loadSidebarConversations(query = '') {
             }
         });
         // hover 显示更多按钮由 CSS .sidebar-conv-item:hover .sidebar-conv-more 控制
+        // 更多按钮点击事件
+        const moreBtn = el.querySelector('.sidebar-conv-more');
+        if (moreBtn) {
+            moreBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const rect = moreBtn.getBoundingClientRect();
+                showConvContextMenu(el.dataset.convId, rect.right, rect.top);
+            });
+        }
         // 右键上下文菜单
         el.addEventListener('contextmenu', (e) => {
             if (batchMode)
@@ -1129,12 +1138,6 @@ function bindRouteEvents() {
     if (isCollapsed) {
         sidebar.classList.add('collapsed');
     }
-    else {
-        const savedWidth = localStorage.getItem('sidebarWidth');
-        if (savedWidth) {
-            sidebar.style.width = savedWidth;
-        }
-    }
     // 侧边栏点击导航（包括底部设置按钮）
     sidebar.addEventListener('click', (e) => {
         // 收缩/展开按钮点击
@@ -1147,9 +1150,6 @@ function bindRouteEvents() {
             }
             else {
                 localStorage.removeItem('sidebarCollapsed');
-                const savedWidth = localStorage.getItem('sidebarWidth');
-                if (savedWidth)
-                    sidebar.style.width = savedWidth;
             }
             return;
         }
@@ -1163,55 +1163,54 @@ function bindRouteEvents() {
     // 侧边栏拖动调整宽度逻辑
     const resizer = document.getElementById('sidebarResizer');
     let isResizing = false;
+    let startX = 0;
+    let startWidth = 0;
+    let rafId = 0;
+    const MIN_WIDTH = 150;
+    const MAX_WIDTH = 220;
     if (resizer && sidebar) {
         resizer.addEventListener('mousedown', (e) => {
-            // 避免左键以外点击
             if (e.button !== 0)
                 return;
             isResizing = true;
             resizer.classList.add('active');
-            sidebar.style.transition = 'none'; // 拖动时禁用动画以防卡顿
+            sidebar.style.transition = 'width 0s, padding 0s';
             document.body.style.cursor = 'ew-resize';
-            document.body.style.userSelect = 'none'; // 禁用选中文本
+            document.body.style.userSelect = 'none';
+            startX = e.clientX;
+            startWidth = sidebar.offsetWidth;
+            if (sidebar.classList.contains('collapsed')) {
+                sidebar.classList.remove('collapsed');
+                localStorage.removeItem('sidebarCollapsed');
+                startWidth = MIN_WIDTH;
+            }
         });
         document.addEventListener('mousemove', (e) => {
             if (!isResizing)
                 return;
-            let newWidth = e.clientX;
-            if (sidebar.classList.contains('collapsed')) {
-                // 如果处于收缩状态，向右拖动超过 80 像素则展开
-                if (newWidth > 80) {
-                    sidebar.classList.remove('collapsed');
-                    localStorage.removeItem('sidebarCollapsed');
-                }
-                else {
-                    return;
-                }
-            }
-            else {
-                // 如果拖到小于 150px，自动收缩
-                if (newWidth < 150) {
-                    sidebar.classList.add('collapsed');
-                    sidebar.style.width = '';
-                    localStorage.setItem('sidebarCollapsed', 'true');
-                    return;
-                }
-            }
-            // 设定最小和最大拖动范围
-            if (newWidth < 150)
-                newWidth = 150;
-            if (newWidth > 220)
-                newWidth = 220;
-            sidebar.style.width = newWidth + 'px';
+            const deltaX = e.clientX - startX;
+            let newWidth = startWidth + deltaX;
+            if (newWidth < MIN_WIDTH)
+                newWidth = MIN_WIDTH;
+            if (newWidth > MAX_WIDTH)
+                newWidth = MAX_WIDTH;
+            if (rafId)
+                cancelAnimationFrame(rafId);
+            rafId = requestAnimationFrame(() => {
+                sidebar.style.width = newWidth + 'px';
+            });
         });
         document.addEventListener('mouseup', () => {
             if (isResizing) {
                 isResizing = false;
+                if (rafId) {
+                    cancelAnimationFrame(rafId);
+                    rafId = 0;
+                }
                 resizer.classList.remove('active');
-                sidebar.style.transition = ''; // 恢复动画
+                sidebar.style.transition = '';
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
-                // 保存宽度（仅在未收缩时）
                 if (!sidebar.classList.contains('collapsed')) {
                     localStorage.setItem('sidebarWidth', sidebar.style.width);
                 }

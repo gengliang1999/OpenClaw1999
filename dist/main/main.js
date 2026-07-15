@@ -34,6 +34,8 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let mainWindow = null;
 let floatWindow = null;
+let activeFolderWatcher = null;
+let activeJobWorker = null;
 // [P0 单例锁防御] 避免多实例启动导致端口冲突与资源占用
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -292,6 +294,7 @@ function registerIpcHandlers() {
     });
     // 重启应用
     ipcMain.handle('app:restart', () => {
+        cleanupBackgroundServices();
         app.relaunch();
         app.exit(0);
     });
@@ -579,6 +582,7 @@ app.whenReady().then(async () => {
     jobWorker.registerHandler('memory-consolidation', async () => {
         await consolidationPipeline.consolidate();
     });
+    activeJobWorker = jobWorker;
     jobWorker.start();
     // 启动时投递一次记忆整理任务与向量化补偿自愈任务
     jobQueue.enqueue('memory-consolidation', {});
@@ -620,6 +624,7 @@ app.whenReady().then(async () => {
     }
     const { FolderWatcherManager } = require('../backend/folder-watcher');
     const folderWatcher = new FolderWatcherManager(queueManager, dataDir);
+    activeFolderWatcher = folderWatcher;
     folderWatcher.startWatching(watchedFolders);
     // 3. 注册全链路原生 IPC API 路由分发器，彻底替代 Express 路由
     const { registerApiIpc } = require('./ipc-handlers');
@@ -657,11 +662,31 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
+function cleanupBackgroundServices() {
+    try {
+        const { openClawDaemon } = require('../backend/openclaw-daemon');
+        openClawDaemon.stop(() => { });
+    }
+    catch (e) { }
+    try {
+        if (activeFolderWatcher) {
+            activeFolderWatcher.stopWatching();
+        }
+    }
+    catch (e) { }
+    try {
+        if (activeJobWorker) {
+            activeJobWorker.stop();
+        }
+    }
+    catch (e) { }
+}
 // 强退守卫：防止后台悬挂的 Job Worker / watch 句柄阻止 Electron 进程正常退出
 app.on('before-quit', () => {
     try {
         globalShortcut.unregisterAll();
     }
     catch (e) { }
+    cleanupBackgroundServices();
     process.exit(0);
 });

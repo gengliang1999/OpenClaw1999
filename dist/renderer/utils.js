@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ================== api.ts ==================
 export const api = {
     get: async (url, options = {}) => {
@@ -79,7 +78,7 @@ export const api = {
             return Promise.resolve();
         },
     },
-    // ===== ģ����� =====
+    // ===== 模型接口 =====
     model: {
         getModels: () => api.get('/models'),
         setActiveModel: (modelId) => api.put('/models/active', { modelId }),
@@ -98,14 +97,14 @@ export const api = {
         proxyTest: (baseUrl, apiKey) => api.post('/models/proxy-test', { baseUrl, apiKey }),
         deleteLocalModel: (provider, modelId) => api.delete(`/models/local/${provider}/${encodeURIComponent(modelId)}`),
     },
-    // ===== ������� =====
+    // ===== 记忆接口 =====
     memory: {
         getMemories: (page, pageSize, category) => {
             const params = new URLSearchParams();
             if (page)
-                params.set('page', page);
+                params.set('page', String(page));
             if (pageSize)
-                params.set('pageSize', pageSize);
+                params.set('pageSize', String(pageSize));
             if (category)
                 params.set('category', category);
             return api.get(`/memory?${params.toString()}`);
@@ -115,11 +114,11 @@ export const api = {
         pinMemory: (id, isPinned) => api.put(`/memory/${id}/pin`, { isPinned }),
         searchMemory: (query, limit) => api.get(`/memory/search?q=${encodeURIComponent(query)}&limit=${limit || 10}`),
     },
-    // ===== �Զ������ =====
+    // ===== 自动化接口 =====
     automation: {
         captureScreen: () => api.post('/automation/screenshot', {}),
     },
-    // ===== ɳ����� =====
+    // ===== 沙盒接口 =====
     sandbox: {
         executeCommand: (command, options = {}) => api.post('/sandbox/execute', { command, confirmed: false, permanent: false, ...options }),
         getPermissions: () => api.get('/sandbox/permissions'),
@@ -127,7 +126,7 @@ export const api = {
         revokePermission: (id) => api.delete(`/sandbox/permissions/${id}`),
         getLogs: (page, pageSize) => api.get(`/sandbox/logs?page=${page || 1}&pageSize=${pageSize || 50}`),
     },
-    // ===== ������� =====
+    // ===== 技能接口 =====
     skill: {
         getSkills: () => api.get('/skills'),
         installSkill: (skillId) => api.post('/skills/install', { skillId }),
@@ -141,7 +140,7 @@ export const api = {
             return api.get(`/skills/marketplace?${params.toString()}`);
         },
     },
-    // ===== ������ =====
+    // ===== 插件接口 =====
     plugin: {
         getPlugins: () => api.get('/plugins'),
         installPlugin: (pluginId) => api.post('/plugins/install', { pluginId }),
@@ -151,7 +150,7 @@ export const api = {
         connectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/connect`, {}),
         disconnectPlugin: (pluginId) => api.post(`/plugins/${pluginId}/disconnect`, {}),
     },
-    // ===== ������� =====
+    // ===== 设置接口 =====
     settings: {
         get: (key) => api.get(`/settings/${key}`),
         set: (key, value) => api.put(`/settings/${key}`, { value }),

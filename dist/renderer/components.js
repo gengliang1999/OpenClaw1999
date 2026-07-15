@@ -1,10 +1,9 @@
-// @ts-nocheck
 // ================== modal.ts ==================
 /**
  * 全局 Modal 模态框组件
  * 支持简单的标题、内容、确认/取消按钮
  */
-export function showModal({ title = '提示', content = '', confirmText = '确定', cancelText = '取消', onConfirm = null, onCancel = null, danger = false }) {
+export function showModal({ title = '提示', content = '', confirmText = '确定', cancelText = '取消', onConfirm = null, onCancel = null, danger = false } = {}) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
@@ -15,7 +14,7 @@ export function showModal({ title = '提示', content = '', confirmText = '确�
         overlay.style.height = '100vh';
         overlay.style.background = 'rgba(0, 0, 0, 0.5)';
         overlay.style.backdropFilter = 'blur(6px)';
-        overlay.style.WebkitBackdropFilter = 'blur(6px)';
+        overlay.style.setProperty('-webkit-backdrop-filter', 'blur(6px)');
         overlay.style.zIndex = '100001';
         overlay.style.display = 'flex';
         overlay.style.justifyContent = 'center';
@@ -141,6 +140,8 @@ function ensureContainer() {
 }
 export function showToast(message, type = 'info', duration = 2000) {
     ensureContainer();
+    if (!toastContainer)
+        return;
     const toast = document.createElement('div');
     toast.style.pointerEvents = 'auto';
     toast.style.display = 'flex';
@@ -149,7 +150,7 @@ export function showToast(message, type = 'info', duration = 2000) {
     toast.style.padding = '12px 16px';
     toast.style.background = 'rgba(30, 30, 30, 0.85)';
     toast.style.backdropFilter = 'blur(12px)';
-    toast.style.WebkitBackdropFilter = 'blur(12px)';
+    toast.style.setProperty('-webkit-backdrop-filter', 'blur(12px)');
     toast.style.color = '#fff';
     toast.style.borderRadius = '12px';
     toast.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2)';
@@ -173,7 +174,9 @@ export function showToast(message, type = 'info', duration = 2000) {
     <button class="toast-close-btn" style="background: transparent; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 16px; padding: 0; margin-left: 8px;">&times;</button>
   `;
     const closeBtn = toast.querySelector('.toast-close-btn');
-    closeBtn.addEventListener('click', () => removeToast(toast));
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => removeToast(toast));
+    }
     toastContainer.appendChild(toast);
     // Trigger animation
     requestAnimationFrame(() => {
@@ -225,7 +228,7 @@ export function showSandboxConfirm(command, details = '') {
         overlay.style.height = '100vh';
         overlay.style.background = 'rgba(0, 0, 0, 0.6)';
         overlay.style.backdropFilter = 'blur(8px)';
-        overlay.style.WebkitBackdropFilter = 'blur(8px)';
+        overlay.style.setProperty('-webkit-backdrop-filter', 'blur(8px)');
         overlay.style.zIndex = '10001';
         overlay.style.display = 'flex';
         overlay.style.justifyContent = 'center';
@@ -402,7 +405,7 @@ export function showPrompt(message, defaultValue = '') {
         footer.style.justifyContent = 'flex-end';
         footer.style.gap = '12px';
         const btnCancel = document.createElement('button');
-        btnCancel.textContent = 'ȡ��';
+        btnCancel.textContent = '取消';
         btnCancel.className = 'btn';
         btnCancel.style.padding = '8px 16px';
         btnCancel.style.borderRadius = '8px';
@@ -411,7 +414,7 @@ export function showPrompt(message, defaultValue = '') {
         btnCancel.style.color = 'var(--text-main, #333)';
         btnCancel.style.cursor = 'pointer';
         const btnConfirm = document.createElement('button');
-        btnConfirm.textContent = 'ȷ��';
+        btnConfirm.textContent = '确定';
         btnConfirm.className = 'btn btn-primary';
         btnConfirm.style.padding = '8px 16px';
         btnConfirm.style.borderRadius = '8px';
