@@ -29,6 +29,7 @@ class MemoryStore {
     if (this._initialized) return;
 
     const SQL = await initSqlJs();
+    console.log('[记忆存储] 💡 正在连接物理数据库文件路径:', this.dbPath);
 
     // 确保数据目录存在
     if (!fs.existsSync(this.dataDir)) {

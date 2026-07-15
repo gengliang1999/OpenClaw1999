@@ -21,6 +21,13 @@ export class MemoryEngine {
     private dataDir: string
   ) {}
 
+  private getVectorDbPath(filename: string = 'memories_vectors.json'): string {
+    if (this.memoryStore && this.memoryStore.dbPath) {
+      return path.join(path.dirname(this.memoryStore.dbPath), filename);
+    }
+    return path.join(this.dataDir, filename);
+  }
+
   // =============================================
   // 1. 双轨触发器 (Dual-Track Extractor)
   // =============================================
@@ -108,7 +115,16 @@ export class MemoryEngine {
    */
   async reconcileAndStore(fact: string, category: string): Promise<string> {
     const { vectorDbManager } = require('./vector-db-manager');
-    const dbPath = path.join(this.dataDir, 'memories_vectors.json');
+    const dbPath = this.getVectorDbPath('memories_vectors.json');
+
+    // 0. SQLite 精确内容匹配去重（兜底：即使向量维度校验不通过或 Embedding 不可用也能拦截完全重复的记忆）
+    try {
+      const exactCheck = this.memoryStore.db.exec('SELECT id FROM memories WHERE content = ? LIMIT 1', [fact]);
+      if (exactCheck && exactCheck.length > 0 && exactCheck[0].values.length > 0) {
+        console.log(`[记忆引擎] 🚫 SQLite 精确匹配拦截重复记忆：「${fact.slice(0, 40)}...」`);
+        return 'ignored';
+      }
+    } catch (e) {}
 
     // 1. 语义检索已有记忆，找到最相似的（嵌入不可用则退化为直接新增）
     let topMatch: any = null;
@@ -279,7 +295,7 @@ export class MemoryEngine {
 
         // 将摘要向量化存入情景向量库
         const { vectorDbManager } = require('./vector-db-manager');
-        const dbPath = path.join(this.dataDir, 'episodes_vectors.json');
+        const dbPath = this.getVectorDbPath('episodes_vectors.json');
         const embedding = await this.modelManager.getEmbedding(result.summary);
 
         if (embedding && Array.isArray(embedding) && embedding.length === EXPECTED_EMBEDDING_DIM) {
@@ -405,7 +421,7 @@ export class MemoryEngine {
     // 路径 A: 长期记忆 (应用艾宾浩斯遗忘曲线)
     tasks.push((async () => {
       try {
-        const dbPath = path.join(this.dataDir, 'memories_vectors.json');
+        const dbPath = this.getVectorDbPath('memories_vectors.json');
         await vectorDbManager.executeRead(dbPath, async (memStore: any) => {
           const hits = await memStore.search(queryEmbedding, query, 5); // 增加初筛数量以防过滤
           
@@ -543,7 +559,7 @@ export class MemoryEngine {
     // 路径 C: 情景记忆摘要
     tasks.push((async () => {
       try {
-        const dbPath = path.join(this.dataDir, 'episodes_vectors.json');
+        const dbPath = this.getVectorDbPath('episodes_vectors.json');
         await vectorDbManager.executeRead(dbPath, async (epStore: any) => {
           const hits = await epStore.search(queryEmbedding, query, 2);
           for (const h of (hits || [])) {
@@ -623,7 +639,7 @@ export class MemoryEngine {
    */
   async cleanupOrphanVectors(): Promise<number> {
     const fs = require('fs');
-    const dbPath = path.join(this.dataDir, 'memories_vectors.json');
+    const dbPath = this.getVectorDbPath('memories_vectors.json');
     if (!fs.existsSync(dbPath)) return 0;
     try {
       const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));

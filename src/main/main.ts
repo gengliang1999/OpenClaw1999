@@ -11,7 +11,10 @@ const os = require('os');
 // [P0 缓存崩溃防御] 强行禁用 GPU 和 Disk Cache，并将 UserData 挂载到安全目录
 app.commandLine.appendSwitch('disable-http-cache');
 app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
-const userDataPath = path.join(os.homedir(), '.openclaw', 'app-data');
+const customArg = process.argv.find(arg => arg.startsWith('--user-data-dir='));
+const userDataPath = customArg 
+  ? customArg.split('=')[1] 
+  : path.join(os.homedir(), '.openclaw', 'app-data');
 app.setPath('userData', userDataPath);
 
 // 生成防本地攻击的安全随机 Token (保持前端向下兼容)
@@ -75,6 +78,7 @@ function createMainWindow() {
       sandbox: false,
       webSecurity: true,
       allowRunningInsecureContent: false,
+      additionalArguments: [`--api-token=${apiToken}`],
     },
     show: false,
     autoHideMenuBar: true,
@@ -158,7 +162,8 @@ function createFloatWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
       sandbox: false,
-      webSecurity: true
+      webSecurity: true,
+      additionalArguments: [`--api-token=${apiToken}`],
     }
   });
 
@@ -239,16 +244,6 @@ function createFloatWindow() {
  * 注册 IPC 通信处理器
  */
 function registerIpcHandlers() {
-  // 同步获取 API Token
-  ipcMain.on('system:getApiToken', (event) => {
-    const senderUrl = event.sender.getURL();
-    if (senderUrl.startsWith('claw://') || senderUrl.startsWith('file:///')) {
-      event.returnValue = apiToken;
-    } else {
-      event.returnValue = null;
-    }
-  });
-
   // 系统信息
   ipcMain.handle('system:getInfo', () => {
     return {
@@ -369,7 +364,8 @@ function registerIpcHandlers() {
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: true,
+        additionalArguments: [`--api-token=${apiToken}`],
       }
     });
     captureWin.loadURL('claw://app/screenshot.html');
@@ -540,12 +536,10 @@ app.whenReady().then(async () => {
 
   await memoryStore.init();
   
-  // 自适应映射向量数据库同名同目录路径，保证中文命名及自定义路径绑定一致性
+  // 自适应映射向量数据库同名同目录路径，保证中文命名及自定义路径绑定一致
   let memoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
   if (customMemoryDbPath) {
-    const dbDir = path.dirname(customMemoryDbPath);
-    const dbName = path.basename(customMemoryDbPath, path.extname(customMemoryDbPath));
-    memoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+    memoriesVectorsPath = path.join(path.dirname(customMemoryDbPath), 'memories_vectors.json');
   }
   console.log('[主进程] 绑定长期记忆向量库物理路径为:', memoriesVectorsPath);
   console.log('[主进程] 本地数据库与后端核心业务模块初始化成功。');
