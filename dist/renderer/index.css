@@ -2017,8 +2017,13 @@ input, textarea, [contenteditable] {
 }
 
 .doubao-send-btn.is-stop {
-  background: var(--danger);
-  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.3);
+  background: linear-gradient(135deg, #ff3b30, #ff5e62);
+  box-shadow: 0 4px 14px rgba(255, 59, 48, 0.35);
+}
+
+.doubao-send-btn.is-stop:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 18px rgba(255, 59, 48, 0.45);
 }
 
 /* 工具栏行 */

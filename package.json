@@ -11,7 +11,8 @@
     "build:win": "chcp 65001>nul && npm run build:ts && electron-builder --win",
     "typecheck": "tsc --noEmit",
     "typecheck:watch": "tsc --noEmit --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "ai:verify": "tsc --noEmit && eslint src/ --ext .ts,.tsx"
   },
   "keywords": [
     "ai",
@@ -45,6 +46,7 @@
     }
   },
   "dependencies": {
+    "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",
     "cheerio": "^1.2.0",
     "chokidar": "^5.0.0",
     "cors": "^2.8.5",
@@ -52,6 +54,7 @@
     "iconv-lite": "^0.7.2",
     "officeparser": "^7.2.3",
     "pdfjs-dist": "^6.1.200",
+    "quickjs-emscripten-core": "^0.32.0",
     "sql.js": "^1.14.1",
     "tesseract.js": "^7.0.0",
     "uuid": "^11.1.0",

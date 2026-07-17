@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-07-15T07:11:00Z",
+  "commitHash": "4320da01aeb0de30d65a424fcb516625d20d43f6",
+  "selectedModes": ["full"],
+  "scope": "entire-project",
+  "overallScore": 6.3,
+  "dimensionScores": {
+    "security": 6.5,
+    "stability": 5.5,
+    "performance": 8.5,
+    "testing": 6.0,
+    "maintainability": 5.0,
+    "design": 5.5,
+    "release": 7.0
+  },
+  "findingCounts": {
+    "critical": 1,
+    "high": 2,
+    "medium": 2,
+    "low": 0,
+    "info": 0
+  },
+  "reportFilePath": "C:/Users/GreatWall/.gemini/antigravity-ide/brain/3a8b1df0-c35f-4134-ba94-7628b073c1a6/audit-report-openclaw-20260715.html"
+}

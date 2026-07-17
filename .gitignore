@@ -1,10 +1,38 @@
 # 依赖文件夹
 node_modules/
+
 # 编译产物
-dist/ build/ out/ target/ release/
+dist/
+build/
+out/
+target/
+release/
+
 # IDE配置
-.idea/ .vscode/ *.iml
+.idea/
+.vscode/
+*.iml
+
 # 日志、缓存
-*.log .DS_Store *.swp
-# 环境配置
-.env .env.localdist/
+*.log
+.DS_Store
+*.swp
+
+# 环境配置 (已修复语法 Bug，通杀所有 .env 变体)
+.env
+.env.*
+
+# =========================
+# [AI_WORKSPACE_LOCK] AI 临时状态与缓存隔离区
+# =========================
+# 1. 草稿本及不可预见的变体
+.ai-scratchpad*
+*.scratchpad.md
+
+# 2. AI 临时工作区
+.ai/
+
+# 3. 主流 AI IDE 本地状态缓存
+.cursor/
+.cline/
+.windsurf/

@@ -45,11 +45,26 @@ class AgentLoop extends events_1.EventEmitter {
             let toolName = '';
             let isFileRead = false;
             let filePath = '';
-            // 1. 拦截传统的沙盒 <execute> 命令
-            const execMatch = accumulatedReply.match(/<execute>([\s\S]*?)<\/execute>/i);
-            if (execMatch) {
-                cmdToExecute = execMatch[1].trim();
-                toolName = 'sandbox.execute';
+            let isJsExecute = false;
+            // 1. 拦截安全内嵌 JS 沙盒命令
+            const jsMatch = accumulatedReply.match(/<execute_js>([\s\S]*?)<\/execute_js>/i);
+            if (jsMatch) {
+                cmdToExecute = jsMatch[1].trim();
+                toolName = 'sandbox.execute_js';
+                isJsExecute = true;
+            }
+            // 2. 拦截传统的沙盒 <execute> 或 <execute_cmd> 系统命令
+            if (!isJsExecute) {
+                const cmdMatch = accumulatedReply.match(/<execute_cmd>([\s\S]*?)<\/execute_cmd>/i);
+                const legacyMatch = accumulatedReply.match(/<execute>([\s\S]*?)<\/execute>/i);
+                if (cmdMatch) {
+                    cmdToExecute = cmdMatch[1].trim();
+                    toolName = 'sandbox.execute';
+                }
+                else if (legacyMatch) {
+                    cmdToExecute = legacyMatch[1].trim();
+                    toolName = 'sandbox.execute';
+                }
             }
             // 2. 拦截 Hermes 风格的 JSON Tool Call
             if (!cmdToExecute) {
@@ -103,6 +118,43 @@ class AgentLoop extends events_1.EventEmitter {
                 context.messages.push({ role: 'assistant', content: accumulatedReply });
                 context.messages.push({ role: 'user', content: `[Agent Observation]:\n${outputText}\n请基于此观察结果继续完成任务，如果已完成请直接回答。` });
                 continue;
+            }
+            // 3. 执行拦截到的 JS 沙盒命令
+            if (cmdToExecute && toolName === 'sandbox.execute_js') {
+                onChunk(`\n\n> 🤖 **[Agent 执行]** 正在内嵌 WASM 虚拟机中运行安全 JS 演算...\n`);
+                try {
+                    const { WasmSandboxExecutor } = require('./wasm-sandbox');
+                    const wasmSandbox = new WasmSandboxExecutor();
+                    const workspaceDir = process.cwd();
+                    const wasmResult = await wasmSandbox.executeSafe(cmdToExecute, workspaceDir, 5000);
+                    let outputText = '';
+                    if (wasmResult.success) {
+                        outputText = wasmResult.stdout;
+                        onChunk(`> ✅ **[Agent 观察]** 沙盒代码运行成功！\n\n`);
+                    }
+                    else {
+                        outputText = `${wasmResult.stdout}\n${wasmResult.stderr}`;
+                        onChunk(`> ❌ **[Agent 错误]** 沙盒内运行时发生异常，正在回灌错误...\n\n`);
+                    }
+                    if (outputText.length > 2000) {
+                        outputText = outputText.slice(0, 2000) + '\n... (内容过长已截断)';
+                    }
+                    context.messages.push({ role: 'assistant', content: accumulatedReply });
+                    context.messages.push({
+                        role: 'user',
+                        content: `[Agent Observation] (WASM JS Sandbox):\n${outputText}\n请根据执行和输出结果继续任务，如果由于代码写错而报错（例如使用了不可用的 Node.js 库，或试图越权读取），请自行在 JS 中修正，或者改用 <execute_cmd> 系统终端命令来实现。`
+                    });
+                    continue;
+                }
+                catch (err) {
+                    onChunk(`> ❌ **[Agent 错误]** 无法执行 WASM 沙盒: ${err.message}\n\n`);
+                    context.messages.push({ role: 'assistant', content: accumulatedReply });
+                    context.messages.push({
+                        role: 'user',
+                        content: `[Agent Observation] (WASM JS Sandbox Error):\n执行时遇到致命错误: ${err.message}\n你可以选择改用 <execute_cmd> 来通过终端命令运行。`
+                    });
+                    continue;
+                }
             }
             // 执行拦截到的命令
             if (cmdToExecute && toolName === 'sandbox.execute') {

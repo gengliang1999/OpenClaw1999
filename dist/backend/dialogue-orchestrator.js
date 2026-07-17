@@ -35,7 +35,7 @@ class ContextAggregator {
                 try {
                     const fs = require('fs');
                     const path = require('path');
-                    const cleanPath = attachment.replace(/^file:\/\/\//i, '').replace(/\//g, path.sep);
+                    const cleanPath = decodeURIComponent(attachment.replace(/^file:\/\/\//i, '')).replace(/\//g, path.sep);
                     if (fs.existsSync(cleanPath)) {
                         const fileText = fs.readFileSync(cleanPath, 'utf8');
                         const { ragEngine } = require('./rag-engine');
@@ -134,7 +134,10 @@ class ContextAggregator {
         else {
             augmentedSystemPrompt += `\n\n[长期记忆能力]: 当你在对话中获取了关于用户或你自己（AI助手，例如用户给你起的名字、对你的角色定位或设定）的持久性事实、偏好或习惯时，请在回复的最后加上 \`[SAVE_MEMORY|分类] 事实内容\`。分类可选：个人信息、技术偏好、工作项目、兴趣爱好、通用。例如：\`[SAVE_MEMORY|技术偏好] 用户喜欢使用 TypeScript\` 或 \`[SAVE_MEMORY|个人信息] 用户把AI的名字起为小爪\`。`;
         }
-        const toolPrompt = `\n\n[系统能力]: 你拥有沙盒环境执行能力。如果用户要求运行脚本、查看本地环境、读取文件、操作目录等，请直接输出 <execute>具体的系统命令</execute> 。你会自动收到命令执行结果，并基于结果继续回答。请不要在执行前编造执行结果。`;
+        const toolPrompt = `\n\n[系统能力]: 你拥有沙盒环境执行与代码演算能力。根据任务性质，你必须选择最合适的执行指令：
+1. 如果你需要执行纯 JavaScript 逻辑、数学计算、或通过 \`openClaw.readFile("相对路径")\` 形式只读读取工作区/文本附件，你必须直接输出 \`<execute_js>纯 JS 代码</execute_js>\`。该指令会在内存安全沙盒中极速执行（免去系统授权弹窗干扰，效率最高，推荐用于纯代码计算与分析）。
+2. 如果你需要操作物理环境、编译项目、使用 Git、运行 Python 等涉及系统硬件或物理变更的操作，你必须输出 \`<execute_cmd>终端命令</execute_cmd>\`（注意：这会触发用户的安全弹窗确认）。
+你将自动收到执行结果，并基于结果继续思考回答。请不要在执行前编造执行结果。`;
         augmentedSystemPrompt += toolPrompt;
         messages.unshift({ role: 'system', content: augmentedSystemPrompt });
         // 4. 驱动 Agent 思考与流式输出

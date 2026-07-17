@@ -305,9 +305,29 @@ export function parseMarkdown(md) {
     html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
     // 引用
     html = html.replace(/&gt; (.*?)(?:\n|$)/g, '<blockquote style="border-left: 3px solid var(--primary); color: var(--text-muted); margin: 4px 0; padding-left: 8px;">$1</blockquote>');
-    // 思考过程块 <think> 或 <thought>
+    // 思考过程块 <think> 或 <thought> - 闭合
     html = html.replace(/&lt;(?:think|thought)&gt;([\s\S]*?)&lt;\/(?:think|thought)&gt;/gi, function (match, content) {
         return `<details style="margin: 8px 0; padding: 12px; background: var(--bg-active); border-radius: 8px; border-left: 3px solid #a259ff; cursor: pointer;"><summary style="color: #a259ff; font-weight: 600; font-size: 13px; user-select: none;">🤔 AI 思考过程</summary><div style="margin-top: 8px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap;">${content}</div></details>`;
+    });
+    // 思考过程块 <think> 或 <thought> - 未闭合（流式输出中）
+    html = html.replace(/&lt;(?:think|thought)&gt;([\s\S]*)$/i, function (match, content) {
+        return `<details open style="margin: 8px 0; padding: 12px; background: var(--bg-active); border-radius: 8px; border-left: 3px solid var(--primary); cursor: pointer;"><summary style="color: var(--primary); font-weight: bold; font-size: 13px; user-select: none;"><svg style="animation: spin 1s linear infinite; vertical-align: text-bottom; margin-right:4px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型深度思考中... <span class="thinking-timer" style="font-family: monospace; margin-left: 6px; color: var(--primary);">0.0s</span></summary><div style="margin-top: 8px; font-size: 13px; color: var(--text-muted); white-space: pre-wrap;">${content}</div></details>`;
+    });
+    // 运行 JS 沙盒代码 <execute_js> - 已闭合
+    html = html.replace(/&lt;execute_js&gt;([\s\S]*?)&lt;\/execute_js&gt;/gi, function (match, content) {
+        return `<div class="sandbox-block js-block" style="margin: 12px 0; border: 1px solid var(--border-color, #555); border-radius: 8px; overflow: hidden; background: var(--bg-card);"><div style="background: var(--bg-hover, rgba(255,255,255,0.04)); padding: 8px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color, #555); color: var(--text-primary, #fff);"><span>⚡ 运行 JS 沙盒代码 (WASM)</span></div><pre style="margin: 0; padding: 12px; font-family: Consolas, monospace; font-size: 13px; background: #1e1e1e; color: #a9ffaf; overflow-x: auto; max-height: 250px; white-space: pre-wrap; word-break: break-all;"><code>${content}</code></pre></div>`;
+    });
+    // 运行 JS 沙盒代码 <execute_js> - 未闭合（流式输出中）
+    html = html.replace(/&lt;execute_js&gt;([\s\S]*)$/i, function (match, content) {
+        return `<div class="sandbox-block js-block" style="margin: 12px 0; border: 1px solid var(--border-color, #555); border-radius: 8px; overflow: hidden; background: var(--bg-card);"><div style="background: var(--bg-hover, rgba(255,255,255,0.04)); padding: 8px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color, #555); color: var(--text-primary, #fff);"><span>⚡ 正在编写 JS 沙盒代码...</span></div><pre style="margin: 0; padding: 12px; font-family: Consolas, monospace; font-size: 13px; background: #1e1e1e; color: #a9ffaf; overflow-x: auto; max-height: 250px; white-space: pre-wrap; word-break: break-all;"><code>${content}</code></pre></div>`;
+    });
+    // 运行终端命令 <execute_cmd> - 已闭合
+    html = html.replace(/&lt;execute_cmd&gt;([\s\S]*?)&lt;\/execute_cmd&gt;/gi, function (match, content) {
+        return `<div class="sandbox-block cmd-block" style="margin: 8px 0; border: 1px solid var(--border-color, #555); border-radius: 8px; overflow: hidden; background: var(--bg-card);"><div style="background: var(--bg-hover, rgba(255,255,255,0.04)); padding: 8px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color, #555); color: var(--text-primary, #fff);"><span>💻 运行终端命令 (系统环境)</span></div><pre style="margin: 0; padding: 12px; font-family: Consolas, monospace; font-size: 13px; background: #1e1e1e; color: #5bc0de; overflow-x: auto; max-height: 200px; white-space: pre-wrap; word-break: break-all;"><code>${content}</code></pre></div>`;
+    });
+    // 运行终端命令 <execute_cmd> - 未闭合（流式输出中）
+    html = html.replace(/&lt;execute_cmd&gt;([\s\S]*)$/i, function (match, content) {
+        return `<div class="sandbox-block cmd-block" style="margin: 8px 0; border: 1px solid var(--border-color, #555); border-radius: 8px; overflow: hidden; background: var(--bg-card);"><div style="background: var(--bg-hover, rgba(255,255,255,0.04)); padding: 8px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color, #555); color: var(--text-primary, #fff);"><span>💻 正在拟定终端命令...</span></div><pre style="margin: 0; padding: 12px; font-family: Consolas, monospace; font-size: 13px; background: #1e1e1e; color: #5bc0de; overflow-x: auto; max-height: 200px; white-space: pre-wrap; word-break: break-all;"><code>${content}</code></pre></div>`;
     });
     // 换行
     html = html.replace(/\n/g, '<br/>');

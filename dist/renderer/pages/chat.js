@@ -16,7 +16,7 @@ function updateSendButtonState() {
         return;
     const curGenerating = generatingStates.get(activeConvId)?.isGenerating || false;
     if (curGenerating) {
-        btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--danger);"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`;
+        btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="var(--bg-card)"><rect x="3" y="3" width="18" height="18" rx="3" /></svg>`;
         btn.classList.add('is-stop');
     }
     else {
@@ -25,12 +25,13 @@ function updateSendButtonState() {
     }
 }
 function initThinkingBox(aiBox) {
+    const isAgent = typeof isAgentModeEnabled !== 'undefined' ? isAgentModeEnabled : false;
     aiBox.innerHTML = `
     <div style="display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px;">
       <svg style="animation: spin 1s linear infinite;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
       </svg>
-      <span>正在思考...</span>
+      <span>正在思考${isAgent ? ' (已挂载 WASM 安全沙盒)' : ''}...</span>
       <span class="loading-timer" style="font-family: monospace; color: var(--primary);">0.0s</span>
     </div>
   `;
@@ -58,12 +59,6 @@ function updateAiBoxContent(aiBox, fullText) {
     if (!displayResponse.trim()) {
         return;
     }
-    displayResponse = displayResponse.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
-        return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
-    });
-    displayResponse = displayResponse.replace(/<think>([\s\S]*)$/i, (match, p1) => {
-        return `<details open style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px; border-left: 3px solid var(--primary);"><summary style="cursor: pointer; color: var(--primary); font-size: 13px; font-weight: bold; user-select: none;"><svg style="animation: spin 1s linear infinite; vertical-align: text-bottom; margin-right:4px;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> 模型深度思考中... <span class="thinking-timer" style="font-family: monospace; margin-left: 6px; color: var(--primary);">0.0s</span></summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
-    });
     const codeBlockCount = (displayResponse.match(/\`\`\`/g) || []).length;
     if (codeBlockCount % 2 !== 0) {
         displayResponse += '\n\`\`\`';
@@ -1204,16 +1199,30 @@ export async function render(container) {
         pendingLoadConvId = convId;
     };
     window.__onConvDeleted = (convId) => {
+        const s = generatingStates.get(convId);
+        if (s) {
+            api.chat.abortStream(convId);
+            s.isGenerating = false;
+            if (s.timerId)
+                clearInterval(s.timerId);
+            generatingStates.delete(convId);
+        }
         if (convId === activeConvId) {
             activeConvId = null;
             const chatMessages = document.getElementById('chatMessages');
             if (chatMessages) {
-                chatMessages.innerHTML = '';
+                chatMessages.innerHTML = `
+          <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 12px;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.3;"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+            <div style="font-size: 14px; font-weight: 500;">发送一条消息开始对话</div>
+          </div>
+        `;
             }
             const chatTitle = document.getElementById('chatTitle');
             if (chatTitle) {
                 chatTitle.textContent = '新对话';
             }
+            updateSendButtonState();
         }
     };
     // 初始化加载
@@ -1467,37 +1476,60 @@ async function createNewChat() {
 async function loadHistory(convId) {
     try {
         const msgs = await api.chat.getHistory(convId);
+        // [安全加固] 防御性检查：如果在 getHistory 异步等待期间用户切走了页面，容器已被销毁，直接安全早退
+        if (!document.getElementById('chatMessages'))
+            return;
         renderMessages(msgs || []);
         // [并发安全] DOM 已就绪：此刻才正式将活跃会话 ID 切换为目标会话
         // 此后到来的 chunk 事件可以正确判断 thisConvId === activeConvId 并写入 DOM
         activeConvId = convId;
         const list = await api.chat.getConversations();
         const c = list.find(x => x.id === convId);
-        if (c)
-            document.getElementById('chatTitle').textContent = c.title || '新对话';
+        const titleEl = document.getElementById('chatTitle');
+        if (c && titleEl) {
+            titleEl.textContent = c.title || '新对话';
+        }
         tokenUsage = Math.min((msgs || []).length * 8, 100);
         updateTokenUsage();
-        // 当用户切回正处于后台生成的会话时，自动在其历史记录末尾追加新气泡，续接流式显示
+        // 当用户切回正处于后台生成的会话时，自动续接显示或重新追加气泡
         const state = generatingStates.get(convId);
         if (state && state.isGenerating) {
             const container = document.getElementById('chatMessages');
             if (container) {
-                if (container.children.length === 1 && (container.children[0].textContent.includes('发送一条消息') || container.children[0].textContent.includes('新的对话'))) {
-                    container.innerHTML = '';
-                }
-                const newAiBox = appendMessage('assistant');
-                state.aiBox = newAiBox;
-                currentAiBox = newAiBox;
-                if (newAiBox) {
-                    if (state.generatingFullResponse) {
-                        updateAiBoxContent(newAiBox, state.generatingFullResponse);
-                    }
-                    else {
-                        initThinkingBox(newAiBox);
-                    }
+                // 寻找当前容器中最后一个已渲染的 AI 回复气泡 DOM 元素
+                const assistantMsgs = container.querySelectorAll('.message.assistant-msg');
+                const lastAssistantBox = assistantMsgs.length > 0
+                    ? assistantMsgs[assistantMsgs.length - 1].querySelector('.msg-content-box')
+                    : null;
+                // [核心修复] 如果数据库中最后一条已经是 assistant 消息，说明 AI 已经开始写入或已答复完毕。
+                // 我们直接将 state.aiBox 重新绑定到这个已渲染好的历史气泡上，继续流式写入，不追加新气泡。
+                if (msgs && msgs.length > 0 && msgs[msgs.length - 1].role === 'assistant' && lastAssistantBox) {
+                    state.aiBox = lastAssistantBox;
+                    currentAiBox = lastAssistantBox;
                     if (state.timerId)
                         clearInterval(state.timerId);
-                    state.timerId = startThinkingTimer(newAiBox, state.startTime, state);
+                    state.timerId = startThinkingTimer(lastAssistantBox, state.startTime, state);
+                }
+                else {
+                    // 如果最后一条不是 assistant（即是 user 发问后立刻切走，在数据库里还没开始有任何答复记录）
+                    // 此时才需要物理追加一个新的 AI 气泡，用以呈现“正在思考...”
+                    if (container.children.length === 1 && (container.children[0].textContent.includes('发送一条消息') || container.children[0].textContent.includes('新的对话'))) {
+                        container.innerHTML = '';
+                    }
+                    const newAiBox = appendMessage('assistant');
+                    state.aiBox = newAiBox;
+                    currentAiBox = newAiBox;
+                    if (newAiBox) {
+                        if (state.generatingFullResponse) {
+                            updateAiBoxContent(newAiBox, state.generatingFullResponse);
+                        }
+                        else {
+                            initThinkingBox(newAiBox);
+                        }
+                        if (state.timerId)
+                            clearInterval(state.timerId);
+                        state.timerId = startThinkingTimer(newAiBox, state.startTime, state);
+                    }
                 }
                 scrollToBottom();
             }
@@ -1536,6 +1568,9 @@ window.handleQuote = handleQuote;
 window.handleCopy = handleCopy;
 function renderMessages(messages) {
     const container = document.getElementById('chatMessages');
+    // [安全加固] 防御性早退：若容器不存在（页面已被切离），直接退出防止报错
+    if (!container)
+        return;
     if (messages.length === 0) {
         container.innerHTML = `
       <div style="display: flex; height: 100%; align-items: center; justify-content: center; color: var(--text-muted); flex-direction: column; gap: 12px;">
@@ -1577,22 +1612,17 @@ function renderMessages(messages) {
         }
         // [核心修复] 对历史记录里的思考链进行防崩转义
         let safeContent = textContent || '';
-        if (m.role !== 'user') {
-            safeContent = safeContent.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
-                return `<details style="margin-bottom: 12px; border: 1px solid var(--border-light); border-radius: 8px; background: rgba(0,0,0,0.1); padding: 8px;"><summary style="cursor: pointer; color: var(--text-muted); font-size: 13px; user-select: none;">💡 思考过程展开</summary><div style="font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding-left: 12px; border-left: 2px solid var(--text-muted); white-space: pre-wrap;">${p1}</div></details>`;
-            });
-        }
         let renderedHtml = m.role === 'user' ? escapeHtml(safeContent).replace(/\n/g, '<br/>') : parseMarkdown(safeContent);
         renderedHtml += attachmentHtml;
         const avatarUser = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
         const avatarAI = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>`;
         return `
-    <div class="message" style="display: flex; gap: 12px; ${m.role === 'user' ? 'flex-direction: row-reverse;' : ''}">
+    <div class="message ${m.role === 'user' ? 'user-msg' : 'assistant-msg'}" style="display: flex; gap: 12px; ${m.role === 'user' ? 'flex-direction: row-reverse;' : ''}">
       <div style="width: 32px; height: 32px; border-radius: 10px; background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; ${m.role === 'user' ? '' : 'border: 1px solid var(--border-light);'} box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
         ${m.role === 'user' ? avatarUser : avatarAI}
       </div>
       <div style="max-width: 78%; display: flex; flex-direction: column; align-items: ${m.role === 'user' ? 'flex-end' : 'flex-start'};">
-        <div style="background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${m.role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${m.role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+        <div class="msg-content-box" style="background: ${m.role === 'user' ? 'linear-gradient(135deg, var(--primary), #5856d6)' : 'var(--bg-card)'}; color: ${m.role === 'user' ? '#fff' : 'var(--text-primary)'}; padding: 10px 14px; border-radius: ${m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px'}; font-size: 14px; line-height: 1.65; border: ${m.role === 'user' ? 'none' : '1px solid var(--border-light)'}; overflow-x: auto; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
           ${renderedHtml}
         </div>
         <div class="message-actions" style="margin-top: 3px; transition: opacity 0.15s;">
@@ -1714,19 +1744,6 @@ async function sendMessage() {
         const actionsDiv = document.createElement('div');
         actionsDiv.innerHTML = actionsHtml;
         box.parentElement.appendChild(actionsDiv.firstElementChild);
-    };
-    window.__onConvDeleted = (id) => {
-        const s = generatingStates.get(id);
-        if (s) {
-            api.chat.abortStream(id);
-            s.isGenerating = false;
-            if (s.timerId)
-                clearInterval(s.timerId);
-            generatingStates.delete(id);
-        }
-        if (id === activeConvId) {
-            updateSendButtonState();
-        }
     };
     try {
         let temp = 0.7;

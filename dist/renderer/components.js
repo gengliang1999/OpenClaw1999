@@ -307,22 +307,46 @@ export function showSandboxConfirm(command, details = '') {
         const btnReject = document.createElement('button');
         btnReject.textContent = '拒绝执行';
         btnReject.className = 'btn btn-default';
-        btnReject.style.padding = '10px 20px';
+        btnReject.style.display = 'inline-flex';
+        btnReject.style.alignItems = 'center';
+        btnReject.style.justifyContent = 'center';
+        btnReject.style.height = '38px';
+        btnReject.style.padding = '0 20px';
         btnReject.style.borderRadius = '8px';
-        btnReject.style.border = '1px solid var(--border-light, #555)';
+        btnReject.style.border = '1px solid var(--border-color, #555)';
         btnReject.style.background = 'transparent';
-        btnReject.style.color = 'var(--text-main, #fff)';
+        btnReject.style.color = 'var(--text-primary, #fff)';
         btnReject.style.cursor = 'pointer';
+        btnReject.style.fontSize = '14px';
+        btnReject.style.transition = 'all 0.2s ease';
+        btnReject.addEventListener('mouseover', () => {
+            btnReject.style.background = 'var(--bg-hover, rgba(255, 255, 255, 0.08))';
+        });
+        btnReject.addEventListener('mouseout', () => {
+            btnReject.style.background = 'transparent';
+        });
         const btnAllow = document.createElement('button');
         btnAllow.textContent = '允许一次';
         btnAllow.className = 'btn btn-primary';
-        btnAllow.style.padding = '10px 20px';
+        btnAllow.style.display = 'inline-flex';
+        btnAllow.style.alignItems = 'center';
+        btnAllow.style.justifyContent = 'center';
+        btnAllow.style.height = '38px';
+        btnAllow.style.padding = '0 20px';
         btnAllow.style.borderRadius = '8px';
         btnAllow.style.border = 'none';
         btnAllow.style.background = '#007aff';
         btnAllow.style.color = '#fff';
         btnAllow.style.cursor = 'pointer';
         btnAllow.style.fontWeight = '500';
+        btnAllow.style.fontSize = '14px';
+        btnAllow.style.transition = 'all 0.2s ease';
+        btnAllow.addEventListener('mouseover', () => {
+            btnAllow.style.background = '#0066cc';
+        });
+        btnAllow.addEventListener('mouseout', () => {
+            btnAllow.style.background = '#007aff';
+        });
         const closeModal = () => {
             overlay.style.opacity = '0';
             modal.style.transform = 'translateY(20px) scale(0.95)';
