@@ -438,18 +438,15 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
             if (url.startsWith('/memory')) {
                 const { VectorStore } = require('../backend/vector-store');
                 // 0. 记忆导出与导入备份
+                // 7. 导出记忆 (POST /memory/export)
                 if (url === '/memory/export' && method === 'POST') {
                     const memoriesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM memories")) || [];
                     const episodesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM memory_episodes")) || [];
-                    const entitiesList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM entities")) || [];
-                    const relationsList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM entity_relations")) || [];
+                    const relationsList = memoryStore._parseResults(memoryStore.db.exec("SELECT * FROM entity_relationships")) || [];
                     let vectorsList = [];
-                    const currentMemoriesDbPath = memoryStore.dbPath;
                     let currentMemoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
-                    if (currentMemoriesDbPath && !currentMemoriesDbPath.endsWith('memory.db')) {
-                        const dbDir = path.dirname(currentMemoriesDbPath);
-                        const dbName = path.basename(currentMemoriesDbPath, path.extname(currentMemoriesDbPath));
-                        currentMemoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+                    if (memoryStore.dbPath) {
+                        currentMemoriesVectorsPath = path.join(path.dirname(memoryStore.dbPath), 'memories_vectors.json');
                     }
                     try {
                         await vectorDbManager.executeRead(currentMemoriesVectorsPath, async (store) => {
@@ -462,61 +459,51 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                     const exportObj = {
                         memories: memoriesList,
                         episodes: episodesList,
-                        entities: entitiesList,
+                        entities: [],
                         relations: relationsList,
                         vectors: vectorsList
                     };
-                    const { dialog } = require('electron');
+                    const { dialog, app } = require('electron');
                     const { canceled, filePath } = await dialog.showSaveDialog(mainWindowRef(), {
-                        title: '导出记忆神经元备份',
-                        defaultPath: 'openclaw_memories_backup.json',
-                        filters: [{ name: 'JSON 备份文件', extensions: ['json'] }]
+                        title: '导出记忆神经网络备份',
+                        defaultPath: path.join(app.getPath('downloads'), `memory_backup_${new Date().toISOString().slice(0, 10)}.json`),
+                        filters: [{ name: 'JSON 备份', extensions: ['json'] }]
                     });
-                    if (canceled || !filePath)
-                        return { success: false, message: '操作已取消' };
-                    fs.writeFileSync(filePath, JSON.stringify(exportObj, null, 2), 'utf8');
-                    return { success: true, filePath };
+                    if (!canceled && filePath) {
+                        fs.writeFileSync(filePath, JSON.stringify(exportObj, null, 2), 'utf8');
+                        return { success: true, filePath };
+                    }
+                    return { success: false, message: '已取消导出' };
                 }
+                // 8. 导入记忆 (POST /memory/import)
                 if (url === '/memory/import' && method === 'POST') {
                     const { overwrite = false } = body;
                     const { dialog } = require('electron');
                     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindowRef(), {
-                        title: '导入记忆神经元备份',
-                        filters: [{ name: 'JSON 备份文件', extensions: ['json'] }],
+                        title: '选择要导入的记忆备份文件',
+                        filters: [{ name: 'JSON 备份', extensions: ['json'] }],
                         properties: ['openFile']
                     });
-                    if (canceled || filePaths.length === 0)
-                        return { success: false, message: '操作已取消' };
-                    const rawData = fs.readFileSync(filePaths[0], 'utf8');
-                    let parsedData;
-                    try {
-                        parsedData = JSON.parse(rawData);
+                    if (canceled || filePaths.length === 0) {
+                        return { success: false, message: '已取消导入' };
                     }
-                    catch (e) {
-                        return { success: false, message: '导入失败：备份文件内容为空或非合法的 JSON 格式' };
-                    }
-                    const list = Array.isArray(parsedData) ? parsedData : (parsedData.memories || []);
-                    const episodes = parsedData.episodes || [];
-                    const entities = parsedData.entities || [];
-                    const relations = parsedData.relations || [];
-                    const vectors = parsedData.vectors || [];
-                    const currentMemoriesDbPath = memoryStore.dbPath;
+                    const backupContent = fs.readFileSync(filePaths[0], 'utf8');
+                    const backupObj = JSON.parse(backupContent);
+                    const { memories = [], episodes = [], relations = [], vectors = [] } = backupObj;
                     let currentMemoriesVectorsPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
-                    if (currentMemoriesDbPath && !currentMemoriesDbPath.endsWith('memory.db')) {
-                        const dbDir = path.dirname(currentMemoriesDbPath);
-                        const dbName = path.basename(currentMemoriesDbPath, path.extname(currentMemoriesDbPath));
-                        currentMemoriesVectorsPath = path.join(dbDir, `${dbName}_vectors.json`);
+                    if (memoryStore.dbPath) {
+                        currentMemoriesVectorsPath = path.join(path.dirname(memoryStore.dbPath), 'memories_vectors.json');
                     }
                     if (overwrite) {
                         memoryStore.db.run("DELETE FROM memories");
                         memoryStore.db.run("DELETE FROM memory_episodes");
-                        memoryStore.db.run("DELETE FROM entities");
-                        memoryStore.db.run("DELETE FROM entity_relations");
+                        memoryStore.db.run("DELETE FROM entity_relationships");
                         memoryStore._save();
                         await vectorDbManager.executeWrite(currentMemoriesVectorsPath, async (store) => {
                             store.documents = [];
                         }, false);
                     }
+                    const list = memories;
                     let importedCount = 0;
                     for (const item of list) {
                         const content = item.content;
@@ -544,11 +531,15 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                         for (const ep of episodes) {
                             memoryStore.db.run('INSERT INTO memory_episodes (id, conversation_id, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [ep.id, ep.conversation_id, ep.summary, ep.created_at, ep.updated_at]);
                         }
-                        for (const ent of entities) {
-                            memoryStore.db.run('INSERT INTO entities (id, name, type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?)', [ent.id, ent.name, ent.type, ent.description, ent.first_mentioned_at]);
-                        }
                         for (const rel of relations) {
-                            memoryStore.db.run('INSERT INTO entity_relations (id, source_id, target_id, relation_type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?, ?)', [rel.id, rel.source_id, rel.target_id, rel.relation_type, rel.description, rel.first_mentioned_at]);
+                            memoryStore.db.run('INSERT INTO entity_relationships (id, subject, predicate, object, source_memory_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
+                                rel.id || require('crypto').randomUUID(),
+                                rel.subject || rel.source_id,
+                                rel.predicate || rel.relation_type,
+                                rel.object || rel.target_id,
+                                rel.source_memory_id || '',
+                                rel.created_at || new Date().toISOString()
+                            ]);
                         }
                     }
                     else {
@@ -558,16 +549,21 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                                 memoryStore.db.run('INSERT INTO memory_episodes (id, conversation_id, summary, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [ep.id, ep.conversation_id, ep.summary, ep.created_at, ep.updated_at]);
                             }
                         }
-                        for (const ent of entities) {
-                            const check = memoryStore.db.exec('SELECT id FROM entities WHERE name = ? LIMIT 1', [ent.name]);
-                            if (!(check && check.length > 0 && check[0].values.length > 0)) {
-                                memoryStore.db.run('INSERT INTO entities (id, name, type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?)', [ent.id, ent.name, ent.type, ent.description, ent.first_mentioned_at]);
-                            }
-                        }
                         for (const rel of relations) {
-                            const check = memoryStore.db.exec('SELECT id FROM entity_relations WHERE source_id = ? AND target_id = ? AND relation_type = ? LIMIT 1', [rel.source_id, rel.target_id, rel.relation_type]);
+                            const check = memoryStore.db.exec('SELECT id FROM entity_relationships WHERE subject = ? AND predicate = ? AND object = ? LIMIT 1', [
+                                rel.subject || rel.source_id,
+                                rel.predicate || rel.relation_type,
+                                rel.object || rel.target_id
+                            ]);
                             if (!(check && check.length > 0 && check[0].values.length > 0)) {
-                                memoryStore.db.run('INSERT INTO entity_relations (id, source_id, target_id, relation_type, description, first_mentioned_at) VALUES (?, ?, ?, ?, ?, ?)', [rel.id, rel.source_id, rel.target_id, rel.relation_type, rel.description, rel.first_mentioned_at]);
+                                memoryStore.db.run('INSERT INTO entity_relationships (id, subject, predicate, object, source_memory_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [
+                                    rel.id || require('crypto').randomUUID(),
+                                    rel.subject || rel.source_id,
+                                    rel.predicate || rel.relation_type,
+                                    rel.object || rel.target_id,
+                                    rel.source_memory_id || '',
+                                    rel.created_at || new Date().toISOString()
+                                ]);
                             }
                         }
                     }
@@ -604,10 +600,14 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                         throw new Error('未找到对应的记忆条目');
                     memoryStore.db.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', [content, new Date().toISOString(), id]);
                     memoryStore._save();
+                    let vectorPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+                    if (memoryStore.dbPath) {
+                        vectorPath = path.join(path.dirname(memoryStore.dbPath), 'memories_vectors.json');
+                    }
                     setImmediate(async () => {
                         try {
                             const embedding = await modelManager.getEmbedding(content);
-                            await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store) => {
+                            await vectorDbManager.executeWrite(vectorPath, async (store) => {
                                 await store.removeBySource(oldMemory.content, false);
                                 if (Array.isArray(embedding) && embedding.length > 0) {
                                     await store.addDocuments([{
@@ -655,11 +655,15 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                     if (!content)
                         throw new Error('记忆内容不能为空');
                     const memory = memoryStore.addMemory(content, category, tags);
-                    // 同步写入向量库 (加并发锁保护，并将 Embedding 提到锁外部执行)
+                    let vectorPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+                    if (memoryStore.dbPath) {
+                        vectorPath = path.join(path.dirname(memoryStore.dbPath), 'memories_vectors.json');
+                    }
+                    // 同步写入向量（加并发锁保护，并将 Embedding 提到锁外部执行）
                     try {
                         const embedding = await modelManager.getEmbedding(content);
                         if (Array.isArray(embedding) && embedding.length > 0) {
-                            await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store) => {
+                            await vectorDbManager.executeWrite(vectorPath, async (store) => {
                                 await store.addDocuments([{
                                         id: require('crypto').randomUUID(),
                                         content,
@@ -698,7 +702,7 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                     const memory = memoryStore.getMemory(id);
                     if (memory) {
                         try {
-                            await vectorDbManager.executeWrite(path.join(dataDir, 'memories_vectors.json'), async (store) => {
+                            await vectorDbManager.executeWrite(path.join(memoryStore.dataDir, 'memories_vectors.json'), async (store) => {
                                 await store.removeBySource(memory.content, false); // 传入 false 避免二次落盘
                             });
                             console.log('[主进程] 成功从向量库移除记忆分块:', memory.content);
@@ -808,14 +812,18 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
                 if (url === '/memory/clear-all' && method === 'POST') {
                     memoryStore.db.run('DELETE FROM memories');
                     memoryStore._save();
-                    const vectorPath = path.join(dataDir, 'memory_vectors.json');
-                    if (fs.existsSync(vectorPath)) {
-                        try {
-                            fs.writeFileSync(vectorPath, JSON.stringify([], null, 2));
-                        }
-                        catch (e) {
-                            console.error('[主进程] 清空向量文件失败:', e.message);
-                        }
+                    let vectorPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
+                    if (memoryStore.dbPath) {
+                        vectorPath = path.join(path.dirname(memoryStore.dbPath), 'memories_vectors.json');
+                    }
+                    try {
+                        await vectorDbManager.executeWrite(vectorPath, async (store) => {
+                            store.documents = [];
+                        });
+                        vectorDbManager.clearCache(vectorPath);
+                    }
+                    catch (e) {
+                        console.error('[主进程] 清空向量文件失败:', e.message);
                     }
                     console.log('[主进程] 已成功重置清空全部长期记忆及向量索引');
                     return { success: true };
@@ -1883,48 +1891,80 @@ function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
         }
     });
     // ================== 特殊：大模型流式对话 IPC 接口 ==================
-    let activeAbortController = null;
-    electron_1.ipcMain.handle('api:chat:stream', async (event, payload) => {
-        const { conversationId, message, attachment, modelId, systemPrompt, temperature, agentMode } = payload;
+    const activeAbortControllers = new Map();
+    electron_1.ipcMain.handle('api:chat:stream', (event, payload) => {
+        const { conversationId } = payload;
         const mainWindow = mainWindowRef();
         if (!mainWindow)
-            throw new Error('主窗口未就绪');
-        if (activeAbortController) {
-            activeAbortController.abort();
-        }
-        activeAbortController = new AbortController();
-        const signal = activeAbortController.signal;
-        try {
-            const { ContextAggregator } = require('../backend/dialogue-orchestrator');
-            const aggregator = new ContextAggregator({
-                modelManager,
-                memoryStore,
-                sandbox,
-                dataDir,
-                mainWindowRef,
-                jobQueue
-            });
-            await aggregator.executeChatStream(payload, signal);
-        }
-        catch (err) {
-            if (err.name === 'AbortError' || err.message === 'AbortError') {
-                console.log('[流式对话] 推理请求已被主动中断。');
-            }
-            else {
-                console.error('[流式对话错误]：', err);
-                mainWindow.webContents.send('api:chat:chunk', { type: 'error', message: err.message });
+            return { started: false, error: '主窗口未就绪' };
+        // 同一会话的新请求到来时，中断旧的推理（用户在同一对话内重发）
+        if (conversationId) {
+            const oldController = activeAbortControllers.get(conversationId);
+            if (oldController) {
+                oldController.abort();
             }
         }
-        finally {
-            activeAbortController = null;
+        const controller = new AbortController();
+        if (conversationId) {
+            activeAbortControllers.set(conversationId, controller);
         }
+        const signal = controller.signal;
+        // [核心修复] 使用 setImmediate 将推理任务放入异步微任务队列后立即 return。
+        // 这样 ipcRenderer.invoke 的 Promise 立刻 resolve，IPC 通道不再被占用，
+        // 允许多个会话同时独立发起请求，彻底解除"切换即打断"的底层锁。
+        setImmediate(async () => {
+            try {
+                const { ContextAggregator } = require('../backend/dialogue-orchestrator');
+                const aggregator = new ContextAggregator({
+                    modelManager,
+                    memoryStore,
+                    sandbox,
+                    dataDir,
+                    mainWindowRef,
+                    jobQueue
+                });
+                await aggregator.executeChatStream(payload, signal);
+            }
+            catch (err) {
+                if (err.name === 'AbortError' || err.message === 'AbortError') {
+                    console.log(`[流式对话] 会话 ${conversationId} 的推理请求已被主动中断。`);
+                }
+                else {
+                    console.error('[流式对话错误]：', err);
+                    // 获取最新的 mainWindow 引用以防在长时推理后窗口已重建
+                    const win = mainWindowRef();
+                    if (win && !win.isDestroyed()) {
+                        win.webContents.send('api:chat:chunk', { type: 'error', message: err.message, conversationId });
+                    }
+                }
+            }
+            finally {
+                if (conversationId && activeAbortControllers.get(conversationId) === controller) {
+                    activeAbortControllers.delete(conversationId);
+                }
+            }
+        });
+        // 立即返回，告知渲染进程任务已成功入队，IPC 通道即刻释放
+        return { started: true };
     });
     // 主动中断对话流
-    electron_1.ipcMain.handle('api:chat:abort', () => {
-        if (activeAbortController) {
-            activeAbortController.abort();
-            activeAbortController = null;
-            console.log('[主进程] 已接收前端指令，强制 Abort 取消大模型对话推理流');
+    electron_1.ipcMain.handle('api:chat:abort', (event, payload) => {
+        const { conversationId } = payload || {};
+        if (conversationId) {
+            const controller = activeAbortControllers.get(conversationId);
+            if (controller) {
+                controller.abort();
+                activeAbortControllers.delete(conversationId);
+                console.log(`[主进程] 已接收前端指令，强制 Abort 取消会话 ${conversationId} 的大模型对话推理流`);
+                return { success: true };
+            }
+        }
+        else {
+            for (const [id, ctrl] of activeAbortControllers.entries()) {
+                ctrl.abort();
+            }
+            activeAbortControllers.clear();
+            console.log('[主进程] 已接收前端指令，强制 Abort 取消所有大模型对话推理流');
             return { success: true };
         }
         return { success: false };

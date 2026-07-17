@@ -145,7 +145,7 @@ class ContextAggregator {
             memoryStore,
             evolutionEngine,
             onChunk: (chunk) => {
-                mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: chunk });
+                mainWindow.webContents.send('api:chat:chunk', { type: 'chunk', content: chunk, conversationId: convId });
             },
             onRequiresConfirmation: (cmd, riskLevel, msg, confirmationId) => {
                 mainWindow.webContents.send('api:chat:chunk', {

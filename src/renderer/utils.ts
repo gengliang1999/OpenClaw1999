@@ -1,10 +1,53 @@
 // ================== api.ts ==================
 
+const TIMEOUT_LIMIT = 15000;
+
+async function withTimeout(promise: Promise<any>, timeoutMs = TIMEOUT_LIMIT): Promise<any> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('TIMEOUT: 跨进程 IPC 调用响应超时，主进程可能挂起或崩溃'));
+    }, timeoutMs);
+  });
+  try {
+    const res = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+const streamCallbacks = new Map<string, (data: any) => void>();
+
+if (window.openClaw && window.openClaw.onChatChunk) {
+  window.openClaw.onChatChunk((data: any) => {
+    const { conversationId } = data;
+    if (conversationId) {
+      const cb = streamCallbacks.get(conversationId);
+      if (cb) {
+        cb(data);
+      }
+      if (data.type === 'done' || data.type === 'error') {
+        streamCallbacks.delete(conversationId);
+      }
+    } else {
+      for (const [id, cb] of streamCallbacks.entries()) {
+        cb(data);
+      }
+      if (data.type === 'done' || data.type === 'error') {
+        streamCallbacks.clear();
+      }
+    }
+  });
+}
+
 export const api = {
-  get: async (url: string, options: any = {}) => {
+  get: async (url: string, options: any = {}): Promise<any> => {
     if (window.openClaw && window.openClaw.apiCall) {
       // 通过原生安全的 IPC 管道直接分发 API，无 TCP 端口开销，防御跨源攻击
-      return window.openClaw.apiCall(url, { ...options, method: options.method || 'GET' });
+      return withTimeout(window.openClaw.apiCall(url, { ...options, method: options.method || 'GET' }) as Promise<any>);
     }
     throw new Error('原生安全 IPC 管道不可用');
   },
@@ -21,30 +64,27 @@ export const api = {
   chat: {
     sendMessage: (conversationId: string, message: string, modelId: string) => 
       api.post('/chat', { conversationId, message, modelId }),
-    sendMessageStream: (conversationId: string, message: string, attachment: any, modelId: string, systemPrompt: string, temperature: number, agentMode: string, onData: (data: any) => void) => {
-      if (window.openClaw && window.openClaw.onChatChunk) {
-        // 先解绑历史监听，状态更新唯一性防竞态 Bug
-        window.openClaw.offChatChunk();
-        
-        window.openClaw.onChatChunk((data: any) => {
-          if (data.type === 'done' || data.type === 'error') {
-            window.openClaw.offChatChunk();
-          }
-          if (onData) onData(data);
-        });
-
-        // 异步发起流式 IPC 响应，并在主进程触发 Abort 闭环
+    sendMessageStream: (conversationId: string, message: string, attachment: any, modelId: string, systemPrompt: string, temperature: number, agentMode: any, onData: (data: any) => void) => {
+      if (onData) {
+        streamCallbacks.set(conversationId, onData);
+      }
+      if (window.openClaw && window.openClaw.apiCallStream) {
+        // [架构说明] 主进程 handler 现在立即 return { started: true }，
+        // invoke 的 Promise 几乎不会 reject。
+        // 仅当 IPC 底层基础设施崩溃（主进程崩溃/窗口销毁）时才会走到 catch。
+        // 推理层的业务错误已改由 webContents.send('api:chat:chunk') 通道下发，
+        // 由全局 onChatChunk 分发器接收，与此路径完全解耦。
         window.openClaw.apiCallStream({ conversationId, message, attachment, modelId, systemPrompt, temperature, agentMode }).catch((err: any) => {
-          console.error('[流式 IPC 管道异常]', err);
-          window.openClaw.offChatChunk();
-          if (onData) onData({ type: 'error', message: err.message });
+          console.error('[流式 IPC 基础设施异常]', err);
+          if (onData) onData({ type: 'error', message: err.message, conversationId });
+          streamCallbacks.delete(conversationId);
         });
       }
       return Promise.resolve();
     },
-    abortStream: () => {
+    abortStream: (conversationId?: string) => {
       if (window.openClaw && window.openClaw.abortStream) {
-        window.openClaw.abortStream();
+        window.openClaw.abortStream({ conversationId });
       }
     },
     deleteMessage: (messageId: string) => api.delete(`/chat/message/${messageId}`),

@@ -125,7 +125,7 @@ export async function render(container, params = {}) {
     </div>
   `;
     // 清理 body 上残留的旧模态框（页面每次导航都会重新 render）
-    ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'logoFileInput'].forEach(id => {
+    ['cloudConfigModal', 'installGuideModal', 'localModelsModal'].forEach(id => {
         const old = document.getElementById(id);
         if (old && old.parentNode === document.body)
             old.remove();
@@ -137,13 +137,6 @@ export async function render(container, params = {}) {
         if (el)
             document.body.appendChild(el);
     });
-    // 隐藏的 file input for logo upload
-    const logoInput = document.createElement('input');
-    logoInput.type = 'file';
-    logoInput.accept = 'image/*';
-    logoInput.id = 'logoFileInput';
-    logoInput.style.display = 'none';
-    document.body.appendChild(logoInput);
     bindModalEvents();
     renderCloudVendors();
     renderLocalRuntimes();
@@ -180,8 +173,25 @@ function bindModalEvents() {
         openCloudConfig({ id: '_custom', name: '自定义模型', icon: '➕', color: '#888', desc: '添加任意 OpenAI 兼容 API', url: '', models: [] });
     });
     // Logo 上传
-    document.getElementById('configVendorLogo').addEventListener('click', () => document.getElementById('logoFileInput').click());
-    document.getElementById('logoFileInput').addEventListener('change', handleLogoUpload);
+    document.getElementById('configVendorLogo').addEventListener('click', async () => {
+        try {
+            const filePath = await window.openClaw.system.selectFile({
+                filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
+            });
+            if (!filePath)
+                return;
+            const res = await api.post('/system/readFileAsDataUrl', { filePath });
+            if (res && res.data) {
+                compressAndSetLogo(res.data);
+            }
+            else {
+                window.__toast?.error('读取 Logo 失败');
+            }
+        }
+        catch (err) {
+            window.__toast?.error(`读取 Logo 失败: ${err.message}`);
+        }
+    });
 }
 // ==================== 云端厂商渲染 ====================
 function renderCloudVendors() {
@@ -501,17 +511,6 @@ async function testConnection() {
     }
 }
 // ==================== Logo 上传与压缩 ====================
-function handleLogoUpload(e) {
-    const file = e.target.files[0];
-    if (!file)
-        return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        compressAndSetLogo(ev.target.result);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = ''; // reset
-}
 function compressAndSetLogo(dataUrl) {
     const img = new Image();
     img.onload = () => {

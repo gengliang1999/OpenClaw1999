@@ -117,7 +117,7 @@ function renderShell() {
     <!-- 侧边栏 -->
     <aside class="sidebar" id="sidebar">
       <!-- 拖拽调整宽度的把手 -->
-      <div class="sidebar-resizer" id="sidebarResizer">
+      <div class="sidebar-resizer" id="sidebarResizer" style="display: none;">
         <div class="resizer-handle"></div>
       </div>
       
@@ -346,13 +346,13 @@ async function loadSidebarConversations(query = '') {
   let batchToolbar = '';
   if (batchMode) {
     batchToolbar = `
-      <div class="batch-toolbar" style="display:flex; align-items:center; gap:5px; padding:5px 6px; margin-bottom:6px; border-radius:8px; background:var(--bg-hover); border:1px solid var(--border-light); box-shadow:var(--shadow-sm); box-sizing:border-box; width:100%; overflow:hidden; justify-content:flex-start;">
-        <label style="display:flex; align-items:center; gap:3px; font-size:11px; font-weight:500; cursor:pointer; color:var(--text-primary); white-space:nowrap; flex-shrink:0;">
+      <div class="batch-toolbar" style="display:flex; align-items:center; gap:5px; padding:5px 6px; margin-bottom:6px; border-radius:8px; background:var(--bg-hover); border:1px solid var(--border-light); box-shadow:var(--shadow-sm); box-sizing:border-box; width:100%; overflow-x:auto; justify-content:flex-start;">
+        <label style="display:flex; align-items:center; gap:3px; font-size:11px; font-weight:500; cursor:pointer; color:var(--text-primary); white-space:nowrap; flex-shrink:0; width:62px;">
           <input type="checkbox" id="batchSelectAll" style="cursor:pointer;" /> 全选${batchSelected.size > 0 ? `(${batchSelected.size})` : ''}
         </label>
-        <button id="batchExportBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:1px solid var(--primary); background:transparent; color:var(--primary); cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='var(--primary-light)'" onmouseout="this.style.background='transparent'">导出</button>
-        <button id="batchDeleteBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:none; background:#ff3b30; color:#fff; cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='#e0241b'" onmouseout="this.style.background='#ff3b30'">删除</button>
-        <button id="batchCancelBtn" style="font-size:11px; padding:3px 5px; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">取消</button>
+        <button id="batchExportBtn" style="font-size:11px; padding:3px 0; width:38px; text-align:center; border-radius:4px; border:1px solid var(--primary); background:transparent; color:var(--primary); cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='var(--primary-light)'" onmouseout="this.style.background='transparent'">导出</button>
+        <button id="batchDeleteBtn" style="font-size:11px; padding:3px 0; width:38px; text-align:center; border-radius:4px; border:none; background:#ff3b30; color:#fff; cursor:pointer; font-weight:500; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='#e0241b'" onmouseout="this.style.background='#ff3b30'">删除</button>
+        <button id="batchCancelBtn" style="font-size:11px; padding:3px 0; width:38px; text-align:center; border-radius:4px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer; white-space:nowrap; flex-shrink:0; transition:all 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">取消</button>
       </div>
     `;
   }
@@ -372,6 +372,16 @@ async function loadSidebarConversations(query = '') {
 
   // 批量模式事件
   if (batchMode) {
+    const toolbar = document.querySelector('.batch-toolbar') as HTMLElement;
+    if (toolbar) {
+      toolbar.addEventListener('wheel', (e: WheelEvent) => {
+        if (e.deltaY !== 0) {
+          e.preventDefault();
+          toolbar.scrollLeft += e.deltaY;
+        }
+      }, { passive: false });
+    }
+
     const selectAll = (document.getElementById('batchSelectAll') as any);
     if (selectAll) {
       selectAll.checked = conversations.length > 0 && conversations.every(c => batchSelected.has(c.id));

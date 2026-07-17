@@ -5,8 +5,13 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const { contextBridge, ipcRenderer } = require('electron');
-// 同步向主进程索取 API 鉴权 Token
-const apiToken = ipcRenderer.sendSync('system:getApiToken');
+let apiToken = '';
+if (process.argv) {
+    const tokenArg = process.argv.find(arg => arg.startsWith('--api-token='));
+    if (tokenArg) {
+        apiToken = tokenArg.split('=')[1];
+    }
+}
 /**
  * 封装 HTTP 请求方法
  */
@@ -15,7 +20,7 @@ contextBridge.exposeInMainWorld('openClaw', {
     /** 全链路原生 IPC 通信通道 */
     apiCall: (url, options) => ipcRenderer.invoke('api:call', { url, options: { ...(options || {}), __token: apiToken } }),
     apiCallStream: (payload) => ipcRenderer.invoke('api:chat:stream', payload),
-    abortStream: () => ipcRenderer.invoke('api:chat:abort'),
+    abortStream: (payload) => ipcRenderer.invoke('api:chat:abort', payload),
     onChatChunk: (callback) => ipcRenderer.on('api:chat:chunk', (event, data) => callback(data)),
     offChatChunk: () => ipcRenderer.removeAllListeners('api:chat:chunk'),
     apiOptimizeStream: (payload) => ipcRenderer.invoke('api:chat:optimize-stream', payload),

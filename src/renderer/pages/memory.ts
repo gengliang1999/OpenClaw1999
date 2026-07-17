@@ -40,15 +40,15 @@ export async function render(container) {
         </div>
         <div style="display: flex; gap: 6px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 12px; backdrop-filter: blur(10px); box-shadow: var(--shadow-sm); flex-shrink: 0;">
           <div style="position: relative; width: 200px; flex-shrink: 0;">
-            <input type="text" id="searchMemoryInput" placeholder="🔍 搜索记忆..." class="input" style="width: 100%; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-primary); font-size: 13px; outline: none; transition: all 0.3s; box-sizing: border-box;" onfocus="this.style.border='1px solid var(--primary)'; this.style.boxShadow='0 0 10px rgba(0,122,255,0.15)'" onblur="this.style.border='1px solid var(--border-light)'; this.style.boxShadow='none'">
+            <input type="text" id="searchMemoryInput" placeholder="🔍 搜索记忆..." class="input" style="width: 100%; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-primary); font-size: 13px; outline: none; transition: all 0.3s; box-sizing: border-box;">
           </div>
-          <button id="addMemoryBtn" class="btn btn-primary" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--primary); background: var(--primary-light); color: var(--primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--primary)'; this.style.color='#fff'; this.style.boxShadow='0 0 15px rgba(0,122,255,0.3)'" onmouseout="this.style.background='var(--primary-light)'; this.style.color='var(--primary)'; this.style.boxShadow='none'">+ 添加</button>
-          <button id="importMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📥 导入</button>
-          <button id="exportMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">📤 导出</button>
-          <button id="clearMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,59,48,0.3); background: rgba(255,59,48,0.05); color: #ff3b30; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;" onmouseover="this.style.background='#ff3b30'; this.style.color='#fff'; this.style.boxShadow='0 0 15px rgba(255,59,48,0.3)'" onmouseout="this.style.background='rgba(255,59,48,0.05)'; this.style.color='#ff3b30'; this.style.boxShadow='none'">🧹 清空</button>
+          <button id="addMemoryBtn" class="btn btn-primary" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--primary); background: var(--primary-light); color: var(--primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">+ 添加</button>
+          <button id="importMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">📥 导入</button>
+          <button id="exportMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">📤 导出</button>
+          <button id="clearMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,59,48,0.3); background: rgba(255,59,48,0.05); color: #ff3b30; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">🧹 清空</button>
         </div>
       </div>
-
+      
       <div style="flex: 1; overflow-y: auto; padding: 8px 4px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
         <div id="memoryList" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px;">
           <!-- List renders here -->
@@ -57,9 +57,9 @@ export async function render(container) {
       
       <div style="padding: 24px 0 0 0; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
         <div style="display: flex; gap: 16px; align-items: center; background: rgba(255,255,255,0.02); backdrop-filter: blur(16px); padding: 8px 20px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-          <button id="prevPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-secondary)'">&lt; 向上回溯</button>
+          <button id="prevPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;">&lt; 向上回溯</button>
           <span id="pageInfo" style="font-size: 14px; font-weight: 600; color: var(--text-primary); background: rgba(255,255,255,0.05); padding: 4px 12px; border-radius: 8px;">Node 1</span>
-          <button id="nextPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-secondary)'">深度下潜 &gt;</button>
+          <button id="nextPageBtn" class="btn" style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-weight: 500; transition: all 0.2s;">深度下潜 &gt;</button>
         </div>
       </div>
     </div>
@@ -140,6 +140,28 @@ export async function render(container) {
       alert('导出备份失败: ' + e.message);
     }
   });
+
+  const memoryListEl = document.getElementById('memoryList');
+  if (memoryListEl) {
+    memoryListEl.addEventListener('click', async (e) => {
+      const btn = (e.target as HTMLElement).closest('button');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+      const id = btn.getAttribute('data-id');
+      if (!action || !id) return;
+
+      if (action === 'edit') {
+        window._editMemory(id);
+      } else if (action === 'delete') {
+        window._deleteMemory(id);
+      } else if (action === 'pin') {
+        const isPinned = btn.getAttribute('data-pinned') === '1';
+        window._togglePinMemory(id, isPinned ? 0 : 1);
+      } else if (action === 'promote') {
+        window._promoteMemory(id);
+      }
+    });
+  }
 
   await loadData();
 }
@@ -257,10 +279,10 @@ function renderList() {
     // 生成排重晋升按钮
     const promoteBtn = isPromoted 
       ? `<span style="background: rgba(52, 199, 89, 0.15); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.3); padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight:600; flex-shrink:0;" title="已晋升">🚀</span>`
-      : `<button class="promote-btn" onclick="window._promoteMemory('${m.id}')" style="background: rgba(0,122,255,0.1); border: none; color: var(--primary); border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,122,255,0.2)'" onmouseout="this.style.background='rgba(0,122,255,0.1)'" title="晋升脑皮层">🚀</button>`;
+      : `<button class="promote-btn" data-action="promote" data-id="${m.id}" style="background: rgba(0,122,255,0.1); border: none; color: var(--primary); border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="晋升脑皮层">🚀</button>`;
 
     const isPinned = m.is_pinned === 1 || m.isPinned;
-    const pinBtn = `<button class="pin-btn" onclick="window._togglePinMemory('${m.id}', ${isPinned ? 0 : 1})" style="background: ${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}; border: none; color: ${isPinned ? '#ff9f0a' : 'var(--text-muted)'}; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="${isPinned ? '取消置顶' : '置顶常驻'}" onmouseover="this.style.background='rgba(255,159,10,0.25)'" onmouseout="this.style.background='${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}'">${isPinned ? '📌' : '📍'}</button>`;
+    const pinBtn = `<button class="pin-btn" data-action="pin" data-id="${m.id}" data-pinned="${isPinned ? 1 : 0}" style="background: ${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}; border: none; color: ${isPinned ? '#ff9f0a' : 'var(--text-muted)'}; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="${isPinned ? '取消置顶' : '置顶常驻'}">${isPinned ? '📌' : '📍'}</button>`;
 
     // 动态提取标题和预览正文逻辑
     let cardTitle = '';
@@ -288,7 +310,7 @@ function renderList() {
     const hoverBorderColor = isPinned ? 'rgba(255, 159, 10, 0.85)' : 'rgba(255, 255, 255, 0.18)';
     const hoverShadow = isPinned 
       ? `0 14px 44px ${shadowColorHover}, 0 4px 16px rgba(0, 0, 0, 0.45)` 
-      : '0 14px 44px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.25)';
+      : '0 14px 44 rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.25)';
     const outBorderColor = isPinned ? 'rgba(255, 159, 10, 0.45)' : 'rgba(255, 255, 255, 0.08)';
     const outShadow = cardShadow;
 
@@ -312,9 +334,7 @@ function renderList() {
       : '';
 
     return `
-      <div class="memory-card" style="position: relative; background: ${cardBg}; backdrop-filter: blur(16px); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; border: ${cardBorder}; overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: default; box-shadow: ${cardShadow}; animation: fadeInUp 0.4s ease forwards; animation-delay: ${idx * 0.05}s; opacity: 0; transform: translateY(10px);" 
-           onmouseover="this.style.transform='translateY(-4px) scale(1.01)'; this.style.borderColor='${hoverBorderColor}'; this.style.boxShadow='${hoverShadow}'; this.style.background='${hoverBg}'" 
-           onmouseout="this.style.transform='translateY(0) scale(1)'; this.style.borderColor='${outBorderColor}'; this.style.boxShadow='${outShadow}'; this.style.background='${outBg}'">
+      <div class="memory-card" style="position: relative; --hover-border: ${hoverBorderColor}; --hover-shadow: ${hoverShadow}; --hover-bg: ${hoverBg}; --normal-border: ${outBorderColor}; --normal-shadow: ${outShadow}; --normal-bg: ${outBg}; border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; cursor: default; animation: fadeInUp 0.4s ease forwards; animation-delay: ${idx * 0.05}s; opacity: 0; transform: translateY(10px);">
         
         <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${isPinned ? 'linear-gradient(to bottom, #ff9f0a, #ffcc00)' : (isEvolution ? 'linear-gradient(to bottom, #ff3b30, #ff9f0a)' : 'linear-gradient(to bottom, var(--primary), #5856d6)')};"></div>
         
@@ -326,8 +346,8 @@ function renderList() {
           <div class="card-actions" style="display: flex; gap: 4px; align-items: center; opacity: 0.75; transition: opacity 0.2s;">
             ${pinBtn}
             ${promoteBtn}
-            <button class="edit-btn" onclick="window._editMemory('${m.id}')" style="background: rgba(0,242,254,0.1); border: none; color: #00f2fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="修改记忆">✏️</button>
-            <button class="del-btn" onclick="window._deleteMemory('${m.id}')" style="background: rgba(255,59,48,0.1); border: none; color: #ff3b30; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="抹除记忆">🗑️</button>
+            <button class="edit-btn" data-action="edit" data-id="${m.id}" style="background: rgba(0,242,254,0.1); border: none; color: #00f2fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="修改记忆">✏️</button>
+            <button class="del-btn" data-action="delete" data-id="${m.id}" style="background: rgba(255,59,48,0.1); border: none; color: #ff3b30; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="抹除记忆">🗑️</button>
           </div>
         </div>
         

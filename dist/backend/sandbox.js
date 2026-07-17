@@ -119,11 +119,30 @@ class SandboxExecutor {
     _loadPermissions() {
         try {
             if (fs.existsSync(this.permissionsPath)) {
-                this.permissions = JSON.parse(fs.readFileSync(this.permissionsPath, 'utf-8'));
+                const raw = fs.readFileSync(this.permissionsPath, 'utf-8');
+                const parsed = JSON.parse(raw);
+                this.permissions = Array.isArray(parsed) ? parsed : [];
+            }
+            else {
+                this.permissions = [];
             }
         }
         catch (error) {
-            console.error('[沙盒] 权限配置加载失败:', error);
+            console.error('[沙盒] 权限配置加载失败，尝试从备份恢复:', error);
+            const tempPath = this.permissionsPath + '.tmp';
+            try {
+                if (fs.existsSync(tempPath)) {
+                    const raw = fs.readFileSync(tempPath, 'utf-8');
+                    const parsed = JSON.parse(raw);
+                    this.permissions = Array.isArray(parsed) ? parsed : [];
+                    // 成功恢复后同步写盘
+                    fs.writeFileSync(this.permissionsPath, JSON.stringify(this.permissions, null, 2), 'utf-8');
+                    return;
+                }
+            }
+            catch (backupError) {
+                console.error('[沙盒] 备份配置文件读取同样损坏:', backupError);
+            }
             this.permissions = [];
         }
     }
@@ -136,7 +155,10 @@ class SandboxExecutor {
             const dir = path.dirname(this.permissionsPath);
             if (!fs.existsSync(dir))
                 fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(this.permissionsPath, JSON.stringify(this.permissions, null, 2), 'utf-8');
+            // 采用“临时写入（.tmp）+ 原子重命名（renameSync）”确保配置落盘的完整性，抗崩溃损坏
+            const tempPath = this.permissionsPath + '.tmp';
+            fs.writeFileSync(tempPath, JSON.stringify(this.permissions, null, 2), 'utf-8');
+            fs.renameSync(tempPath, this.permissionsPath);
         }
         catch (error) {
             console.error('[沙盒] 权限配置保存失败:', error);

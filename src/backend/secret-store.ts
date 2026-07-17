@@ -42,7 +42,17 @@ export function getMasterKey(dataDir: string): Buffer {
       fs.writeFileSync(encPath, safeStorage.encryptString(k));
     }
     const enc = fs.readFileSync(encPath);
-    return Buffer.from(safeStorage.decryptString(enc), 'hex');
+    try {
+      return Buffer.from(safeStorage.decryptString(enc), 'hex');
+    } catch (e: any) {
+      console.warn('[SecretStore] safeStorage 密钥解密失败，将重新生成密钥:', e.message);
+      try {
+        fs.unlinkSync(encPath);
+      } catch {}
+      const k = crypto.randomBytes(32).toString('hex');
+      fs.writeFileSync(encPath, safeStorage.encryptString(k));
+      return Buffer.from(k, 'hex');
+    }
   }
 
   // 兜底：每机派生密钥文件，权限严格 600

@@ -118,7 +118,7 @@ export async function render(container, params = {}) {
   `;
 
   // 清理 body 上残留的旧模态框（页面每次导航都会重新 render）
-  ['cloudConfigModal', 'installGuideModal', 'localModelsModal', 'logoFileInput'].forEach(id => {
+  ['cloudConfigModal', 'installGuideModal', 'localModelsModal'].forEach(id => {
     const old = (document.getElementById(id) as any);
     if (old && old.parentNode === document.body) old.remove();
   });
@@ -129,14 +129,6 @@ export async function render(container, params = {}) {
     const el = (document.getElementById(id) as any);
     if (el) document.body.appendChild(el);
   });
-
-  // 隐藏的 file input for logo upload
-  const logoInput = (document.createElement('input') as any);
-  logoInput.type = 'file';
-  logoInput.accept = 'image/*';
-  logoInput.id = 'logoFileInput';
-  logoInput.style.display = 'none';
-  document.body.appendChild(logoInput);
 
   bindModalEvents();
   renderCloudVendors();
@@ -174,8 +166,22 @@ function bindModalEvents() {
     openCloudConfig({ id: '_custom', name: '自定义模型', icon: '➕', color: '#888', desc: '添加任意 OpenAI 兼容 API', url: '', models: [] });
   });
   // Logo 上传
-  (document.getElementById('configVendorLogo') as any).addEventListener('click', () => (document.getElementById('logoFileInput') as any).click());
-  (document.getElementById('logoFileInput') as any).addEventListener('change', handleLogoUpload);
+  (document.getElementById('configVendorLogo') as any).addEventListener('click', async () => {
+    try {
+      const filePath = await window.openClaw.system.selectFile({
+        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
+      });
+      if (!filePath) return;
+      const res = await api.post('/system/readFileAsDataUrl', { filePath });
+      if (res && res.data) {
+        compressAndSetLogo(res.data);
+      } else {
+        window.__toast?.error('读取 Logo 失败');
+      }
+    } catch(err: any) {
+      window.__toast?.error(`读取 Logo 失败: ${err.message}`);
+    }
+  });
 }
 
 // ==================== 云端厂商渲染 ====================
@@ -506,16 +512,6 @@ async function testConnection() {
 }
 
 // ==================== Logo 上传与压缩 ====================
-function handleLogoUpload(e) {
-  const file = (e.target as any).files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    compressAndSetLogo(ev.target.result);
-  };
-  reader.readAsDataURL(file);
-  (e.target as any).value = ''; // reset
-}
 
 function compressAndSetLogo(dataUrl) {
   const img = new Image();
