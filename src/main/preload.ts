@@ -89,19 +89,6 @@ contextBridge.exposeInMainWorld('openClaw', {
 
     /** 快捷唤出主窗口 */
     toggleMain: () => ipcRenderer.invoke('window:toggleMain'),
-
-    /** 悬浮球移动与通信 */
-    dragStartFloat: () => ipcRenderer.send('float:drag-start'),
-    dragEndFloat: () => ipcRenderer.send('float:drag-end'),
-    moveFloatBy: (dx, dy) => ipcRenderer.send('float:move-by', dx, dy),
-    resizeFloat: (bounds) => ipcRenderer.send('float:resize', bounds),
-    onFloatStatus: (callback) => ipcRenderer.on('float:status', (event, side) => callback(side)),
-    offFloatStatus: () => ipcRenderer.removeAllListeners('float:status'),
-    
-    /** 跨窗口提问 */
-    sendQuickPrompt: (text) => ipcRenderer.send('quick-prompt:send', text),
-    onQuickPrompt: (callback) => ipcRenderer.on('quick-prompt:received', (event, text) => callback(text)),
-    offQuickPrompt: () => ipcRenderer.removeAllListeners('quick-prompt:received'),
   },
 });
 

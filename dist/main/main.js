@@ -36,7 +36,6 @@ protocol.registerSchemesAsPrivileged([
     }
 ]);
 let mainWindow = null;
-let floatWindow = null;
 let activeFolderWatcher = null;
 let activeJobWorker = null;
 // [P0 单例锁防御] 避免多实例启动导致端口冲突与资源占用
@@ -124,99 +123,6 @@ function createMainWindow() {
     if (process.argv.includes('--dev')) {
         mainWindow.webContents.openDevTools();
     }
-}
-/**
- * 创建系统级常驻悬浮球窗口
- */
-function createFloatWindow() {
-    const { screen } = require('electron');
-    const primaryDisplay = screen.getPrimaryDisplay();
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-    floatWindow = new BrowserWindow({
-        width: 60,
-        height: 60,
-        x: screenWidth - 80,
-        y: screenHeight / 2 - 30,
-        type: 'toolbar', // 避免在 Windows 任务栏显示
-        frame: false,
-        transparent: true,
-        backgroundColor: '#00000000', // 强制透明消除底纹
-        hasShadow: false, // 取消原生阴影消除黑边
-        alwaysOnTop: true,
-        resizable: false,
-        skipTaskbar: true,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-            sandbox: false,
-            webSecurity: true,
-            additionalArguments: [`--api-token=${apiToken}`],
-        }
-    });
-    floatWindow.loadURL('claw://app/float.html');
-    floatWindow.once('ready-to-show', () => {
-        floatWindow.show();
-    });
-    // 自动贴边磁吸吸附机制（防止遮挡工作区，拖拽停止 300ms 后吸附）
-    let snapTimer = null;
-    let isDragging = false;
-    ipcMain.on('float:drag-start', () => { isDragging = true; });
-    ipcMain.on('float:drag-end', () => {
-        isDragging = false;
-        if (floatWindow && !floatWindow.isDestroyed()) {
-            floatWindow.emit('move'); // 触发归位
-        }
-    });
-    floatWindow.on('move', () => {
-        if (snapTimer)
-            clearTimeout(snapTimer);
-        snapTimer = setTimeout(() => {
-            if (!floatWindow || floatWindow.isDestroyed())
-                return;
-            if (isDragging)
-                return; // 正在拖拽时绝对禁止系统抢夺焦点并强制归位
-            const [x, y] = floatWindow.getPosition();
-            const [w, h] = floatWindow.getSize();
-            const primaryDisplay = screen.getPrimaryDisplay();
-            const { width: sW, height: sH } = primaryDisplay.workAreaSize;
-            let targetX = x;
-            if (x < 80) {
-                targetX = 0; // 吸附左侧
-            }
-            else if (x > sW - w - 80) {
-                targetX = sW - w; // 吸附右侧
-            }
-            let targetY = Math.max(10, Math.min(sH - h - 10, y));
-            let side = 'none';
-            if (targetX === 0) {
-                side = 'left';
-            }
-            else if (targetX === sW - w) {
-                side = 'right';
-            }
-            floatWindow.webContents.send('float:status', side);
-            if (targetX !== x || targetY !== y) {
-                floatWindow.setPosition(targetX, targetY, true);
-            }
-        }, 300);
-    });
-    // 支持悬浮窗自适应动态拉伸（菜单展开与收回）
-    ipcMain.on('float:resize', (event, { width, height, x, y }) => {
-        if (floatWindow && !floatWindow.isDestroyed()) {
-            floatWindow.setBounds({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) }, true);
-        }
-    });
-    // 支持前端基于鼠标偏移量的原生级拖动 (取代容易引发闪屏的绝对定位)
-    ipcMain.on('float:move-by', (event, dx, dy) => {
-        if (floatWindow && !floatWindow.isDestroyed()) {
-            const [x, y] = floatWindow.getPosition();
-            floatWindow.setPosition(x + dx, y + dy, false);
-        }
-    });
-    floatWindow.on('closed', () => {
-        floatWindow = null;
-    });
 }
 /**
  * 注册 IPC 通信处理器
@@ -309,12 +215,6 @@ function registerIpcHandlers() {
         }
         return null;
     });
-    // 跨窗口快捷提问 IPC 转发
-    ipcMain.on('quick-prompt:send', (event, text) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('quick-prompt:received', text);
-        }
-    });
     let captureWin = null;
     function initCaptureWin() {
         if (captureWin)
@@ -388,8 +288,9 @@ app.whenReady().then(async () => {
         const url = request.url;
         const parsedPath = url.replace('claw://app/', '');
         // assets/ 前缀的资源存放在 dist/assets/ 而非 dist/renderer/assets/
+        // assets/lib/ 前端第三方库例外，依然存放在 dist/renderer/assets/lib/ 中进行加载
         let filePath;
-        if (parsedPath.startsWith('assets/')) {
+        if (parsedPath.startsWith('assets/') && !parsedPath.startsWith('assets/lib/')) {
             filePath = path.join(__dirname, '..', parsedPath);
         }
         else {
@@ -636,7 +537,6 @@ app.whenReady().then(async () => {
         jobQueue
     }, () => mainWindow, apiToken);
     createMainWindow();
-    createFloatWindow();
     // 注册全局截图快捷键
     globalShortcut.register('CommandOrControl+Shift+A', () => {
         if (mainWindow && !mainWindow.isDestroyed()) {

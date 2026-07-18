@@ -3,7 +3,7 @@ interface OpenClawAPI {
   apiToken: string;
   apiCall: (url: string, options?: any) => Promise<any>;
   apiCallStream: (payload: any) => Promise<any>;
-  abortStream: () => Promise<any>;
+  abortStream: (payload?: any) => Promise<any>;
   onChatChunk: (callback: (data: any) => void) => void;
   offChatChunk: () => void;
   apiOptimizeStream: (payload: any) => Promise<any>;
@@ -24,20 +24,11 @@ interface OpenClawAPI {
     show: () => Promise<any>;
     maximize: () => Promise<any>;
     getScreenCapture: () => Promise<any>;
-    finishScreenCapture: (dataUrl: string) => void;
+    finishScreenCapture: (options: any) => void;
     onScreenshotStart: (callback: (dataUrl: string) => void) => void;
     close: () => Promise<any>;
     restart: () => Promise<any>;
     toggleMain: () => Promise<any>;
-    dragStartFloat: () => void;
-    dragEndFloat: () => void;
-    moveFloatBy: (dx: number, dy: number) => void;
-    resizeFloat: (bounds: any) => void;
-    onFloatStatus: (callback: (side: string) => void) => void;
-    offFloatStatus: () => void;
-    sendQuickPrompt: (text: string) => void;
-    onQuickPrompt: (callback: (text: string) => void) => void;
-    offQuickPrompt: () => void;
   };
 }
 

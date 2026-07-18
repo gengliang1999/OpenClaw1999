@@ -5,7 +5,7 @@
  */
 
 import toast from './components.js';
-import { api, safeImgSrc } from './utils.js';
+import { api, safeImgSrc, parseMarkdown } from './utils.js';
 
 /* ======================== 路由配置 ======================== */
 const ROUTES = [
@@ -842,7 +842,6 @@ function convertToMarkdown(data) {
 
   return md;
 }
-
 /**
  * 转换为 HTML 格式
  */
@@ -854,7 +853,7 @@ function convertToHTML(data) {
         <div class="avatar">${isUser ? '👤' : '🤖'}</div>
         <div class="bubble">
           <div class="role">${isUser ? '用户' : 'AI助手'}</div>
-          <div class="content">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+          <div class="content">${isUser ? escapeHtml(msg.content).replace(/\n/g, '<br>') : parseMarkdown(msg.content)}</div>
         </div>
       </div>
     `;
@@ -867,8 +866,17 @@ function convertToHTML(data) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(data.title || '对话')}</title>
   <style>
+    :root {
+      --bg-active: #f5f5f7;
+      --primary: #007aff;
+      --text-muted: #86868b;
+      --border-color: #e5e5ea;
+      --bg-card: #ffffff;
+      --bg-hover: rgba(0, 0, 0, 0.02);
+      --text-primary: #1d1d1f;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; padding: 40px 20px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f7; padding: 40px 20px; color: #1d1d1f; }
     .container { max-width: 800px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
     .header { padding: 24px; border-bottom: 1px solid #eee; }
     .header h1 { font-size: 24px; font-weight: 600; }
@@ -878,10 +886,11 @@ function convertToHTML(data) {
     .message.user { flex-direction: row-reverse; }
     .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; background: #f0f0f0; flex-shrink: 0; }
     .message.user .avatar { background: #007aff; }
-    .bubble { max-width: 70%; padding: 12px 16px; border-radius: 16px; background: #f0f0f0; }
-    .message.user .bubble { background: #007aff; color: #fff; }
-    .role { font-size: 12px; font-weight: 600; margin-bottom: 4px; opacity: 0.7; }
-    .content { font-size: 14px; line-height: 1.6; }
+    .bubble { max-width: 85%; padding: 14px 18px; border-radius: 16px; background: #f5f5f7; border: 1px solid #e5e5ea; }
+    .message.user .bubble { background: #007aff; color: #fff; border: none; }
+    .role { font-size: 12px; font-weight: 600; margin-bottom: 6px; opacity: 0.7; }
+    .content { font-size: 14.5px; line-height: 1.65; word-wrap: break-word; }
+    .content pre { white-space: pre-wrap; word-break: break-all; }
     .footer { padding: 16px 24px; border-top: 1px solid #eee; text-align: center; font-size: 12px; color: #86868b; }
   </style>
 </head>
@@ -897,7 +906,6 @@ function convertToHTML(data) {
 </body>
 </html>`;
 }
-
 /**
  * 转换为 TXT 格式
  */
@@ -927,12 +935,66 @@ function loadExternalScript(url) {
       resolve(window[url.split('/').pop().replace('.min.js', '').replace('.js', '')]);
       return;
     }
+
+    // [Umd兼容性适配] 在 Electron 环境下，临时卸载 CommonJS 环境变量，强迫 UMD 挂载至全局 window 上
+    const tempModule = (window as any).module;
+    const tempExports = (window as any).exports;
+    if (tempModule || tempExports) {
+      (window as any).module = undefined;
+      (window as any).exports = undefined;
+    }
+
     const script = (document.createElement('script') as any);
     script.src = url;
-    script.onload = () => resolve();
-    script.onerror = reject;
+    script.onload = () => {
+      if (tempModule || tempExports) {
+        (window as any).module = tempModule;
+        (window as any).exports = tempExports;
+      }
+      resolve();
+    };
+    script.onerror = (err) => {
+      if (tempModule || tempExports) {
+        (window as any).module = tempModule;
+        (window as any).exports = tempExports;
+      }
+      reject(err);
+    };
     document.head.appendChild(script);
   });
+}
+
+/**
+ * 转换为 PDF 专用 HTML 片段 (不含 html/body 标签以避免 html2pdf 嵌套解析失败导致的空白 Bug)
+ */
+function convertToPDFHTML(data) {
+  const fontConfig = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+  const messages = (data.messages || []).map(msg => {
+    const isUser = msg.role === 'user';
+    return `
+      <div class="pdf-msg" style="margin-bottom: 14px; padding: 12px 16px; border-radius: 8px; background: ${isUser ? '#ffffff' : '#f5f5f7'}; border-left: 4px solid ${isUser ? '#007aff' : '#5856d6'}; border-top: 1px solid #e5e5ea; border-bottom: 1px solid #e5e5ea; border-right: 1px solid #e5e5ea; word-wrap: break-word;">
+        <div style="font-size: 13px; font-weight: 600; color: ${isUser ? '#007aff' : '#5856d6'}; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <span>${isUser ? '👤 用户发言' : '🤖 AI助手回复'}</span>
+        </div>
+        <div style="font-size: 14px; line-height: 1.55; color: #1d1d1f;">
+          ${isUser ? escapeHtml(msg.content).replace(/\n/g, '<br>') : parseMarkdown(msg.content)}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div style="font-family: ${fontConfig}; padding: 20px; background: #ffffff; color: #1d1d1f; max-width: 760px; margin: 0 auto;">
+      <div style="padding-bottom: 12px; border-bottom: 1px solid #e5e5ea; margin-bottom: 18px;">
+        <h1 style="font-size: 22px; font-weight: 700; color: #1d1d1f; margin: 0 0 6px 0;">${escapeHtml(data.title || '对话')}</h1>
+        <div style="font-size: 12px; color: #86868b;">导出时间：${formatDate(data.exported_at)}  |  消息总数：${(data.messages || []).length} 条</div>
+      </div>
+      <div>${messages}</div>
+      <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #e5e5ea; text-align: center; font-size: 11px; color: #86868b;">
+        由 OpenClaw Assistant 导出
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -941,28 +1003,398 @@ function loadExternalScript(url) {
 async function exportToPDF(data, filename) {
   // 动态加载 jsPDF
   await loadExternalScript('./assets/lib/jspdf.umd.min.js');
+  
+  // [jsPDF 命名空间兜底] 新版 jspdf.umd 挂载于 window.jspdf.jsPDF，为了兼容 html2pdf 对 window.jsPDF 的期望进行手动赋值
+  if ((window as any).jspdf && !(window as any).jsPDF) {
+    (window as any).jsPDF = (window as any).jspdf.jsPDF;
+  }
+  
   await loadExternalScript('./assets/lib/html2pdf.bundle.min.js');
 
-  // 创建临时 HTML
-  const html = convertToHTML(data);
-  const container = (document.createElement('div') as any);
-  container.innerHTML = html;
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '800px';
-  document.body.appendChild(container);
+  // 获取干净的 HTML 片段
+  const htmlFragment = convertToPDFHTML(data);
+
+  // 1. 创建包裹容器，设为物理隐藏以防止主页面闪烁和占位
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'absolute';
+  wrapper.style.left = '0';
+  wrapper.style.top = '0';
+  wrapper.style.width = '0';
+  wrapper.style.height = '0';
+  wrapper.style.overflow = 'hidden';
+  wrapper.style.zIndex = '-99999';
+  wrapper.style.pointerEvents = 'none';
+
+  // 2. 创建真实块级容器，不加 absolute 定位，确保克隆至 iframe 沙盒后保持在文档流中以正确撑开 Body 高度 (解决 719x0 空白)
+  const container = document.createElement('div');
+  container.className = 'html2pdf-render-sandbox';
+  container.style.width = '760px';
+  container.style.background = '#ffffff';
+  container.innerHTML = htmlFragment;
+
+  wrapper.appendChild(container);
+  document.body.appendChild(wrapper);
 
   try {
+    // 3. 将没有脱离文档流的真实 Element 传给 html2pdf()，彻底解决高度为 0 的 Bug
     await html2pdf().from(container).set({
       margin: 10,
       filename: `${filename}.pdf`,
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     }).save();
   } finally {
-    container.remove();
+    // 4. 安全物理销毁
+    wrapper.remove();
   }
+}
+
+/**
+ * 辅助解析消息中的行内样式 (加粗 **文本**)
+ */
+function parseInlineStyles(text) {
+  const { TextRun } = window.docx;
+  const runs = [];
+  const parts = text.split('**');
+  const fontConfig = { eastAsia: '微软雅黑', ascii: 'Calibri' };
+  for (let idx = 0; idx < parts.length; idx++) {
+    const isBold = idx % 2 !== 0;
+    const partText = parts[idx];
+    if (partText) {
+      runs.push(new TextRun({
+        text: partText,
+        bold: isBold,
+        size: 21, // 10.5pt，标准正文大小
+        color: '333333',
+        font: fontConfig
+      }));
+    }
+  }
+  return runs.length > 0 ? runs : [new TextRun({ text, font: fontConfig, size: 21 })];
+}
+
+/**
+ * 辅助解析智能体执行块 (如 <execute_js>, <execute_cmd>) 及执行反馈日志
+ */
+function parseAgentBlocks(content) {
+  const blocks = [];
+  const regex = /<(execute_js|execute_cmd)>([\s\S]*?)<\/\1>/g;
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = regex.exec(content)) !== null) {
+    const textBefore = content.slice(lastIndex, match.index);
+    if (textBefore.trim()) {
+      blocks.push({ type: 'text', content: textBefore });
+    }
+    blocks.push({
+      type: match[1] === 'execute_js' ? 'js' : 'cmd',
+      content: match[2].trim()
+    });
+    lastIndex = regex.lastIndex;
+  }
+  
+  const textAfter = content.slice(lastIndex);
+  if (textAfter.trim()) {
+    blocks.push({ type: 'text', content: textAfter });
+  }
+
+  // 二次拆解，隔离执行反馈日志 [执行成功] / [执行失败] 等
+  const finalBlocks = [];
+  for (const b of blocks) {
+    if (b.type === 'text') {
+      const lines = b.content.split('\n');
+      let currentTextLines = [];
+      
+      for (const line of lines) {
+        if (line.startsWith('[执行成功]') || line.startsWith('[执行失败]') || line.startsWith('[执行结果]') || line.startsWith('[沙盒安全降级]')) {
+          if (currentTextLines.length > 0) {
+            finalBlocks.push({ type: 'text', content: currentTextLines.join('\n') });
+            currentTextLines = [];
+          }
+          finalBlocks.push({ type: 'log', content: line });
+        } else {
+          currentTextLines.push(line);
+        }
+      }
+      
+      if (currentTextLines.length > 0) {
+        finalBlocks.push({ type: 'text', content: currentTextLines.join('\n') });
+      }
+    } else {
+      finalBlocks.push(b);
+    }
+  }
+    return finalBlocks.length > 0 ? finalBlocks : [{ type: 'text', content }];
+}
+
+function parseMarkdownToParagraphs(content, isUser) {
+  const { Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, BorderStyle, WidthType } = window.docx;
+  
+  const blocks = parseAgentBlocks(content);
+  const cellElements = [];
+  const fontConfig = { eastAsia: '微软雅黑', ascii: 'Calibri' };
+
+  for (const b of blocks) {
+    if (b.type === 'js') {
+      const jsTable = new Table({
+        width: { size: 8200, type: WidthType.DXA },
+        columnWidths: [8200],
+        indent: { size: 240, type: WidthType.DXA }, // 消息卡片内轻微内缩 240 twips
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 8200, type: WidthType.DXA },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: '⚙️ WASM 沙盒计算指令', bold: true, size: 18, color: '1C7F44', font: fontConfig })],
+                    spacing: { after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: b.content,
+                        font: 'Consolas',
+                        size: 18,
+                        color: '1C7F44'
+                      })
+                    ]
+                  })
+                ],
+                shading: { fill: 'EDF7ED' },
+                margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'C3E6CB' },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'C3E6CB' },
+                  right: { style: BorderStyle.SINGLE, size: 4, color: 'C3E6CB' },
+                  left: { style: BorderStyle.SINGLE, size: 20, color: '28A745' }
+                }
+              })
+            ]
+          })
+        ],
+        spacing: { before: 120, after: 120 }
+      });
+      cellElements.push(jsTable);
+      cellElements.push(new Paragraph({ text: '', spacing: { before: 60, after: 60 } }));
+      continue;
+    }
+    
+    if (b.type === 'cmd') {
+      const cmdTable = new Table({
+        width: { size: 8200, type: WidthType.DXA },
+        columnWidths: [8200],
+        indent: { size: 240, type: WidthType.DXA },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 8200, type: WidthType.DXA },
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: '💻 系统终端操作指令', bold: true, size: 18, color: '333333', font: fontConfig })],
+                    spacing: { after: 60 }
+                  }),
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: b.content,
+                        font: 'Consolas',
+                        size: 18,
+                        color: 'D03D3D'
+                      })
+                    ]
+                  })
+                ],
+                shading: { fill: 'FDF2F2' },
+                margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'F5C6CB' },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'F5C6CB' },
+                  right: { style: BorderStyle.SINGLE, size: 4, color: 'F5C6CB' },
+                  left: { style: BorderStyle.SINGLE, size: 20, color: 'DC3545' }
+                }
+              })
+            ]
+          })
+        ],
+        spacing: { before: 120, after: 120 }
+      });
+      cellElements.push(cmdTable);
+      cellElements.push(new Paragraph({ text: '', spacing: { before: 60, after: 60 } }));
+      continue;
+    }
+
+    if (b.type === 'log') {
+      const logTable = new Table({
+        width: { size: 8200, type: WidthType.DXA },
+        columnWidths: [8200],
+        indent: { size: 240, type: WidthType.DXA },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 8200, type: WidthType.DXA },
+                children: [
+                  new Paragraph({
+                    children: [
+                      new TextRun({
+                        text: b.content,
+                        font: 'Consolas',
+                        size: 18,
+                        color: '4E5D6C',
+                        bold: true
+                      })
+                    ]
+                  })
+                ],
+                shading: { fill: 'F0F4F8' },
+                margins: { top: 80, bottom: 80, left: 120, right: 120 },
+                borders: {
+                  top: { style: BorderStyle.SINGLE, size: 4, color: 'D9E2EC' },
+                  bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D9E2EC' },
+                  right: { style: BorderStyle.SINGLE, size: 4, color: 'D9E2EC' },
+                  left: { style: BorderStyle.SINGLE, size: 16, color: '486581' }
+                }
+              })
+            ]
+          })
+        ],
+        spacing: { before: 120, after: 120 }
+      });
+      cellElements.push(logTable);
+      cellElements.push(new Paragraph({ text: '', spacing: { before: 60, after: 60 } }));
+      continue;
+    }
+
+    // 普通 Markdown 解析
+    const lines = b.content.split('\n');
+    let inCodeBlock = false;
+    let codeLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          inCodeBlock = false;
+          const codeText = codeLines.join('\n');
+          const codeTable = new Table({
+            width: { size: 8200, type: WidthType.DXA },
+            columnWidths: [8200],
+            indent: { size: 240, type: WidthType.DXA },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    width: { size: 8200, type: WidthType.DXA },
+                    children: [
+                      new Paragraph({
+                        children: [
+                          new TextRun({
+                            text: codeText,
+                            font: 'Consolas',
+                            size: 18,
+                            color: '24292e'
+                          })
+                        ],
+                        spacing: { line: 240 }
+                      })
+                    ],
+                    shading: { fill: 'F6F8FA' },
+                    margins: { top: 120, bottom: 120, left: 160, right: 160 },
+                    borders: {
+                      top: { style: BorderStyle.SINGLE, size: 4, color: 'E1E4E8' },
+                      bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E1E4E8' },
+                      left: { style: BorderStyle.SINGLE, size: 16, color: 'D0D4D9' },
+                      right: { style: BorderStyle.SINGLE, size: 4, color: 'E1E4E8' }
+                    }
+                  })
+                ]
+              })
+            ],
+            spacing: { before: 120, after: 120 }
+          });
+          cellElements.push(codeTable);
+          cellElements.push(new Paragraph({ text: '', spacing: { before: 60, after: 60 } }));
+          codeLines = [];
+        } else {
+          inCodeBlock = true;
+        }
+        continue;
+      }
+
+      if (inCodeBlock) {
+        codeLines.push(line);
+        continue;
+      }
+
+      if (line.startsWith('# ')) {
+        cellElements.push(new Paragraph({
+          children: [new TextRun({ text: line.slice(2), bold: true, size: 28, color: '1A1A1A', font: fontConfig })],
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100 }
+        }));
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        cellElements.push(new Paragraph({
+          children: [new TextRun({ text: line.slice(3), bold: true, size: 24, color: '2A2A2A', font: fontConfig })],
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 180, after: 80 }
+        }));
+        continue;
+      }
+      if (line.startsWith('### ')) {
+        cellElements.push(new Paragraph({
+          children: [new TextRun({ text: line.slice(4), bold: true, size: 20, color: '3A3A3A', font: fontConfig })],
+          heading: HeadingLevel.HEADING_4,
+          spacing: { before: 150, after: 60 }
+        }));
+        continue;
+      }
+
+      if (line.trim().startsWith('- ') || line.trim().startsWith('* ')) {
+        const cleanLine = line.trim().slice(2);
+        cellElements.push(new Paragraph({
+          children: parseInlineStyles(cleanLine),
+          bullet: { level: 0 },
+          spacing: { before: 60, after: 100, line: 360 }
+        }));
+        continue;
+      }
+
+      if (line.trim() === '') {
+        if (cellElements.length > 0 && cellElements[cellElements.length - 1] instanceof Paragraph && cellElements[cellElements.length - 1].text === '') {
+          continue;
+        }
+        cellElements.push(new Paragraph({ text: '', spacing: { before: 60, after: 60 } }));
+      } else {
+        cellElements.push(new Paragraph({
+          children: parseInlineStyles(line),
+          spacing: { before: 60, after: 100, line: 360 }
+        }));
+      }
+    }
+
+    if (inCodeBlock && codeLines.length > 0) {
+      cellElements.push(new Paragraph({
+        children: [
+          new TextRun({
+            text: codeLines.join('\n'),
+            font: 'Consolas',
+            size: 18,
+            color: '24292e'
+          })
+        ],
+        shading: { fill: 'F6F8FA' },
+        spacing: { before: 60, after: 100 }
+      }));
+    }
+  }
+
+  return cellElements;
 }
 
 /**
@@ -972,31 +1404,85 @@ async function exportToWord(data, filename) {
   // 动态加载 docx 库
   await loadExternalScript('./assets/lib/docx.umd.js');
 
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = window.docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, BorderStyle, WidthType } = window.docx;
+  const fontConfig = { eastAsia: '微软雅黑', ascii: 'Calibri' };
 
-  const children = [
+  // 1. 标题及导出属性
+  const docChildren = [
     new Paragraph({
-      children: [new TextRun({ text: data.title || '对话', bold: true, size: 36 })],
+      children: [new TextRun({ text: data.title || '对话', bold: true, size: 40, color: '111111', font: fontConfig })],
       heading: HeadingLevel.HEADING_1,
+      spacing: { after: 120 }
     }),
     new Paragraph({
-      children: [new TextRun({ text: `导出时间：${formatDate(data.exported_at)}`, color: '86868b', size: 20 })],
+      children: [
+        new TextRun({ text: `导出时间：${formatDate(data.exported_at)}  |  消息总数：${(data.messages || []).length} 条`, color: '86868b', size: 20, font: fontConfig })
+      ],
+      spacing: { after: 300 }
     }),
-    new Paragraph({ text: '' }),
+    new Paragraph({ text: '', spacing: { before: 120, after: 120 } }),
   ];
 
+  // 2. 遍历消息并以高颜值独立气泡卡片封包输出
   (data.messages || []).forEach(msg => {
     const isUser = msg.role === 'user';
-    children.push(new Paragraph({
-      children: [new TextRun({ text: isUser ? '👤 用户' : '🤖 AI助手', bold: true, size: 24 })],
+    const cellParagraphs = parseMarkdownToParagraphs(msg.content || '', isUser);
+    
+    // 注入卡片发言人头部作为首行段落
+    cellParagraphs.unshift(new Paragraph({
+      children: [
+        new TextRun({
+          text: isUser ? '👤 用户发言' : '🤖 AI助手回复',
+          bold: true,
+          size: 24,
+          color: isUser ? '007AFF' : '5856D6',
+          font: fontConfig
+        })
+      ],
+      spacing: { before: 60, after: 180 }
     }));
-    children.push(new Paragraph({
-      children: [new TextRun({ text: msg.content, size: 22 })],
-    }));
-    children.push(new Paragraph({ text: '' }));
+
+    // 气泡卡片表格容器 (锁定 9000 DXA 物理绝对宽度，强固列宽)
+    const messageCard = new Table({
+      width: { size: 9000, type: WidthType.DXA },
+      columnWidths: [9000], // 锁死列宽
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              width: { size: 9000, type: WidthType.DXA }, // 强固 Cell 宽度，物理阻断 WPS 细线压缩 Bug
+              children: cellParagraphs,
+              shading: { fill: isUser ? 'FFFFFF' : 'F5F5F7' },
+              margins: { top: 240, bottom: 240, left: 280, right: 280 }, // 内缩 Padding
+              borders: {
+                top: isUser ? { style: BorderStyle.NONE } : { style: BorderStyle.SINGLE, size: 4, color: 'E5E5EA' },
+                bottom: isUser ? { style: BorderStyle.NONE } : { style: BorderStyle.SINGLE, size: 4, color: 'E5E5EA' },
+                right: isUser ? { style: BorderStyle.NONE } : { style: BorderStyle.SINGLE, size: 4, color: 'E5E5EA' },
+                left: {
+                  style: BorderStyle.SINGLE,
+                  size: 24, // 左侧指示条色块
+                  color: isUser ? '007AFF' : '5856D6'
+                }
+              }
+            })
+          ]
+        })
+      ]
+    });
+
+    docChildren.push(messageCard);
+    // 用一个带有极大间距（before: 240, after: 240）的空段落来作为卡片间隔，彻底隔开防挤贴！
+    docChildren.push(new Paragraph({ text: '', spacing: { before: 240, after: 240 } }));
   });
 
-  const doc = new Document({ sections: [{ children }] });
+  // 3. 打包生成
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children: docChildren
+    }]
+  });
+
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = (document.createElement('a') as any);

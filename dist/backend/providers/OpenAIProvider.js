@@ -130,57 +130,76 @@ class OpenAIProvider {
         if (!model.apiKey && model.provider !== 'LM Studio')
             throw new Error('请先配置 API Key');
         const formattedMessages = await this._formatMessages(messages);
-        const { url, headers, body } = this._buildRequestConfig(model, formattedMessages, options, true);
+        const { url, headers, body = '' } = this._buildRequestConfig(model, formattedMessages, options, true);
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => {
+            console.warn(`[OpenAIProvider] 大模型流式对话响应超时(120s)，强行打断请求。`);
+            abortController.abort();
+        }, 120000);
+        if (options.signal) {
+            options.signal.addEventListener('abort', () => {
+                clearTimeout(timeoutId);
+                abortController.abort();
+            });
+        }
         const makeRequest = () => fetch(url, {
             method: 'POST',
             headers,
             body,
-            signal: options.signal
+            signal: abortController.signal
         });
-        const response = await this._retryRequest(makeRequest);
-        if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`API 调用失败 (${response.status}): ${err}`);
-        }
-        const decoder = new TextDecoder();
-        let fullContent = '';
-        let buffer = '';
         try {
-            const reader = response.body.getReader();
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done)
-                    break;
-                const textChunk = typeof value === 'string' ? value : decoder.decode(value, { stream: true });
-                buffer += textChunk;
-                let newlineIndex;
-                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-                    const line = buffer.slice(0, newlineIndex);
-                    buffer = buffer.slice(newlineIndex + 1);
-                    const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith('data: '))
-                        continue;
-                    const dataStr = trimmed.slice(6);
-                    if (dataStr === '[DONE]')
-                        continue;
-                    try {
-                        const data = JSON.parse(dataStr);
-                        const content = data.choices?.[0]?.delta?.content;
-                        if (content) {
-                            fullContent += content;
-                            if (onChunk)
-                                onChunk(content);
-                        }
+            const response = await this._retryRequest(makeRequest);
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(`API 调用失败 (${response.status}): ${err}`);
+            }
+            const decoder = new TextDecoder();
+            let fullContent = '';
+            let buffer = '';
+            try {
+                const reader = response.body.getReader();
+                while (true) {
+                    if (abortController.signal.aborted) {
+                        throw new DOMException('The user aborted a request.', 'AbortError');
                     }
-                    catch (e) { }
+                    const { done, value } = await reader.read();
+                    if (done)
+                        break;
+                    const textChunk = typeof value === 'string' ? value : decoder.decode(value, { stream: true });
+                    buffer += textChunk;
+                    let newlineIndex;
+                    while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                        const line = buffer.slice(0, newlineIndex);
+                        buffer = buffer.slice(newlineIndex + 1);
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith('data: '))
+                            continue;
+                        const dataStr = trimmed.slice(6);
+                        if (dataStr === '[DONE]')
+                            continue;
+                        try {
+                            const data = JSON.parse(dataStr);
+                            const content = data.choices?.[0]?.delta?.content;
+                            if (content) {
+                                fullContent += content;
+                                if (onChunk)
+                                    onChunk(content);
+                            }
+                        }
+                        catch (e) { }
+                    }
                 }
             }
+            catch (err) {
+                console.error('[OpenAI Stream Error]', err);
+                throw err;
+            }
+            return fullContent;
         }
-        catch (err) {
-            console.error('[OpenAI Stream Error]', err);
-            throw err;
+        finally {
+            clearTimeout(timeoutId);
         }
-        return fullContent;
     }
 }
 exports.OpenAIProvider = OpenAIProvider;

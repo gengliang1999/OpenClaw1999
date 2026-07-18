@@ -83,6 +83,13 @@ export const api = {
                 window.openClaw.abortStream({ conversationId });
             }
         },
+        updateStreamCallbackKey: (oldKey, newKey) => {
+            const cb = streamCallbacks.get(oldKey);
+            if (cb) {
+                streamCallbacks.set(newKey, cb);
+                streamCallbacks.delete(oldKey);
+            }
+        },
         deleteMessage: (messageId) => api.delete(`/chat/message/${messageId}`),
         getHistory: (conversationId) => api.get(`/chat/history${conversationId ? `?conversationId=${conversationId}` : ''}`),
         getConversations: () => api.get('/chat/conversations'),

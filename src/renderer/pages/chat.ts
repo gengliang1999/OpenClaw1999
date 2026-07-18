@@ -1188,21 +1188,6 @@ export async function render(container) {
     voiceBtn.style.opacity = '0.5';
   }
 
-  // ================== 跨窗口快捷提问监听 ==================
-  if (window.openClaw && window.openClaw.system && window.openClaw.system.onQuickPrompt) {
-    window.openClaw.system.offQuickPrompt(); // 状态唯一性：防重复监听与内存泄漏
-    
-    window.openClaw.system.onQuickPrompt((text: string) => {
-      console.log('[主窗口] 接收到跨窗口快捷提问并自动发送:', text);
-      const chatInput = document.getElementById('chatInput') as any;
-      const sendBtn = document.getElementById('sendBtn') as any;
-      if (chatInput && sendBtn) {
-        chatInput.value = text;
-        chatInput.focus();
-        sendBtn.click();
-      }
-    });
-  }
   // 供侧边栏在 navigateTo 之前设置待加载会话 ID
   // 'NEW' = 创建新对话, 具体 ID = 加载已有对话, null = 显示空状态
   window.__setPendingConv = (convId) => {
@@ -1705,6 +1690,16 @@ async function sendMessage() {
     if (state) {
       state.isGenerating = false;
       if (state.timerId) clearInterval(state.timerId);
+      
+      const savedAiBox = state.aiBox;
+      const finalResponse = state.generatingFullResponse || '（推理已被停止）';
+      if (savedAiBox && document.body.contains(savedAiBox)) {
+        updateAiBoxContent(savedAiBox, finalResponse);
+        if (state.generatingFullResponse) {
+          addActions(savedAiBox, finalResponse);
+        }
+      }
+      
       generatingStates.delete(activeConvId);
     }
     updateSendButtonState();
@@ -1846,7 +1841,8 @@ async function sendMessage() {
         if (activeConvId === thisConvId) {
           activeConvId = parsed.id;
         }
-        // [并发关键] 闭包内的 ID 引用同步更新，后续 chunk/done 事件才能在 Map 中查到正确的状态
+        // [并发关键] 闭包内的 ID 引用同步更新，后续 chunk/done 事件才能 in Map 中查到正确的状态
+        api.chat.updateStreamCallbackKey(thisConvId, parsed.id);
         thisConvId = parsed.id;
       }
       if (parsed.type === 'done') {
