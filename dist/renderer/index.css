@@ -2324,7 +2324,18 @@ button:active, .clickable:active {
 .cloud-vendor-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
-  border-color: var(--primary);
+  border-color: var(--primary, #1677ff);
+}
+
+.cloud-vendor-card:hover .vendor-card-btn.unconfigured {
+  transform: scale(1.04);
+  box-shadow: 0 4px 14px rgba(22,119,255,0.45);
+}
+
+.cloud-vendor-card:hover .vendor-card-btn.configured {
+  background: #1677ff;
+  color: #ffffff;
+  border-color: #1677ff;
 }
 
 .cloud-vendor-card .vendor-logo {
@@ -2950,6 +2961,16 @@ input[type="range"]::-webkit-slider-thumb {
 #prevPageBtn:hover,
 #nextPageBtn:hover {
   color: var(--primary) !important;
+}
+
+.model-select-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.model-select-card:hover .btn-config-trigger {
+  transform: scale(1.04);
+  filter: brightness(1.1);
 }
 
 .batch-toolbar {

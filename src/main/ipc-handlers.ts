@@ -587,16 +587,23 @@ export function registerApiIpc(dependencies, mainWindowRef, expectedToken) {
           return { success: true, importedCount };
         }
 
-        // 修改记忆内容 (PUT /memory/:id)
+        // 修改记忆内容或艾宾浩斯复习刷新 (PUT /memory/:id)
         if (url.startsWith('/memory/') && !url.endsWith('/pin') && method === 'PUT') {
           const parts = url.split('/');
           const id = parts[2];
           const { content } = body;
-          if (!content) throw new Error('记忆内容不能为空');
           const oldMemory = memoryStore.getMemory(id);
           if (!oldMemory) throw new Error('未找到对应的记忆条目');
-          memoryStore.db.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', [content, new Date().toISOString(), id]);
-          memoryStore._save();
+
+          const nowStr = new Date().toISOString();
+          if (content) {
+            memoryStore.db.run('UPDATE memories SET content = ?, updated_at = ? WHERE id = ?', [content, nowStr, id]);
+            memoryStore._save();
+          } else {
+            memoryStore.db.run('UPDATE memories SET updated_at = ? WHERE id = ?', [nowStr, id]);
+            memoryStore._save();
+            return { success: true, message: '艾宾浩斯强化刷新成功' };
+          }
 
           let vectorPath = path.join(memoryStore.dataDir, 'memories_vectors.json');
           if (memoryStore.dbPath) {

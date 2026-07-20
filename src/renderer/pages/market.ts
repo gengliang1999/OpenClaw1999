@@ -136,9 +136,42 @@ export async function render(container, params = {}) {
   renderMarketPlatforms();
 
   if (params && params.openConfig) {
-    const v = cloudVendors.find(x => x.id === params.openConfig);
+    const targetId = String(params.openConfig).toLowerCase();
+    let v = cloudVendors.find(x => 
+      x.id.toLowerCase() === targetId ||
+      x.name.toLowerCase() === targetId ||
+      targetId.includes(x.id.toLowerCase()) ||
+      x.id.toLowerCase().includes(targetId)
+    );
+
+    if (!v) {
+      const existingKey = Object.keys(settings).find(k => k.toLowerCase().includes(targetId));
+      if (existingKey) {
+        const conf = settings[existingKey];
+        const baseVendor = cloudVendors.find(x => x.name === conf.customName || existingKey.startsWith(x.id)) || { id: '_custom', name: '自定义模型', icon: '✨', color: '#888' };
+        v = {
+          ...baseVendor,
+          id: existingKey,
+          isExisting: true
+        };
+      }
+    }
+
     if (v) {
-      setTimeout(() => openCloudConfig(v), 50);
+      setTimeout(() => {
+        openCloudConfig(v);
+        const keyInput = document.getElementById('configApiKey') as HTMLInputElement;
+        if (keyInput) {
+          keyInput.focus();
+          keyInput.style.transition = 'all 0.3s ease';
+          keyInput.style.borderColor = '#1677ff';
+          keyInput.style.boxShadow = '0 0 0 4px rgba(22,119,255,0.25)';
+          setTimeout(() => {
+            keyInput.style.borderColor = '';
+            keyInput.style.boxShadow = '';
+          }, 1500);
+        }
+      }, 100);
     }
   }
 }
@@ -158,9 +191,15 @@ function bindModalEvents() {
   });
   // 云端配置 Modal 关闭
   const ccm = (document.getElementById('cloudConfigModal') as any);
-  (document.getElementById('closeCloudConfig') as any).addEventListener('click', () => ccm.classList.remove('visible'));
-  (document.getElementById('cancelCloudConfig') as any).addEventListener('click', () => ccm.classList.remove('visible'));
-  ccm.addEventListener('mousedown', (e) => { if ((e.target as any) === ccm) ccm.classList.remove('visible'); });
+  const closeCloudModal = () => {
+    if (ccm) {
+      ccm.classList.remove('visible');
+      ccm.style.display = 'none';
+    }
+  };
+  (document.getElementById('closeCloudConfig') as any)?.addEventListener('click', closeCloudModal);
+  (document.getElementById('cancelCloudConfig') as any)?.addEventListener('click', closeCloudModal);
+  ccm?.addEventListener('mousedown', (e: Event) => { if ((e.target as any) === ccm) closeCloudModal(); });
   // 自定义模型按钮
   (document.getElementById('addCustomModelBtn') as any).addEventListener('click', () => {
     openCloudConfig({ id: '_custom', name: '自定义模型', icon: '➕', color: '#888', desc: '添加任意 OpenAI 兼容 API', url: '', models: [] });
@@ -233,10 +272,14 @@ function renderCloudVendors() {
           </div>
           <div class="vendor-info">
             <h4>${escapeHtml(displayName)}</h4>
-            <div class="vendor-status">✅ 已配置 [${escapeHtml(modelName)}]</div>
+            <div class="vendor-status" style="color: #52c41a; font-weight: 500;">✅ 已就绪 [${escapeHtml(modelName)}]</div>
           </div>
         </div>
         <p class="vendor-desc" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(conf.baseUrl || baseVendor.desc)}</p>
+        
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light, #eaedf1);">
+          <button class="vendor-card-btn configured" style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: #e6f4ff; color: #1677ff; border: 1px solid #91caff; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.2s;">⚙️ 修改配置</button>
+        </div>
       </div>
     `;
   };
@@ -253,10 +296,14 @@ function renderCloudVendors() {
         </div>
         <div class="vendor-info">
           <h4>${escapeHtml(v.name)}</h4>
-          <div class="vendor-status">未配置</div>
+          <div class="vendor-status" style="color: var(--text-muted, #8c8c8c);">未配置 API</div>
         </div>
       </div>
       <p class="vendor-desc">${v.desc}</p>
+      
+      <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light, #eaedf1);">
+        <button class="vendor-card-btn unconfigured" style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; background: linear-gradient(135deg, #1677ff, #0958d9); color: #ffffff; border: none; cursor: pointer; white-space: nowrap; flex-shrink: 0; box-shadow: 0 2px 6px rgba(22,119,255,0.25); transition: all 0.2s;">⚡ 立即配置</button>
+      </div>
     </div>
   `).join('');
 
@@ -369,12 +416,14 @@ function openCloudConfig(vendor) {
       await api.model.removeModel?.(vendor.id);
       delete settings[vendor.id];
       modal.classList.remove('visible');
+      modal.style.display = 'none';
       renderCloudVendors();
       window.__toast?.success('配置已删除');
     } catch(e) { window.__toast?.error(e.message); }
   });
 
   modal.classList.add('visible');
+  modal.style.display = 'flex';
 }
 
 async function saveCloudConfig(vendor) {
@@ -408,7 +457,11 @@ async function saveCloudConfig(vendor) {
     // 持久化到存储
     try { await api.settings.set(settingsKey, config); } catch(e) { console.warn('settings.set 失败:', e); }
     window.__toast?.success(`${customName} 配置已保存！`);
-    (document.getElementById('cloudConfigModal') as any).classList.remove('visible');
+    const cModal = (document.getElementById('cloudConfigModal') as any);
+    if (cModal) {
+      cModal.classList.remove('visible');
+      cModal.style.display = 'none';
+    }
     renderCloudVendors();
   } catch(e) {
     window.__toast?.error('保存失败: ' + e.message);
@@ -857,7 +910,11 @@ async function openLocalModelsModal(provider) {
         }
         window.__toast?.success(`已切换使用: ${btn.dataset.name}`);
         modal.style.display = 'none';
-        if (window.navigateTo) window.navigateTo('chat');
+        if (window.navigateTo) {
+          window.navigateTo('chat');
+        } else {
+          console.warn('[BRIDGE MISSING] window.navigateTo is not mounted');
+        }
       } catch(e) { window.__toast?.error(e.message); }
     });
   });

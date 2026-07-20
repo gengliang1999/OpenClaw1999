@@ -110,19 +110,45 @@ export class MemoryEngine {
   // =============================================
 
   /**
-   * 在写入新记忆前，检查是否与现有记忆冲突，并调用大模型仲裁
-   * @returns 处理结果: 'inserted' | 'updated' | 'ignored'
+   * 清理与归一化文本（剥离 Markdown 加粗符、末尾修饰符及多余标点与空格）
    */
-  async reconcileAndStore(fact: string, category: string): Promise<string> {
+  private normalizeFactText(text: string): string {
+    if (!text) return '';
+    return text
+      .trim()
+      .replace(/^[\s*`_#-]+|[\s*`_#-]+$/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  /**
+   * 对抽取到的新事实与历史记忆库进行冲突检测与归一化合并
+   */
+  async reconcileAndStore(factInput: string, category: string): Promise<string> {
     const { vectorDbManager } = require('./vector-db-manager');
     const dbPath = this.getVectorDbPath('memories_vectors.json');
 
-    // 0. SQLite 精确内容匹配去重（兜底：即使向量维度校验不通过或 Embedding 不可用也能拦截完全重复的记忆）
+    const fact = this.normalizeFactText(factInput);
+    if (!fact) return 'ignored';
+
+    // 0. SQLite 内容规范化匹配与快速去重（兜底：拦截完全相同或标点/空格微小差异的记忆）
     try {
-      const exactCheck = this.memoryStore.db.exec('SELECT id FROM memories WHERE content = ? LIMIT 1', [fact]);
-      if (exactCheck && exactCheck.length > 0 && exactCheck[0].values.length > 0) {
-        console.log(`[记忆引擎] 🚫 SQLite 精确匹配拦截重复记忆：「${fact.slice(0, 40)}...」`);
-        return 'ignored';
+      const allMemoriesRes = this.memoryStore.db.exec('SELECT id, content FROM memories');
+      if (allMemoriesRes && allMemoriesRes.length > 0 && allMemoriesRes[0].values) {
+        for (const row of allMemoriesRes[0].values) {
+          const oldId = String(row[0]);
+          const oldContent = String(row[1] || '');
+          const normalizedOld = this.normalizeFactText(oldContent);
+
+          // 绝对精确匹配或归一化正则全等
+          if (oldContent === factInput || normalizedOld === fact) {
+            console.log(`[记忆引擎] 🚫 SQLite 物理规范化匹配拦截重复记忆：「${fact.slice(0, 40)}...」`);
+            // 自动刷新旧记忆的保留率/复习时间戳，不新增重复卡片
+            const nowStr = new Date().toISOString();
+            this.memoryStore.db.run('UPDATE memories SET updated_at = ? WHERE id = ?', [nowStr, oldId]);
+            this.memoryStore._save();
+            return 'ignored';
+          }
+        }
       }
     } catch (e) {}
 

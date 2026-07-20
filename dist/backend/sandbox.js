@@ -305,7 +305,8 @@ class SandboxExecutor {
      * @param {ExecuteOptions} options - 执行选项
      */
     async execute(command, options = {}) {
-        const risk = (0, risk_engine_1.assessRisk)(command);
+        const assessment = (0, risk_engine_1.assessRiskDetailed)(command);
+        const risk = assessment.level;
         // 禁止清单：直接阻断，绝不执行
         if (risk === 'forbidden') {
             this._logOperation(command, 'high', 'blocked', 'error');
@@ -313,7 +314,9 @@ class SandboxExecutor {
                 blocked: true,
                 riskLevel: 'high',
                 command,
-                message: '⛔ 命令命中禁止清单，已拒绝执行',
+                message: `⛔ 命令命中禁止清单 (${assessment.reason || '危险指令'})，已拒绝执行`,
+                reason: assessment.reason,
+                decodedScript: assessment.decodedScript,
             };
         }
         // 高风险 / 中风险：已永久授权则直接执行，否则需要确认（S5 永久授权免确认）
@@ -333,6 +336,8 @@ class SandboxExecutor {
                 message: risk === 'high'
                     ? '⚠️ 此操作可能导致系统损坏或数据丢失，请谨慎确认。'
                     : '⚡ 此操作具有一定风险，请确认后执行。',
+                reason: assessment.reason,
+                decodedScript: assessment.decodedScript,
             };
         }
         // 低风险或已授权 → 直接执行

@@ -32,21 +32,33 @@ export async function render(container) {
       
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0; animation: fadeInDown 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);">
         <div>
-          <h2 style="font-size: 22px; font-weight: 800; margin: 0 0 4px 0; background: linear-gradient(135deg, var(--primary), #4facfe); background-size: 200% 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: gradientPulse 3s ease infinite;">🧠 AI 的永久记忆</h2>
-          <p style="margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.5; letter-spacing: 0.5px;">
-            <span style="color: var(--text-primary); font-weight: 600;">这里存放着 AI 记住的关于你的所有事情。</span>
-            <span style="opacity: 0.75; margin-left: 6px;">💡 提示：点击卡片上的【📌 置顶】按钮可让该设定常驻对话。</span>
+          <h2 style="font-size: 22px; font-weight: 800; margin: 0 0 4px 0; background: linear-gradient(135deg, var(--primary, #1677ff), #4facfe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🧠 AI 的永久记忆</h2>
+          <p style="margin: 0; color: var(--text-secondary, #595959); font-size: 13px; line-height: 1.5; letter-spacing: 0.5px;">
+            <span style="color: var(--text-primary, #1f2329); font-weight: 600;">这里存放着 AI 记住的关于你的所有事情。</span>
+            <span style="opacity: 0.75; margin-left: 6px;">💡 提示：支持基于艾宾浩斯遗忘曲线的动态留存计算与一键全量复习。</span>
           </p>
         </div>
-        <div style="display: flex; gap: 6px; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 12px; backdrop-filter: blur(10px); box-shadow: var(--shadow-sm); flex-shrink: 0;">
-          <div style="position: relative; width: 200px; flex-shrink: 0;">
-            <input type="text" id="searchMemoryInput" placeholder="🔍 搜索记忆..." class="input" style="width: 100%; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-light); background: var(--bg-card); color: var(--text-primary); font-size: 13px; outline: none; transition: all 0.3s; box-sizing: border-box;">
+        <div style="display: flex; gap: 6px; align-items: center; background: rgba(0,0,0,0.02); border: 1px solid var(--border-light, #eaedf1); padding: 4px 8px; border-radius: 12px; flex-shrink: 0;">
+          <div style="position: relative; width: 170px; flex-shrink: 0;">
+            <input type="text" id="searchMemoryInput" placeholder="🔍 搜索记忆..." class="input" style="width: 100%; height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border-light, #d9d9d9); background: var(--bg-card, #ffffff); color: var(--text-main, #262626); font-size: 13px; outline: none; transition: all 0.3s; box-sizing: border-box;">
           </div>
-          <button id="addMemoryBtn" class="btn btn-primary" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--primary); background: var(--primary-light); color: var(--primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">+ 添加</button>
-          <button id="importMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">📥 导入</button>
-          <button id="exportMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light); background: rgba(255,255,255,0.02); color: var(--text-primary); cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">📤 导出</button>
-          <button id="clearMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(255,59,48,0.3); background: rgba(255,59,48,0.05); color: #ff3b30; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; box-sizing: border-box; white-space: nowrap; flex-shrink: 0;">🧹 清空</button>
+          <button id="addMemoryBtn" class="btn btn-primary" style="height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid #1677ff; background: #e6f4ff; color: #1677ff; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0;">+ 添加</button>
+          <button id="batchReinforceBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #91d5ff; background: #e6f7ff; color: #1890ff; cursor: pointer; font-weight: 600; font-size: 13px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0;" title="一键将所有记忆保留率恢复为 100%">🔄 全量复习</button>
+          <button id="importMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light, #d9d9d9); background: rgba(0,0,0,0.02); color: var(--text-main, #262626); cursor: pointer; font-weight: 500; font-size: 13px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0;">📥 导入</button>
+          <button id="exportMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-light, #d9d9d9); background: rgba(0,0,0,0.02); color: var(--text-main, #262626); cursor: pointer; font-weight: 500; font-size: 13px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0;">📤 导出</button>
+          <button id="clearMemoryBtn" class="btn" style="height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid #ffa39e; background: #fff1f0; color: #ff4d4f; cursor: pointer; font-weight: 500; font-size: 13px; transition: all 0.2s; white-space: nowrap; flex-shrink: 0;">🧹 清空</button>
         </div>
+      </div>
+
+      <!-- 神经元健康度统计 Banner -->
+      <div id="memoryStatsBanner" style="display: flex; gap: 16px; align-items: center; background: var(--bg-card, #ffffff); border: 1px solid var(--border-light, #eaedf1); padding: 8px 16px; border-radius: 10px; margin-bottom: 12px; font-size: 12px; color: var(--text-main, #262626); box-shadow: 0 2px 8px rgba(0,0,0,0.02); flex-shrink: 0; white-space: nowrap; overflow-x: auto;">
+        <span>🧠 神经元总量: <strong id="statTotalNodes" style="color: var(--primary, #1677ff);">0</strong></span>
+        <span style="opacity:0.3;">|</span>
+        <span>📈 平均保留率: <strong id="statAvgRetention" style="color: #52c41a;">100%</strong></span>
+        <span style="opacity:0.3;">|</span>
+        <span>🟢 鲜活节点: <strong id="statFreshNodes" style="color: #52c41a;">0</strong></span>
+        <span style="opacity:0.3;">|</span>
+        <span>🟡 衰退/濒危节点: <strong id="statFadingNodes" style="color: #faad14;">0</strong></span>
       </div>
       
       <div style="flex: 1; overflow-y: auto; padding: 8px 4px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.1) transparent;">
@@ -87,6 +99,27 @@ export async function render(container) {
     const content = await asyncPrompt('请输入你想让 AI 永久记住的事情：');
     if (content && content.trim()) {
       addMemory(content.trim());
+    }
+  });
+
+  (document.getElementById('batchReinforceBtn') as any).addEventListener('click', async () => {
+    if (memories.length === 0) {
+      if (window.__toast) window.__toast.info('当前暂无记忆可以复习');
+      return;
+    }
+    if (await asyncConfirm(`确定要依据艾宾浩斯遗忘曲线一键复习当前 ${memories.length} 条记忆吗？保留率将重置提升至 100%！`)) {
+      try {
+        const nowStr = new Date().toISOString();
+        for (const m of memories) {
+          await api.put(`/memory/${m.id}`, { content: m.content, updated_at: nowStr });
+        }
+        if (window.__toast) window.__toast.success('全量记忆复习成功！保留率已全部提升为 100%');
+        else alert('全量记忆复习成功！');
+        loadData();
+      } catch (e: any) {
+        if (window.__toast) window.__toast.error('全量复习失败: ' + e.message);
+        else alert('全量复习失败: ' + e.message);
+      }
     }
   });
 
@@ -159,6 +192,8 @@ export async function render(container) {
         window._togglePinMemory(id, isPinned ? 0 : 1);
       } else if (action === 'promote') {
         window._promoteMemory(id);
+      } else if (action === 'reinforce') {
+        window._reinforceMemory(id);
       }
     });
   }
@@ -215,6 +250,37 @@ async function loadData() {
     }
 
     (document.getElementById('pageInfo') as any).textContent = `Node ${currentPage}`;
+
+    // 动态更新神经元健康度统计 Banner
+    const totalCount = total;
+    let freshCount = 0;
+    let fadingCount = 0;
+    let retentionSum = 0;
+
+    memories.forEach((m: any) => {
+      const isPinned = m.is_pinned === 1 || m.isPinned;
+      const parsedTags = parseTagsHelper(m.tags);
+      const isPromoted = parsedTags.includes('promoted');
+      const ret = calculateEbbinghausRetention(m.updated_at || m.created_at || m.createdAt, isPinned, isPromoted, m.reinforce_count || 0);
+      retentionSum += ret.retention;
+      if (ret.retention >= 75) {
+        freshCount++;
+      } else {
+        fadingCount++;
+      }
+    });
+
+    const avgRet = memories.length > 0 ? Math.round(retentionSum / memories.length) : 100;
+    const totalEl = document.getElementById('statTotalNodes');
+    const avgEl = document.getElementById('statAvgRetention');
+    const freshEl = document.getElementById('statFreshNodes');
+    const fadingEl = document.getElementById('statFadingNodes');
+
+    if (totalEl) totalEl.textContent = String(totalCount);
+    if (avgEl) avgEl.textContent = `${avgRet}%`;
+    if (freshEl) freshEl.textContent = String(freshCount);
+    if (fadingEl) fadingEl.textContent = String(fadingCount);
+
     renderList();
   } catch (e) {
     console.error('Failed to load memories:', e);
@@ -222,175 +288,280 @@ async function loadData() {
   }
 }
 
+function parseTagsHelper(tagsInput: any): string[] {
+  if (!tagsInput) return [];
+  if (Array.isArray(tagsInput)) return tagsInput;
+  if (typeof tagsInput === 'string') {
+    try {
+      const parsed = JSON.parse(tagsInput);
+      return Array.isArray(parsed) ? parsed : [String(parsed)];
+    } catch(e) {
+      return [tagsInput];
+    }
+  }
+  return [];
+}
+
+function calculateEbbinghausRetention(createdAt: string | number, isPinned: boolean, isPromoted: boolean, reinforceCount: number = 0): { retention: number; label: string; color: string } {
+  if (isPinned || isPromoted) {
+    return { retention: 100, label: '🧠 固化常驻', color: '#52c41a' };
+  }
+
+  const rawDate = createdAt ? new Date(createdAt).getTime() : Date.now();
+  const createdTime = isNaN(rawDate) ? Date.now() : rawDate;
+  const now = Date.now();
+  
+  // 经过的小时数 (最小 0.1)
+  const hours = Math.max(0.1, (now - createdTime) / (1000 * 60 * 60));
+  
+  // 记忆稳定性 S，基础为 24 小时，每次强化/复习增加 48 小时
+  const stability = 24 + ((reinforceCount || 0) * 48);
+  
+  // R = e^(-t / S)
+  let retention = Math.round(100 * Math.exp(-hours / stability));
+  if (isNaN(retention)) retention = 100;
+  retention = Math.max(15, Math.min(100, retention));
+
+  let label = '🟢 鲜活';
+  let color = '#52c41a';
+
+  if (retention >= 80) {
+    label = '🟢 鲜活';
+    color = '#52c41a';
+  } else if (retention >= 60) {
+    label = '🔵 稳固';
+    color = '#1890ff';
+  } else if (retention >= 40) {
+    label = '🟡 衰退';
+    color = '#faad14';
+  } else {
+    label = '🔴 濒危';
+    color = '#ff4d4f';
+  }
+
+  return { retention, label, color };
+}
+
+function generateEbbinghausSparkline(retention: number, color: string, id: string): string {
+  const width = 180;
+  const height = 22;
+  // 计算当前保留率在 X/Y 轴上的坐标点 (15% ~ 100%)
+  const safeRetention = isNaN(retention) ? 100 : Math.max(15, Math.min(100, retention));
+  const safeId = id || Math.random().toString(36).substring(2, 9);
+
+  let currentX = Math.round((1 - (safeRetention - 15) / 85) * (width - 12) + 6);
+  let currentY = Math.round(3 + (1 - (safeRetention - 15) / 85) * (height - 6));
+  
+  if (isNaN(currentX)) currentX = 6;
+  if (isNaN(currentY)) currentY = 3;
+
+  const pathD = `M 4,3 C 40,5 80,10 120,16 C 150,18 170,19 176,19`;
+  const areaD = `${pathD} L 176,${height} L 4,${height} Z`;
+  const gradientId = `ebbGrad_${String(safeId).replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+  return `
+    <div style="width: 100%; height: ${height}px; margin-top: 2px; position: relative;">
+      <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="overflow: visible; display: block;">
+        <defs>
+          <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="${color || '#52c41a'}" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="${color || '#52c41a'}" stop-opacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path d="${areaD}" fill="url(#${gradientId})" />
+        <path d="${pathD}" fill="none" stroke="${color || '#52c41a'}" stroke-width="2" stroke-linecap="round" />
+        <circle cx="${currentX}" cy="${currentY}" r="3.5" fill="${color || '#52c41a'}" stroke="#ffffff" stroke-width="1.5" />
+      </svg>
+    </div>
+  `;
+}
+
 function getTagHtml(tag: string) {
-  let bg = 'rgba(0,122,255,0.1)';
-  let border = 'rgba(0,122,255,0.2)';
-  let color = 'var(--primary)';
+  let bg = '#e6f4ff';
+  let border = '#91caff';
+  let color = '#0958d9';
   let displayText = tag;
 
   if (tag === 'auto') {
-    bg = 'rgba(0,122,255,0.08)';
-    border = 'rgba(0,122,255,0.15)';
-    color = 'var(--primary)';
+    bg = '#e6f4ff';
+    border = '#91caff';
+    color = '#0958d9';
     displayText = '🤖 自动';
   } else if (tag === 'promoted') {
-    bg = 'rgba(255,159,10,0.08)';
-    border = 'rgba(255,159,10,0.15)';
-    color = '#ff9f0a';
-    displayText = '🚀 晋升';
+    bg = '#fff7e6';
+    border = '#ffd591';
+    color = '#d46b08';
+    displayText = '🚀 精选';
   } else {
-    bg = 'rgba(52,199,89,0.08)';
-    border = 'rgba(52,199,89,0.15)';
-    color = '#30d158';
+    bg = '#f6ffed';
+    border = '#b7eb8f';
+    color = '#389e0d';
     displayText = (tag === 'User Node' || tag === 'Manual Override' || tag === 'manual') ? '✍️ 手动' : `✍️ ${tag}`;
   }
 
-  return `<span style="display: inline-block; padding: 4px 8px; background: ${bg}; color: ${color}; border-radius: 6px; font-size: 11.5px; font-weight: 600; border: 1px solid ${border}; white-space: nowrap; flex-shrink: 0;">${escapeHtml(displayText)}</span>`;
+  return `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: ${bg}; color: ${color}; border-radius: 6px; font-size: 11px; font-weight: 500; border: 1px solid ${border}; white-space: nowrap; flex-shrink: 0;">${escapeHtml(displayText)}</span>`;
 }
 
 function renderList() {
   const container = (document.getElementById('memoryList') as any);
-  if (memories.length === 0) {
+  if (!container) return;
+  if (!Array.isArray(memories) || memories.length === 0) {
     container.innerHTML = `
-      <div style="grid-column: 1 / -1; padding: 80px 20px; text-align: center; color: var(--text-muted);">
+      <div style="grid-column: 1 / -1; padding: 80px 20px; text-align: center; color: var(--text-muted, #8c8c8c);">
         <div style="font-size: 64px; margin-bottom: 20px; opacity: 0.3;">📭</div>
-        <div style="font-size: 18px; font-weight: 500;">未检索到任何记忆事实</div>
-        <div style="font-size: 14px; margin-top: 8px;">在聊天时发给 AI 的设定或规则，会被自动记住并整理在这里</div>
+        <div style="font-size: 16px; font-weight: 500;">未检索到任何记忆事实</div>
+        <div style="font-size: 13px; margin-top: 8px;">在聊天时发给 AI 的设定或规则，会被自动记住并整理在这里</div>
       </div>
     `;
     return;
   }
 
   container.innerHTML = memories.map((m, idx) => {
-    let tagsHtml = '';
-    let isPromoted = false;
     try {
-       const parsedTags = typeof m.tags === 'string' ? JSON.parse(m.tags) : (m.tags || []);
-       isPromoted = parsedTags.includes('promoted');
-       const showTags = parsedTags.length > 0 ? parsedTags : ['User Node'];
-       tagsHtml = showTags.map(t => getTagHtml(t)).join(' ');
-    } catch(e) {
-       tagsHtml = getTagHtml('User Node');
-    }
+      if (!m) return '';
+      let tagsHtml = '';
+      let isPromoted = false;
+      const parsedTags = parseTagsHelper(m.tags);
+      isPromoted = parsedTags.includes('promoted');
+      const showTags = parsedTags.length > 0 ? parsedTags : ['User Node'];
+      tagsHtml = showTags.map(t => getTagHtml(t)).join(' ');
 
-    const isEvolution = m.type === 'Self-Evolution';
-    const mainColor = isEvolution ? '#ff3b30' : 'var(--primary)';
-    
-    // 生成排重晋升按钮
-    const promoteBtn = isPromoted 
-      ? `<span style="background: rgba(52, 199, 89, 0.15); color: #34c759; border: 1px solid rgba(52, 199, 89, 0.3); padding: 4px 6px; border-radius: 4px; font-size: 11px; font-weight:600; flex-shrink:0;" title="已晋升">🚀</span>`
-      : `<button class="promote-btn" data-action="promote" data-id="${m.id}" style="background: rgba(0,122,255,0.1); border: none; color: var(--primary); border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="晋升脑皮层">🚀</button>`;
+      const isEvolution = m.type === 'Self-Evolution';
+      const isPinned = m.is_pinned === 1 || m.isPinned;
 
-    const isPinned = m.is_pinned === 1 || m.isPinned;
-    const pinBtn = `<button class="pin-btn" data-action="pin" data-id="${m.id}" data-pinned="${isPinned ? 1 : 0}" style="background: ${isPinned ? 'rgba(255,159,10,0.15)' : 'rgba(255,255,255,0.05)'}; border: none; color: ${isPinned ? '#ff9f0a' : 'var(--text-muted)'}; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="${isPinned ? '取消置顶' : '置顶常驻'}">${isPinned ? '📌' : '📍'}</button>`;
+      // 置顶徽章
+      const pinnedBadge = isPinned 
+        ? `<span style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: #fa8c16; background: #fff7e6; padding: 2px 8px; border-radius: 6px; border: 1px solid #ffd591; white-space: nowrap;">📌 置顶</span>`
+        : '';
 
-    // 动态提取标题和预览正文逻辑
-    let cardTitle = '';
-    let cardPreview = '';
-    const contentLines = m.content.split('\n').map(l => l.trim()).filter(Boolean);
-    if (contentLines.length > 1) {
-      cardTitle = contentLines[0];
-      cardPreview = contentLines.slice(1).join('\n');
-    } else {
-      if (m.content.length <= 25) {
-        cardTitle = m.content;
-        cardPreview = '';
-      } else {
-        cardTitle = m.content.substring(0, 15) + '...';
-        cardPreview = m.content;
-      }
-    }
-
-    const shadowColor = 'rgba(255, 159, 10, 0.15)';
-    const shadowColorHover = 'rgba(255, 159, 10, 0.26)';
-    const cardBorder = isPinned ? '1px solid rgba(255, 159, 10, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)';
-    const cardShadow = isPinned 
-      ? `0 8px 30px ${shadowColor}, 0 2px 8px rgba(0, 0, 0, 0.3)` 
-      : '0 8px 30px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.15)';
-    const hoverBorderColor = isPinned ? 'rgba(255, 159, 10, 0.85)' : 'rgba(255, 255, 255, 0.18)';
-    const hoverShadow = isPinned 
-      ? `0 14px 44px ${shadowColorHover}, 0 4px 16px rgba(0, 0, 0, 0.45)` 
-      : '0 14px 44 rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.25)';
-    const outBorderColor = isPinned ? 'rgba(255, 159, 10, 0.45)' : 'rgba(255, 255, 255, 0.08)';
-    const outShadow = cardShadow;
-
-    // 更改置顶后的动画背景色及过渡呼吸效果
-    const cardBg = isPinned 
-      ? 'linear-gradient(135deg, rgba(255, 159, 10, 0.06) 0%, rgba(255, 255, 255, 0.03) 100%)' 
-      : 'rgba(255, 255, 255, 0.04)';
-    const hoverBg = isPinned 
-      ? 'linear-gradient(135deg, rgba(255, 159, 10, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%)' 
-      : 'rgba(255, 255, 255, 0.07)';
-    const outBg = cardBg;
-
-    const dateObj = new Date(m.created_at || m.createdAt);
-    const shortTime = `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-
-    const previewHtml = cardPreview
-      ? `<div class="card-content-wrapper" style="color: var(--text-secondary); font-size: 13px; line-height: 1.55; word-break: break-word; padding-left: 10px; max-height: 48px; overflow: hidden; transition: max-height 0.3s ease; white-space: pre-wrap;">${escapeHtml(cardPreview)}</div>`
-      : '';
-    const toggleHtml = cardPreview
-      ? `<div class="expand-toggle-btn" style="padding-left: 10px; font-size: 11.5px; color: var(--primary); cursor: pointer; display: none; align-items: center; gap: 4px; font-weight: 600; margin-top: 4px;">展开全文 ▾</div>`
-      : '';
-
-    return `
-      <div class="memory-card" style="position: relative; --hover-border: ${hoverBorderColor}; --hover-shadow: ${hoverShadow}; --hover-bg: ${hoverBg}; --normal-border: ${outBorderColor}; --normal-shadow: ${outShadow}; --normal-bg: ${outBg}; border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; overflow: hidden; cursor: default; animation: fadeInUp 0.4s ease forwards; animation-delay: ${idx * 0.05}s; opacity: 0; transform: translateY(10px);">
+      // 卡片背景与边框
+      const cardBorder = isPinned 
+        ? '1px solid #ffd591' 
+        : '1px solid var(--border-light, #eaedf1)';
         
-        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${isPinned ? 'linear-gradient(to bottom, #ff9f0a, #ffcc00)' : (isEvolution ? 'linear-gradient(to bottom, #ff3b30, #ff9f0a)' : 'linear-gradient(to bottom, var(--primary), #5856d6)')};"></div>
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; padding-left: 10px; width: 100%; min-height: 24px;">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            ${tagsHtml}
-            <span style="font-size: 10.5px; color: var(--text-muted); opacity: 0.7; font-family: monospace;">${shortTime}</span>
+      const cardBg = isPinned 
+        ? 'var(--bg-card, #ffffff)' 
+        : 'var(--bg-card, #ffffff)';
+
+      const leftIndicator = isPinned 
+        ? '#fa8c16' 
+        : (isEvolution ? '#ff4d4f' : 'var(--primary, #1677ff)');
+
+      // 艾宾浩斯遗忘曲线计算与 SVG 折线图
+      const ebbinghaus = calculateEbbinghausRetention(m.updated_at || m.created_at || m.createdAt, isPinned, isPromoted, m.reinforce_count || 0);
+      const sparklineSvg = generateEbbinghausSparkline(ebbinghaus.retention, ebbinghaus.color, String(m.id || idx));
+
+      const ebbinghausBarHtml = `
+        <div style="margin-top: 10px; padding: 8px 12px; background: rgba(0,122,255,0.03); border-radius: 8px; border: 1px solid rgba(0,122,255,0.15); display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <span style="font-size: 11.5px; color: var(--text-main, #262626); font-weight: 500;">
+              📉 记忆保留率: <strong style="color: ${ebbinghaus.color}; font-weight: 700;">${ebbinghaus.retention}%</strong> (${ebbinghaus.label})
+            </span>
+            <button class="btn-action-reinforce" data-action="reinforce" data-id="${m.id}" style="display: inline-flex; align-items: center; gap: 3px; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.2s;" title="依据艾宾浩斯遗忘曲线重置并复习此记忆">🔄 复习</button>
           </div>
-          <div class="card-actions" style="display: flex; gap: 4px; align-items: center; opacity: 0.75; transition: opacity 0.2s;">
+          ${sparklineSvg}
+        </div>
+      `;
+
+      // 底部 Action 按钮 (强制 white-space: nowrap 防止竖向折行)
+      const btnStyle = "display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.2s; border: 1px solid transparent;";
+
+      const pinBtn = `<button class="btn-action-pin" data-action="pin" data-id="${m.id}" data-pinned="${isPinned ? 1 : 0}" style="${btnStyle} background: ${isPinned ? '#fff7e6' : 'rgba(0,0,0,0.03)'}; color: ${isPinned ? '#fa8c16' : 'var(--text-main, #262626)'}; border-color: ${isPinned ? '#ffd591' : 'transparent'};" title="${isPinned ? '取消置顶' : '置顶常驻'}">${isPinned ? '📌 置顶' : '📍 置顶'}</button>`;
+      
+      const promoteBtn = isPromoted 
+        ? `<span style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; white-space: nowrap; flex-shrink: 0;" title="已精选">🚀 精选</span>`
+        : `<button class="btn-action-promote" data-action="promote" data-id="${m.id}" style="${btnStyle} background: #f9f0ff; color: #722ed1; border-color: #d3adf7;" title="晋升脑皮层">🚀 晋升</button>`;
+
+      const editBtn = `<button class="btn-action-edit" data-action="edit" data-id="${m.id}" style="${btnStyle} background: rgba(0,0,0,0.03); color: var(--text-main, #262626);" title="修改记忆">✏️ 编辑</button>`;
+      const delBtn = `<button class="btn-action-del" data-action="delete" data-id="${m.id}" style="${btnStyle} background: #fff1f0; color: #ff4d4f; border-color: #ffa39e;" title="抹除记忆">🗑️ 抹除</button>`;
+
+      // 动态提取标题和预览正文逻辑
+      let cardTitle = '';
+      let cardPreview = '';
+      const rawContent = m.content || m.text || '';
+      const contentLines = String(rawContent).split('\n').map(l => l.trim()).filter(Boolean);
+      if (contentLines.length > 1) {
+        cardTitle = contentLines[0];
+        cardPreview = contentLines.slice(1).join('\n');
+      } else {
+        if (rawContent.length <= 30) {
+          cardTitle = rawContent;
+          cardPreview = '';
+        } else {
+          cardTitle = rawContent.substring(0, 25) + '...';
+          cardPreview = rawContent;
+        }
+      }
+
+      let shortTime = '近期';
+      try {
+        const dateObj = new Date(m.created_at || m.createdAt || Date.now());
+        if (!isNaN(dateObj.getTime())) {
+          shortTime = `${dateObj.getMonth() + 1}/${dateObj.getDate()} ${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+        }
+      } catch (e) {}
+
+      const previewHtml = cardPreview
+        ? `<div class="card-content-wrapper" style="color: var(--text-muted, #595959); font-size: 13px; line-height: 1.5; word-break: break-word; max-height: 40px; overflow: hidden; transition: max-height 0.2s ease; white-space: pre-wrap; margin-top: 4px;">${escapeHtml(cardPreview)}</div>`
+        : '';
+      const toggleHtml = cardPreview
+        ? `<div class="expand-toggle-btn" data-action="toggle-expand" style="font-size: 12px; color: var(--primary, #1677ff); cursor: pointer; display: none; align-items: center; gap: 2px; font-weight: 500; margin-top: 4px;">展开 ▾</div>`
+        : '';
+
+      return `
+        <div class="memory-card-node" style="position: relative; background: ${cardBg}; border: ${cardBorder}; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); transition: all 0.2s ease;">
+          
+          <!-- 左侧指示条 -->
+          <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: ${leftIndicator}; border-radius: 4px 0 0 4px;"></div>
+          
+          <!-- 卡片头部：标签 + 状态 + 时间 -->
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              ${tagsHtml}
+              ${pinnedBadge}
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted, #8c8c8c); font-family: monospace;">${shortTime}</span>
+          </div>
+          
+          <!-- 卡片主体：标题与内容 -->
+          <div style="display: flex; flex-direction: column; flex: 1;">
+            <div style="font-weight: 600; font-size: 15px; color: var(--text-main, #1f2329); line-height: 1.4; word-break: break-word;">
+              ${escapeHtml(cardTitle)}
+            </div>
+            ${previewHtml}
+            ${toggleHtml}
+            ${ebbinghausBarHtml}
+          </div>
+
+          <!-- 卡片底部：极简按钮工具栏 -->
+          <div class="card-actions" style="display: flex; justify-content: flex-end; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--border-light, #f0f0f0); width: 100%; box-sizing: border-box;">
             ${pinBtn}
             ${promoteBtn}
-            <button class="edit-btn" data-action="edit" data-id="${m.id}" style="background: rgba(0,242,254,0.1); border: none; color: #00f2fe; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="修改记忆">✏️</button>
-            <button class="del-btn" data-action="delete" data-id="${m.id}" style="background: rgba(255,59,48,0.1); border: none; color: #ff3b30; border-radius: 4px; padding: 4px 6px; font-size: 11px; cursor: pointer; transition: all 0.2s;" title="抹除记忆">🗑️</button>
+            ${editBtn}
+            ${delBtn}
           </div>
         </div>
-        
-        <div style="display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 4px;">
-          <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 2px; padding-left: 10px; word-break: break-word;">
-            📌 ${escapeHtml(cardTitle)}
-          </div>
-          ${previewHtml}
-          ${toggleHtml}
-        </div>
-      </div>
-    `;
+      `;
+    } catch (err) {
+      console.error('渲染单个记忆卡片异常隔离:', err);
+      return '';
+    }
   }).join('');
 
-  container.querySelectorAll('.memory-card').forEach((card) => {
-    // 鼠标悬停显示控制按钮
-    card.addEventListener('mouseover', () => {
-      const actions = card.querySelector('.card-actions') as HTMLElement;
-      if (actions) actions.style.opacity = '1';
-    });
-    card.addEventListener('mouseout', () => {
-      const actions = card.querySelector('.card-actions') as HTMLElement;
-      if (actions) actions.style.opacity = '0.75';
-    });
-
-    // 折叠与展开交互绑定
+  // 绑定完全兼容 CSP 的展开折叠处理
+  container.querySelectorAll('.memory-card-node').forEach((card: HTMLElement) => {
     const wrapper = card.querySelector('.card-content-wrapper') as HTMLElement;
     const toggleBtn = card.querySelector('.expand-toggle-btn') as HTMLElement;
     if (wrapper && toggleBtn) {
-      if (wrapper.scrollHeight > 48) {
-        toggleBtn.style.display = 'flex';
+      if (wrapper.scrollHeight > 40) {
+        toggleBtn.style.display = 'inline-flex';
+        toggleBtn.onclick = (e) => {
+          e.stopPropagation();
+          const isExpanded = wrapper.style.maxHeight === 'none';
+          wrapper.style.maxHeight = isExpanded ? '40px' : 'none';
+          toggleBtn.textContent = isExpanded ? '展开 ▾' : '收起 ▴';
+        };
       }
-      toggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isCollapsed = wrapper.style.maxHeight === '48px' || wrapper.style.maxHeight === '';
-        if (isCollapsed) {
-          wrapper.style.maxHeight = '1000px';
-          toggleBtn.innerHTML = '收起全文 ▴';
-        } else {
-          wrapper.style.maxHeight = '48px';
-          toggleBtn.innerHTML = '展开全文 ▾';
-        }
-      });
     }
   });
 }
@@ -423,6 +594,23 @@ window._deleteMemory = async (id) => {
     } catch (e: any) {
       if(window.__toast) window.__toast.error('擦除失败: ' + e.message);
     }
+  }
+};
+
+// 艾宾浩斯曲线记忆复习刷新
+window._reinforceMemory = async (id: string) => {
+  const memory = memories.find((m: any) => m.id === id);
+  try {
+    await api.put(`/memory/${id}`, { 
+      content: memory ? memory.content : undefined,
+      updated_at: new Date().toISOString() 
+    });
+    if (window.__toast) window.__toast.success('已依据艾宾浩斯遗忘曲线成功复习此记忆，保留率提升至 100%！');
+    else alert('记忆复习成功！保留率已恢复至 100%');
+    loadData();
+  } catch (e: any) {
+    if (window.__toast) window.__toast.error('复习失败: ' + e.message);
+    else alert('复习失败: ' + e.message);
   }
 };
 

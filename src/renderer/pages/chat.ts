@@ -1334,7 +1334,7 @@ async function loadModels() {
       const statusColorClass = isActive ? (vendor.color || 'var(--primary)') : 'var(--success)';
 
       return `
-        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 14px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; gap: 10px; ${activeStyle} box-shadow: 0 4px 12px rgba(0,0,0,0.03);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.06)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.03)';">
+        <div class="model-select-card" data-id="${m.id}" data-vendor="${vendor.id}" data-configured="true" style="padding: 14px; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; gap: 10px; ${activeStyle} box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
            <div style="display: flex; align-items: center; gap: 10px;">
              <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color || 'var(--primary)'}20; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;">${vendor.icon}</div>
              <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden; justify-content: center;">
@@ -1345,8 +1345,11 @@ async function loadModels() {
              </div>
              ${isActive ? `<div style="width: 8px; height: 8px; border-radius: 50%; background: ${vendor.color || 'var(--primary)'}; box-shadow: 0 0 8px ${vendor.color || 'var(--primary)'}; flex-shrink: 0;"></div>` : `<div style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); flex-shrink: 0;"></div>`}
            </div>
-           <div style="font-size: 12px; font-weight: 500; color: ${statusColorClass}; display: flex; align-items: center; gap: 4px; background: ${isActive ? `${vendor.color || 'var(--primary)'}15` : 'rgba(52, 199, 89, 0.1)'}; padding: 4px 8px; border-radius: 6px; width: fit-content;">
-             ${statusTextContent}
+           <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 2px;">
+             <div style="font-size: 12px; font-weight: 500; color: ${statusColorClass}; display: flex; align-items: center; gap: 4px; background: ${isActive ? `${vendor.color || 'var(--primary)'}15` : 'rgba(52, 199, 89, 0.1)'}; padding: 4px 8px; border-radius: 6px;">
+               ${statusTextContent}
+             </div>
+             <button class="btn-config-trigger" data-action="open-config" data-vendor="${vendor.id}" style="font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(0,0,0,0.04); border: 1px solid var(--border-light); padding: 3px 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s;" title="修改该厂商 API Key 与模型配置">⚙️ 配置</button>
            </div>
         </div>
       `;
@@ -1361,7 +1364,7 @@ async function loadModels() {
       ))
       .map(vendor => {
         return `
-        <div class="model-select-card" data-vendor="${vendor.id}" data-configured="false" style="padding: 14px; border: 1px solid ${vendor.color}30; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); background: linear-gradient(135deg, ${vendor.color}05 0%, ${vendor.color}15 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px ${vendor.color}30';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.02)';">
+        <div class="model-select-card" data-vendor="${vendor.id}" data-configured="false" style="padding: 14px; border: 1px solid ${vendor.color}30; border-radius: 16px; cursor: pointer; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); background: linear-gradient(135deg, ${vendor.color}05 0%, ${vendor.color}15 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
            <div style="display: flex; align-items: center; gap: 10px;">
              <div style="width: 32px; height: 32px; border-radius: 10px; background: ${vendor.color}25; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">${vendor.icon}</div>
              <div style="display: flex; flex-direction: column; flex: 1; justify-content: center;">
@@ -1369,7 +1372,7 @@ async function loadModels() {
                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.2;">尚未配置 API Key</div>
              </div>
            </div>
-           <div style="font-size: 12px; font-weight: 600; color: ${vendor.color}; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${vendor.color}20; padding: 6px 10px; border-radius: 8px; width: fit-content; transition: all 0.2s; margin-top: 2px;" onmouseover="this.style.background='${vendor.color}35'; this.style.transform='scale(1.02)';" onmouseout="this.style.background='${vendor.color}20'; this.style.transform='scale(1)';">
+           <div class="btn-config-trigger" data-vendor="${vendor.id}" style="font-size: 12px; font-weight: 600; color: ${vendor.color}; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${vendor.color}20; padding: 6px 10px; border-radius: 8px; width: fit-content; transition: all 0.2s; margin-top: 2px;">
              立即配置 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
            </div>
         </div>
@@ -1400,16 +1403,20 @@ async function loadModels() {
     `}).join('') : '<div style="color:var(--text-muted); font-size: 12px;">暂未发现本地模型</div>';
 
     // 绑定弹窗内模型点击
-    document.querySelectorAll('.model-select-card').forEach(card => {
-      card.addEventListener('click', async () => {
-        const isConfigured = card.dataset.configured === 'true';
-        const vendorId = card.dataset.vendor;
+    document.querySelectorAll('#modelSelectionModal .model-select-card').forEach(card => {
+      card.addEventListener('click', async (e: Event) => {
+        const target = e.target as HTMLElement;
+        const configBtn = target.closest('.btn-config-trigger, [data-action="open-config"]');
+        const isConfigured = card.getAttribute('data-configured') === 'true';
+        const vendorId = card.getAttribute('data-vendor') || configBtn?.getAttribute('data-vendor');
 
-        if (!isConfigured && vendorId) {
-          // 未配置，跳转至模型市场配置
+        if (configBtn || !isConfigured) {
+          const targetVendorId = vendorId || card.getAttribute('data-vendor');
           (document.getElementById('modelSelectionModal') as any).style.display = 'none';
-          if (window.navigateTo) {
-            window.navigateTo('market', { openConfig: vendorId });
+          if (window.navigateTo && targetVendorId) {
+            window.navigateTo('market', { openConfig: targetVendorId });
+          } else if (!window.navigateTo) {
+            console.warn('[BRIDGE MISSING] window.navigateTo is not mounted');
           }
           return;
         }

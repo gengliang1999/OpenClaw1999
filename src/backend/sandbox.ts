@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { createHash } from 'crypto';
-import { assessRisk } from './risk-engine';
+import { assessRisk, assessRiskDetailed } from './risk-engine';
 import {
   normalizeCommandFingerprint,
   matchFingerprint,
@@ -82,6 +82,8 @@ export interface ExecuteResult {
   command?: string;
   blocked?: boolean;
   message?: string;
+  reason?: string;
+  decodedScript?: string;
 }
 
 export class SandboxExecutor {
@@ -356,7 +358,8 @@ export class SandboxExecutor {
    * @param {ExecuteOptions} options - 执行选项
    */
   public async execute(command: string, options: ExecuteOptions = {}): Promise<ExecuteResult> {
-    const risk = assessRisk(command);
+    const assessment = assessRiskDetailed(command);
+    const risk = assessment.level;
 
     // 禁止清单：直接阻断，绝不执行
     if (risk === 'forbidden') {
@@ -365,7 +368,9 @@ export class SandboxExecutor {
         blocked: true,
         riskLevel: 'high',
         command,
-        message: '⛔ 命令命中禁止清单，已拒绝执行',
+        message: `⛔ 命令命中禁止清单 (${assessment.reason || '危险指令'})，已拒绝执行`,
+        reason: assessment.reason,
+        decodedScript: assessment.decodedScript,
       };
     }
 
@@ -386,6 +391,8 @@ export class SandboxExecutor {
         message: risk === 'high'
           ? '⚠️ 此操作可能导致系统损坏或数据丢失，请谨慎确认。'
           : '⚡ 此操作具有一定风险，请确认后执行。',
+        reason: assessment.reason,
+        decodedScript: assessment.decodedScript,
       };
     }
 

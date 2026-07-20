@@ -182,12 +182,18 @@ function renderShell() {
             if (typeof window.__setPendingConv === 'function') {
                 window.__setPendingConv('NEW');
             }
+            else {
+                console.warn('[BRIDGE MISSING] window.__setPendingConv is not mounted');
+            }
             await navigateTo('chat');
         }
         else {
             // 已在聊天页，直接创建
             if (typeof window.__createNewChat === 'function') {
                 await window.__createNewChat();
+            }
+            else {
+                console.warn('[BRIDGE MISSING] window.__createNewChat is not mounted');
             }
         }
     });
@@ -384,8 +390,12 @@ async function loadSidebarConversations(query = '') {
                     await api.chat.moveToTrash(id);
                 }
                 catch (e) { }
-                if (typeof window.__onConvDeleted === 'function')
+                if (typeof window.__onConvDeleted === 'function') {
                     window.__onConvDeleted(id);
+                }
+                else {
+                    console.warn('[BRIDGE MISSING] window.__onConvDeleted is not mounted');
+                }
             }
             window.__toast?.success(`已将 ${batchSelected.size} 个会话移入垃圾篓`);
             batchSelected.clear();
@@ -417,11 +427,19 @@ async function loadSidebarConversations(query = '') {
             if (typeof window.__setPendingConv === 'function') {
                 window.__setPendingConv(convId);
             }
+            else {
+                console.warn('[BRIDGE MISSING] window.__setPendingConv is not mounted');
+            }
             const prevRoute = currentRoute;
             await navigateTo('chat');
             // 如果已在 chat 页（navigateTo 早退），init() 不会再执行，直接加载
-            if (prevRoute === 'chat' && typeof window.__loadChatHistory === 'function') {
-                await window.__loadChatHistory(convId);
+            if (prevRoute === 'chat') {
+                if (typeof window.__loadChatHistory === 'function') {
+                    await window.__loadChatHistory(convId);
+                }
+                else {
+                    console.warn('[BRIDGE MISSING] window.__loadChatHistory is not mounted');
+                }
             }
         });
         // hover 显示更多按钮由 CSS .sidebar-conv-item:hover .sidebar-conv-more 控制
@@ -1474,8 +1492,12 @@ async function deleteConversationUI(convId) {
         await api.chat.moveToTrash(convId);
         window.__toast?.success('已移入垃圾篓');
         loadSidebarConversations(sidebarConvSearchQuery);
-        if (typeof window.__onConvDeleted === 'function')
+        if (typeof window.__onConvDeleted === 'function') {
             window.__onConvDeleted(convId);
+        }
+        else {
+            console.warn('[BRIDGE MISSING] window.__onConvDeleted is not mounted');
+        }
         updateTrashBadge();
     }
     catch (e) {
@@ -1573,8 +1595,12 @@ async function showTrashPanel() {
             try {
                 await api.chat.permanentDelete(btn.dataset.id);
                 window.__toast?.success('已永久删除');
-                if (typeof window.__onConvDeleted === 'function')
+                if (typeof window.__onConvDeleted === 'function') {
                     window.__onConvDeleted(btn.dataset.id);
+                }
+                else {
+                    console.warn('[BRIDGE MISSING] window.__onConvDeleted is not mounted');
+                }
                 close();
                 updateTrashBadge();
             }
@@ -1753,6 +1779,8 @@ async function navigateTo(route, params = {}) {
         toast.error(`加载页面失败：${err.message}`);
     }
 }
+// 将路由导航函数暴露到 window，供 chat.ts / market.ts 等页面模块跨模块调用
+window.navigateTo = navigateTo;
 /**
  * 更新侧边栏导航激活状态
  */

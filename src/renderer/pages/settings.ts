@@ -26,13 +26,42 @@ export async function render(container) {
   
   container.className = 'page-layout-full';
 
-  container.innerHTML = `
+    container.innerHTML = `
     <div class="page-header">
       <h2 style="margin: 0; font-size: 24px; font-weight: 600;">⚙️ 通用设置</h2>
     </div>
     
     <div class="page-content" style="padding-top: 24px; flex: 1; overflow-y: auto; overflow-x: hidden;">
       <div style="max-width: 640px; display: flex; flex-direction: column; gap: 24px;">
+
+        <!-- Token 消耗与成本看板 -->
+        <div class="card" style="padding: 24px; border-radius: 16px;">
+           <h3 style="margin: 0 0 20px 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+             📊 Token 消耗与预算看板 (Cost Guard)
+           </h3>
+           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+             <div style="background: var(--bg-secondary, rgba(0,0,0,0.03)); padding: 16px; border-radius: 12px;">
+               <div style="font-size: 12px; color: var(--text-muted, #888);">今日 Token 使用量</div>
+               <div style="font-size: 20px; font-weight: 700; margin-top: 4px; color: var(--theme-primary, #6c63ff);" id="tokenTodayCount">0</div>
+               <div style="font-size: 12px; color: var(--text-muted, #888); margin-top: 4px;" id="tokenTodayCost">预估费用: $0.00</div>
+             </div>
+             <div style="background: var(--bg-secondary, rgba(0,0,0,0.03)); padding: 16px; border-radius: 12px;">
+               <div style="font-size: 12px; color: var(--text-muted, #888);">历史累计 Total Tokens</div>
+               <div style="font-size: 20px; font-weight: 700; margin-top: 4px;" id="tokenAllTimeCount">0</div>
+               <div style="font-size: 12px; color: var(--text-muted, #888); margin-top: 4px;" id="tokenAllTimeCost">累计预估: $0.00</div>
+             </div>
+           </div>
+           <div style="display: flex; justify-content: space-between; align-items: center;">
+             <div>
+               <div style="font-weight: 500; font-size: 14px;">每日 Token 预算上限预警</div>
+               <div style="font-size: 12px; color: var(--text-muted, #888); margin-top: 2px;">达到设定的上限自动开启保护</div>
+             </div>
+             <div style="display: flex; align-items: center; gap: 8px;">
+               <input type="number" class="input" id="dailyBudgetInput" value="1000000" style="width: 130px; padding: 6px 10px; font-size: 13px;" />
+               <span style="font-size: 12px; color: var(--text-muted, #888);">Tokens</span>
+             </div>
+           </div>
+        </div>
 
         <!-- 存储与路径设置 -->
         <div class="card" style="padding: 24px;">

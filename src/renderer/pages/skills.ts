@@ -23,6 +23,7 @@ export async function render(container) {
         <div style="display: flex; gap: 8px; background: var(--bg-card); backdrop-filter: blur(12px); padding: 6px; border-radius: 12px; border: 1px solid var(--border-light); box-shadow: var(--shadow-sm);">
           <button id="tabSkillInstalled" class="btn active" style="padding: 10px 20px; border-radius: 8px; border: none; background: rgba(255,149,0,0.15); color: #ff9500; cursor: pointer; font-weight: 600; box-shadow: 0 0 10px rgba(255,149,0,0.1); transition: all 0.3s;">已掌握突触</button>
           <button id="tabSkillMarket" class="btn" style="padding: 10px 20px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.3s;">未解锁技能</button>
+          <button id="tabSkillMcp" class="btn" style="padding: 10px 20px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; font-weight: 600; transition: all 0.3s;">🔌 MCP 插件</button>
         </div>
       </div>
 
@@ -37,6 +38,9 @@ export async function render(container) {
   });
   (document.getElementById('tabSkillMarket') as any).addEventListener('click', (e) => {
     switchTab('market', (e.target as any));
+  });
+  (document.getElementById('tabSkillMcp') as any).addEventListener('click', (e) => {
+    switchTab('mcp', (e.target as any));
   });
 
   await loadData();
@@ -61,11 +65,14 @@ async function loadData() {
 function switchTab(tab, btnElement) {
   const installedBtn = document.getElementById('tabSkillInstalled');
   const marketBtn = document.getElementById('tabSkillMarket');
+  const mcpBtn = document.getElementById('tabSkillMcp');
   
-  [installedBtn, marketBtn].forEach(b => {
-    b.style.background = 'transparent';
-    b.style.color = 'var(--text-secondary)';
-    b.style.boxShadow = 'none';
+  [installedBtn, marketBtn, mcpBtn].forEach(b => {
+    if (b) {
+      b.style.background = 'transparent';
+      b.style.color = 'var(--text-secondary)';
+      b.style.boxShadow = 'none';
+    }
   });
 
   btnElement.style.background = 'rgba(255,149,0,0.15)';
@@ -77,6 +84,34 @@ function switchTab(tab, btnElement) {
 
 function renderList(tab) {
   const container = (document.getElementById('skillContent') as any);
+  
+  if (tab === 'mcp') {
+    const mcpServers = [
+      { id: 'mcp-filesystem', name: 'FileSystem MCP', type: 'stdio', command: 'npx -y @modelcontextprotocol/server-filesystem', desc: '提供安全的本地文件读写与搜索能力', status: '可连接' },
+      { id: 'mcp-postgres', name: 'Postgres DB MCP', type: 'stdio', command: 'npx -y @modelcontextprotocol/server-postgres', desc: '连接关系型数据库并查询 Schema 与 SQL', status: '可连接' },
+      { id: 'mcp-github', name: 'GitHub API MCP', type: 'stdio', command: 'npx -y @modelcontextprotocol/server-github', desc: '集成 GitHub Issue、PR 与代码检索', status: '可连接' },
+      { id: 'mcp-puppeteer', name: 'Puppeteer Web MCP', type: 'stdio', command: 'npx -y @modelcontextprotocol/server-puppeteer', desc: '自动化无头浏览器渲染与截屏', status: '可连接' }
+    ];
+
+    container.innerHTML = `
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px;">
+        ${mcpServers.map(s => `
+          <div style="background: var(--bg-card); border-radius: 16px; padding: 24px; border: 1px solid var(--border-light); position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <h3 style="margin: 0; font-size: 18px; font-weight: 700;">${s.name}</h3>
+              <span style="font-size: 12px; background: rgba(0,122,255,0.1); color: #007aff; padding: 4px 8px; border-radius: 6px; font-weight: 600;">${s.type}</span>
+            </div>
+            <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px 0; line-height: 1.5;">${s.desc}</p>
+            <div style="font-size: 11px; font-family: monospace; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; word-break: break-all; margin-bottom: 16px;">
+              ${s.command}
+            </div>
+            <button class="btn btn-primary" style="width: 100%; border-radius: 8px; font-size: 13px;">挂载 MCP 服务</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    return;
+  }
   let list = tab === 'installed' ? installedSkills : marketSkills;
   
   if (!list || list.length === 0) {

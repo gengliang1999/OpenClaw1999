@@ -132,3 +132,19 @@ Required before declaring done:
 - [ ] The hypothesis that turned out correct is stated in the commit / PR message — so the next debugger learns
 
 **Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling) hand off to the `/improve-codebase-architecture` skill with the specifics. Make the recommendation **after** the fix is in, not before — you have more information now than when you started.
+
+## Key Heuristics — Cross-Module & UI Silent Failures
+
+When encountering **"button click does nothing"**, **"page navigation failed"**, or **"cross-module function call no-op"**:
+
+1. **Rule of Global Symbol Existence (零级前提：全局符号存在性)**
+   - Never assume cross-module / global APIs (e.g. `window.navigateTo`, `window.myApi`) are registered.
+   - Always `grep_search` the codebase for explicit assignment statements (`window.xxx = ...`) BEFORE diagnosing downstream handler logic.
+
+2. **Check Silent Guard Expressions (检查静默条件防护)**
+   - Guards like `if (window.navigateTo) { ... }` will silently discard user actions without logging any errors if `window.navigateTo` is `undefined`.
+   - Trace the invocation chain backwards to confirm the condition actually evaluates to `true`.
+
+3. **Avoid Over-Complex Hypotheses (杜绝无依据的逻辑脑补)**
+   - Do not jump directly into complex state/animation/DOM-race hypotheses (e.g. 100ms vs 150ms timeout races) before verifying that the trigger signal actually fired.
+

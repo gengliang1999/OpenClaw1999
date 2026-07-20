@@ -29,36 +29,67 @@ class RagEngine {
     return bigrams;
   }
 
-  // 1. 滑动窗口分块存入 (支持直接传入父子分块，或纯文本兜底)
+  // 智能标点截断辅助方法：在指定目标长度附近寻找最合适的标点符号分割点
+  private findSmartBoundary(text: string, targetLength: number): number {
+    if (text.length <= targetLength) return text.length;
+    const delimiters = ['\n\n', '\n', '。', '！', '？', '.', '!', '?'];
+    for (const delim of delimiters) {
+      const idx = text.lastIndexOf(delim, targetLength);
+      if (idx > targetLength * 0.4) {
+        return idx + delim.length;
+      }
+    }
+    return targetLength;
+  }
+
+  // 1. 滑动窗口分块存入 (支持直接传入父子分块，或基于标点断句的智能父子切片)
   public addDocument(convId: string, fileName: string, data: string | any[]) {
     if (Array.isArray(data)) {
       for (const c of data) {
         this.chunks.push({
           convId,
           fileName,
-          text: c.childContent,
-          bigrams: this.getBigrams(c.childContent),
+          text: c.childContent || c.text || '',
+          bigrams: this.getBigrams(c.childContent || c.text || ''),
           parentText: c.parentContent
         });
       }
     } else {
-      const chunkSize = 500;
-      const overlap = 100;
-      let i = 0;
-      while (i < data.length) {
-        const chunkText = data.slice(i, i + chunkSize);
-        this.chunks.push({
-          convId,
-          fileName,
-          text: chunkText,
-          bigrams: this.getBigrams(chunkText)
-        });
-        i += (chunkSize - overlap);
+      let cursor = 0;
+      const parentTargetSize = 800;
+      const childTargetSize = 250;
+      const childOverlap = 50;
+
+      while (cursor < data.length) {
+        const parentLen = this.findSmartBoundary(data.slice(cursor), parentTargetSize);
+        const parentContent = data.slice(cursor, cursor + parentLen);
+
+        // 在父块内进一步切分为子块
+        let childCursor = 0;
+        while (childCursor < parentContent.length) {
+          const childLen = this.findSmartBoundary(parentContent.slice(childCursor), childTargetSize);
+          const childContent = parentContent.slice(childCursor, childCursor + childLen);
+
+          if (childContent.trim().length > 0) {
+            this.chunks.push({
+              convId,
+              fileName,
+              text: childContent,
+              bigrams: this.getBigrams(childContent),
+              parentText: parentContent
+            });
+          }
+
+          if (childCursor + childLen >= parentContent.length) break;
+          childCursor += Math.max(1, childLen - childOverlap);
+        }
+
+        cursor += parentLen;
       }
     }
   }
 
-  // 2. 检索并计算 Jaccard 相似度变形
+  // 2. 检索并计算 Jaccard 相似度归一化评分
   public searchRelevant(convId: string, query: string, topK: number = 3) {
     const queryBigrams = this.getBigrams(query);
     if (queryBigrams.size === 0) return [];
@@ -72,10 +103,18 @@ class RagEngine {
             matchCount++;
           }
         }
-        // 简单打分：匹配的 bigram 数量
-        return { chunk, score: matchCount };
+        if (matchCount === 0) return { chunk, score: 0 };
+
+        // Jaccard 归一化评分 = 匹配项 / 并集大小
+        const unionSize = queryBigrams.size + chunk.bigrams.size - matchCount;
+        const jaccardScore = unionSize > 0 ? matchCount / unionSize : 0;
+        // 结合召回率得分权重
+        const recallScore = matchCount / queryBigrams.size;
+        const finalScore = Number((jaccardScore * 0.6 + recallScore * 0.4).toFixed(4));
+
+        return { chunk, score: finalScore };
       })
-      .filter(c => c.score > 0)
+      .filter(c => c.score >= 0.05) // 过滤无意义的杂音分块
       .sort((a, b) => b.score - a.score);
 
     return scoredChunks.slice(0, topK).map(c => ({

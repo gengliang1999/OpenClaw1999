@@ -11,6 +11,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MEDIUM_PATTERNS = exports.HIGH_PATTERNS = exports.FORBIDDEN_PATTERNS = exports.INTERPRETER_CARRIERS = void 0;
+exports.assessRiskDetailed = assessRiskDetailed;
 exports.assessRisk = assessRisk;
 /** 解释器载体白名单：凡经这些解释器执行的命令一律视为需确认（medium） */
 exports.INTERPRETER_CARRIERS = [
@@ -28,6 +29,11 @@ exports.FORBIDDEN_PATTERNS = [
     /\b(iwr|invoke-webrequest|curl|wget)\b[\s\S]*\|\s*(iex|invoke-expression|sh|bash|powershell|pwsh|cmd|python|python3|perl|ruby)\b/i,
     // 直接执行任意代码的危险别名（PowerShell iex）
     /\biex\b/i,
+    // 高危磁盘与系统破坏防御
+    /\bdiskpart\b/i,
+    /\bnetsh\s+advfirewall\b/i,
+    /\bRemove-Item\b[\s\S]*-Recurse[\s\S]*-Force\b/i,
+    /\btaskkill\s+\/[fF]\s+\/im\b/i
 ];
 /** 高风险模式：需用户显式确认 */
 exports.HIGH_PATTERNS = [
@@ -43,6 +49,22 @@ exports.MEDIUM_PATTERNS = [
     /\b(net\s+(user|share|use|localgroup))\b/i,
     /\b(pip|npm|yarn)\s+install\b/i,
 ];
+/** 尝试解密 Base64 (支持 UTF-16LE 与 UTF-8)，防止 Powershell -EncodedCommand 绕过检测 */
+function tryDecodeBase64(base64Str) {
+    try {
+        const buf = Buffer.from(base64Str, 'base64');
+        const utf16 = buf.toString('utf16le');
+        if (/[a-zA-Z0-9_-]/.test(utf16))
+            return utf16;
+        const utf8 = buf.toString('utf8');
+        if (/[a-zA-Z0-9_-]/.test(utf8))
+            return utf8;
+    }
+    catch {
+        // 忽略无效编码
+    }
+    return undefined;
+}
 /**
  * 解析命令：提取首 token（解释器/可执行文件）与 -e/-c/-Command 之后的脚本体。
  */
@@ -56,27 +78,60 @@ function parseCommand(command) {
     let interpreter = m[1].toLowerCase().replace(/\.exe$/i, '');
     const rest = m[2] || '';
     // 提取 -e / -c / -Command / -EncodedCommand 之后的脚本体（去除外层引号）
-    const bodyMatch = rest.match(/(?:^|\s)(-e|-c|-Command|-EncodedCommand)\s+"?([^"]*?)"?(?:\s|$)/i);
+    const bodyMatch = rest.match(/(?:^|\s)(-e|-c|-Command|-EncodedCommand|-enc)\s+"?([^"]*?)"?(?:\s|$)/i);
     const script = bodyMatch ? bodyMatch[2] : undefined;
     return { interpreter, script };
 }
 /**
- * 评估命令风险等级。
- * @param command 待评估的命令字符串
- * @returns 风险等级
+ * 评估命令风险等级，返回详细审计信息。
+ */
+function assessRiskDetailed(command) {
+    const { interpreter, script } = parseCommand(command);
+    let decoded = undefined;
+    const encodedMatch = (command || '').match(/(?:-EncodedCommand|-enc)\s+([A-Za-z0-9+/=]+)/i);
+    if (encodedMatch && encodedMatch[1]) {
+        decoded = tryDecodeBase64(encodedMatch[1]);
+    }
+    const scanTargets = [command, script, decoded].filter((s) => typeof s === 'string' && s.length > 0);
+    for (const p of exports.FORBIDDEN_PATTERNS) {
+        if (scanTargets.some(t => p.test(t))) {
+            return {
+                level: 'forbidden',
+                reason: `命中已知高危阻断规则 (${p.source})`,
+                decodedScript: decoded
+            };
+        }
+    }
+    for (const p of exports.HIGH_PATTERNS) {
+        if (scanTargets.some(t => p.test(t))) {
+            return {
+                level: 'high',
+                reason: `包含破坏性系统操作 (${p.source})`,
+                decodedScript: decoded
+            };
+        }
+    }
+    if (interpreter && exports.INTERPRETER_CARRIERS.includes(interpreter)) {
+        return {
+            level: 'medium',
+            reason: `动态脚本解释器载体 (${interpreter})`,
+            decodedScript: decoded
+        };
+    }
+    for (const p of exports.MEDIUM_PATTERNS) {
+        if (scanTargets.some(t => p.test(t))) {
+            return {
+                level: 'medium',
+                reason: `敏感文件或软件管理指令 (${p.source})`,
+                decodedScript: decoded
+            };
+        }
+    }
+    return { level: 'low', decodedScript: decoded };
+}
+/**
+ * 评估命令风险等级（向下兼容原签名）。
  */
 function assessRisk(command) {
-    const { interpreter, script } = parseCommand(command);
-    // 联合扫描：全命令 + 解释器脚本体，防止「载体包裹」绕过禁止清单
-    // （例如 node -e "require('child_process').execSync('rm -rf /')" 必须被 forbidden 拦截）
-    const scanTargets = [command, script].filter((s) => typeof s === 'string' && s.length > 0);
-    if (exports.FORBIDDEN_PATTERNS.some((p) => scanTargets.some((t) => p.test(t))))
-        return 'forbidden';
-    if (interpreter && exports.INTERPRETER_CARRIERS.includes(interpreter))
-        return 'medium';
-    if (exports.HIGH_PATTERNS.some((p) => scanTargets.some((t) => p.test(t))))
-        return 'high';
-    if (exports.MEDIUM_PATTERNS.some((p) => scanTargets.some((t) => p.test(t))))
-        return 'medium';
-    return 'low';
+    return assessRiskDetailed(command).level;
 }

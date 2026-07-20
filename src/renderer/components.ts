@@ -548,3 +548,106 @@ export function showPrompt(message: string, defaultValue: string = ''): Promise<
     });
   });
 }
+
+// ================== thinking-card.ts ==================
+/**
+ * 可折叠 AI 思维链与工具调用卡片组件
+ */
+export interface ThinkingCardOptions {
+  title?: string;
+  content: string;
+  toolName?: string;
+  durationMs?: number;
+  expanded?: boolean;
+}
+
+export function createThinkingCard({
+  title = 'AI 思考过程与工具调用',
+  content = '',
+  toolName = '',
+  durationMs = 0,
+  expanded = false
+}: ThinkingCardOptions): HTMLElement {
+  const container = document.createElement('div');
+  container.className = 'thinking-card-container';
+  container.style.margin = '8px 0';
+  container.style.borderRadius = '12px';
+  container.style.border = '1px solid var(--border-light, rgba(0, 0, 0, 0.1))';
+  container.style.background = 'var(--bg-secondary, rgba(240, 240, 245, 0.5))';
+  container.style.overflow = 'hidden';
+  container.style.transition = 'all 0.2s ease';
+
+  // 头部
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.padding = '8px 12px';
+  header.style.cursor = 'pointer';
+  header.style.userSelect = 'none';
+  header.style.fontSize = '13px';
+  header.style.color = 'var(--text-secondary, #666)';
+
+  const leftBadge = document.createElement('div');
+  leftBadge.style.display = 'flex';
+  leftBadge.style.alignItems = 'center';
+  leftBadge.style.gap = '6px';
+
+  const icon = document.createElement('span');
+  icon.innerHTML = '🧠';
+  icon.style.fontSize = '14px';
+
+  const titleEl = document.createElement('span');
+  titleEl.style.fontWeight = '500';
+  titleEl.textContent = toolName ? `执行工具: ${toolName}` : title;
+
+  leftBadge.appendChild(icon);
+  leftBadge.appendChild(titleEl);
+
+  const rightBadge = document.createElement('div');
+  rightBadge.style.display = 'flex';
+  rightBadge.style.alignItems = 'center';
+  rightBadge.style.gap = '8px';
+
+  if (durationMs > 0) {
+    const timeEl = document.createElement('span');
+    timeEl.style.fontSize = '11px';
+    timeEl.style.opacity = '0.7';
+    timeEl.textContent = `${(durationMs / 1000).toFixed(1)}s`;
+    rightBadge.appendChild(timeEl);
+  }
+
+  const arrow = document.createElement('span');
+  arrow.style.transition = 'transform 0.2s ease';
+  arrow.textContent = expanded ? '▲' : '▼';
+  rightBadge.appendChild(arrow);
+
+  header.appendChild(leftBadge);
+  header.appendChild(rightBadge);
+
+  // 内容区
+  const body = document.createElement('div');
+  body.style.display = expanded ? 'block' : 'none';
+  body.style.padding = '10px 12px';
+  body.style.borderTop = '1px solid var(--border-light, rgba(0, 0, 0, 0.05))';
+  body.style.fontSize = '12px';
+  body.style.fontFamily = 'monospace';
+  body.style.whiteSpace = 'pre-wrap';
+  body.style.maxHeight = '240px';
+  body.style.overflowY = 'auto';
+  body.style.color = 'var(--text-muted, #555)';
+  body.style.background = 'var(--bg-code, rgba(0, 0, 0, 0.02))';
+  body.textContent = content;
+
+  let isExpanded = expanded;
+  header.onclick = () => {
+    isExpanded = !isExpanded;
+    body.style.display = isExpanded ? 'block' : 'none';
+    arrow.style.transform = isExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+  };
+
+  container.appendChild(header);
+  container.appendChild(body);
+  return container;
+}
+
